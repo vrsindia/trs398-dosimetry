@@ -5,64 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TRS-398 Dosimetry</title>
     <style>
-        :root {
-            --primary: #1a365d;
-            --accent: #2b6cb0;
-            --bg: #f7fafc;
-            --card: #ffffff;
-        }
+        :root { --primary: #1a365d; --accent: #2b6cb0; --bg: #f7fafc; --card: #fff; }
         * { box-sizing: border-box; }
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: var(--bg);
-            color: #1a202c;
-            margin: 0;
-            padding: 0;
-            line-height: 1.5;
-        }
-        header {
-            background: var(--primary);
-            color: white;
-            padding: 1.5rem 2rem;
-        }
+        body { font-family: system-ui, sans-serif; background: var(--bg); color: #1a202c; margin: 0; line-height: 1.5; }
+        header { background: var(--primary); color: white; padding: 1.5rem 2rem; }
         header h1 { margin: 0; font-size: 1.6rem; }
-        header p { margin: 0.3rem 0 0; opacity: 0.85; font-size: 0.95rem; }
-        main { max-width: 900px; margin: 2rem auto; padding: 0 1.5rem; }
-        .card {
-            background: var(--card);
-            border-radius: 10px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-        }
+        header p { margin: 0.3rem 0 0; opacity: 0.85; }
+        main { max-width: 960px; margin: 2rem auto; padding: 0 1.5rem; }
+        .card { background: var(--card); border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .card h2 { margin-top: 0; color: var(--primary); font-size: 1.25rem; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
-        a.btn {
-            display: block;
-            background: var(--accent);
-            color: white;
-            text-decoration: none;
-            padding: 1rem 1.25rem;
-            border-radius: 8px;
-            text-align: center;
-            font-weight: 600;
-            transition: background 0.15s;
-        }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+        a.btn { display: block; background: var(--accent); color: white; text-decoration: none; padding: 1rem; border-radius: 8px; text-align: center; font-weight: 600; }
         a.btn:hover { background: #2c5282; }
+        a.btn.secondary { background: #4a5568; }
+        a.btn.secondary:hover { background: #2d3748; }
         .status { font-size: 0.9rem; color: #4a5568; }
         footer { text-align: center; padding: 2rem; color: #718096; font-size: 0.85rem; }
-        .badge { display: inline-block; background: #c6f6d5; color: #276749; font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px; margin-left: 0.5rem; }
+        .badge { display: inline-block; background: #c6f6d5; color: #276749; font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #e2e8f0; }
+        th { color: #4a5568; }
+        .overdue { color: #c53030; font-weight: 600; }
     </style>
 </head>
 <body>
     <header>
-        <h1>TRS-398 Dosimetry <span class="badge">v0.7</span></h1>
-        <p>IAEA TRS-398 Absolute Dosimetry &amp; Brachytherapy Source Strength</p>
+        <h1>TRS-398 Dosimetry <span class="badge">v0.8</span></h1>
+        <p>IAEA TRS-398 Absolute Dosimetry &amp; Brachytherapy</p>
     </header>
 
     <main>
         <div class="card">
-            <h2>Available Modules</h2>
+            <h2>Calculations</h2>
             <div class="grid">
                 <a class="btn" href="/photon">Photon Absolute Dosimetry</a>
                 <a class="btn" href="/electron">Electron Absolute Dosimetry</a>
@@ -71,22 +45,38 @@
         </div>
 
         <div class="card">
-            <h2>Project Status</h2>
+            <h2>Libraries</h2>
+            <div class="grid">
+                <a class="btn secondary" href="/detectors">Detector Library</a>
+                <a class="btn secondary" href="/linacs">Linac &amp; Beam Library</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Quick Overview</h2>
             <p class="status">
-                <strong>All planned stages (1–7) complete.</strong><br>
-                Photon · Electron · Brachytherapy · Chamber registry · CI · Render-ready.<br><br>
-                Single-physicist tool. <strong>Not validated for clinical use.</strong>
+                <strong>{{ detectors|length }}</strong> detectors ·
+                <strong>{{ linacs|length }}</strong> linacs registered
             </p>
-            <p>
-                <a href="/docs">OpenAPI documentation</a> ·
-                <a href="/health">Health check</a> ·
-                <a href="/api/chambers">List chambers (API)</a>
-            </p>
+            {% if detectors %}
+            <table>
+                <tr><th>Detector</th><th>Type</th><th>N<sub>D,w</sub> / N<sub>SK</sub></th><th>Next Due</th></tr>
+                {% for d in detectors %}
+                <tr>
+                    <td>{{ d.name }}</td>
+                    <td>{{ d.detector_type }}</td>
+                    <td>{{ "%.5f"|format(d.calibration_factor) }}</td>
+                    <td class="{% if d.is_overdue() %}overdue{% endif %}">
+                        {{ d.next_due_date or "—" }}
+                        {% if d.is_overdue() %} (OVERDUE){% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% endif %}
         </div>
     </main>
 
-    <footer>
-        TRS-398 Dosimetry App · Pure Python calculation library · FastAPI · Zero-cost ready
-    </footer>
+    <footer>TRS-398 Dosimetry · Single-physicist tool · Not for clinical use without validation</footer>
 </body>
 </html>

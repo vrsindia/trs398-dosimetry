@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linac & Beam Library – TRS-398</title>
+    <style>
+        :root { --primary: #1a365d; --accent: #2b6cb0; --bg: #f7fafc; --card: #fff; --danger: #c53030; }
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); color: #1a202c; margin: 0; line-height: 1.5; }
+        header { background: var(--primary); color: white; padding: 1.2rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        header a { color: #bee3f8; text-decoration: none; }
+        main { max-width: 1100px; margin: 1.5rem auto; padding: 0 1.5rem; }
+        .card { background: var(--card); border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        h1, h2, h3 { color: var(--primary); margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid #e2e8f0; }
+        th { color: #4a5568; }
+        label { display: block; font-weight: 600; margin-top: 0.7rem; font-size: 0.9rem; }
+        input, select { width: 100%; padding: 0.45rem 0.6rem; margin-top: 0.2rem; border: 1px solid #cbd5e0; border-radius: 6px; }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+        button, .btn { background: var(--accent); color: white; border: none; padding: 0.55rem 1.1rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        button:hover { background: #2c5282; }
+        .btn-danger { background: var(--danger); }
+        .btn-sm { padding: 0.3rem 0.65rem; font-size: 0.85rem; }
+        .linac-block { border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1.2rem; }
+        .modality-photon { color: #2b6cb0; }
+        .modality-electron { color: #276749; }
+    </style>
+</head>
+<body>
+    <header>
+        <strong>Linac &amp; Beam Library</strong>
+        <a href="/">← Home</a>
+    </header>
+
+    <main>
+        {% for linac in linacs %}
+        <div class="card linac-block">
+            <h2>{{ linac.name }}
+                <form method="post" action="/linacs/{{ linac.id }}/delete" style="display:inline; float:right;"
+                      onsubmit="return confirm('Delete this linac and all its beams?');">
+                    <button type="submit" class="btn-sm btn-danger">Delete Linac</button>
+                </form>
+            </h2>
+            <p style="color:#4a5568; margin-top:0;">
+                {{ linac.manufacturer }} {{ linac.model }}
+                {% if linac.serial_number %} · S/N {{ linac.serial_number }}{% endif %}
+                {% if linac.location %} · {{ linac.location }}{% endif %}
+            </p>
+
+            <h3>Beams / Energies</h3>
+            {% set linac_beams = beams | selectattr('linac_id', 'equalto', linac.id) | list %}
+            {% if linac_beams %}
+            <table>
+                <tr>
+                    <th>Modality</th>
+                    <th>Energy</th>
+                    <th>Meas. Depth (cm)</th>
+                    <th>PDD</th>
+                    <th>k<sub>Q</sub></th>
+                    <th>SSD</th>
+                    <th>Field</th>
+                    <th></th>
+                </tr>
+                {% for b in linac_beams %}
+                <tr>
+                    <td class="modality-{{ b.modality }}">{{ b.modality | capitalize }}</td>
+                    <td>{{ b.nominal_energy }}</td>
+                    <td>{{ b.measurement_depth_cm }}</td>
+                    <td>{{ "%.3f"|format(b.pdd) }}</td>
+                    <td>{{ "%.4f"|format(b.k_Q) }}</td>
+                    <td>{{ b.ssd_cm }}</td>
+                    <td>{{ b.field_size }}</td>
+                    <td>
+                        <form method="post" action="/beams/{{ b.id }}/delete" style="display:inline;"
+                              onsubmit="return confirm('Delete this beam?');">
+                            <button type="submit" class="btn-sm btn-danger">×</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% else %}
+            <p style="color:#718096;">No beams defined yet.</p>
+            {% endif %}
+
+            <details style="margin-top:1rem;">
+                <summary style="cursor:pointer; color:var(--accent); font-weight:600;">+ Add Beam / Energy</summary>
+                <form method="post" action="/beams/add" style="margin-top:0.8rem;">
+                    <input type="hidden" name="linac_id" value="{{ linac.id }}">
+                    <div class="row3">
+                        <div>
+                            <label>Modality</label>
+                            <select name="modality" required>
+                                <option value="photon">Photon</option>
+                                <option value="electron">Electron</option>
+                            </select>
+                        </div>
+                        <div><label>Energy</label><input name="nominal_energy" required placeholder="6 MV / 9 MeV"></div>
+                        <div><label>Meas. Depth (cm)</label><input type="number" step="any" name="measurement_depth_cm" value="10" required></div>
+                    </div>
+                    <div class="row3">
+                        <div><label>PDD (fraction)</label><input type="number" step="any" name="pdd" required placeholder="0.667"></div>
+                        <div><label>k<sub>Q</sub></label><input type="number" step="any" name="k_Q" required placeholder="0.994"></div>
+                        <div><label>SSD (cm)</label><input type="number" step="any" name="ssd_cm" value="100"></div>
+                    </div>
+                    <div class="row">
+                        <div><label>Field Size</label><input name="field_size" value="10x10"></div>
+                        <div><label>Notes</label><input name="notes"></div>
+                    </div>
+                    <button type="submit" style="margin-top:0.8rem;">Add Beam</button>
+                </form>
+            </details>
+        </div>
+        {% endfor %}
+
+        <div class="card">
+            <h2>Add New Linac</h2>
+            <form method="post" action="/linacs/add">
+                <div class="row">
+                    <div><label>Name *</label><input name="name" required placeholder="TrueBeam 1"></div>
+                    <div><label>Manufacturer</label><input name="manufacturer" placeholder="Varian"></div>
+                </div>
+                <div class="row">
+                    <div><label>Model</label><input name="model" placeholder="TrueBeam"></div>
+                    <div><label>Serial Number</label><input name="serial_number"></div>
+                </div>
+                <div class="row">
+                    <div><label>Location</label><input name="location" placeholder="Bunker A"></div>
+                    <div><label>Notes</label><input name="notes"></div>
+                </div>
+                <button type="submit" style="margin-top:1rem; width:100%;">Add Linac</button>
+            </form>
+        </div>
+    </main>
+</body>
+</html>
