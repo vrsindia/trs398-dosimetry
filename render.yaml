@@ -1,4 +1,3 @@
-# Render Blueprint for free-tier deployment
 services:
   - type: web
     name: trs398-dosimetry
