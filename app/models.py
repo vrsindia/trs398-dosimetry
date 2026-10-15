@@ -1,13 +1,13 @@
 """
-Core data models for Detector, Linac, Beam, Tolerance and Output Tuning.
-In-memory for zero-cost deployment. Easy to migrate later.
+Core data models + approval workflow for library edits.
 """
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import date, datetime
 import uuid
+import copy
 
 
 def _new_id() -> str:
@@ -15,7 +15,39 @@ def _new_id() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Detector Library
+# Department Details
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Department:
+    name: str = "Radiation Oncology Department"
+    hospital: str = ""
+    address: str = ""
+    city: str = ""
+    country: str = ""
+    phone: str = ""
+    email: str = ""
+    head_physicist: str = ""
+    logo_url: str = ""
+    notes: str = ""
+
+
+_DEPARTMENT = Department()
+
+
+def get_department() -> Department:
+    return _DEPARTMENT
+
+
+def update_department(**kwargs) -> Department:
+    for k, v in kwargs.items():
+        if hasattr(_DEPARTMENT, k):
+            setattr(_DEPARTMENT, k, v)
+    return _DEPARTMENT
+
+
+# ---------------------------------------------------------------------------
+# Detector
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -42,7 +74,7 @@ class Detector:
 
 
 # ---------------------------------------------------------------------------
-# Linac Library
+# Linac & Beam
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -56,44 +88,40 @@ class Linac:
     notes: str = ""
 
 
-# ---------------------------------------------------------------------------
-# Beam / Energy configuration
-# ---------------------------------------------------------------------------
-
 @dataclass
 class Beam:
     id: str
     linac_id: str
-    modality: str                       # photon | electron
+    modality: str
     nominal_energy: str
-    measurement_depth_cm: float         # 10 cm photon, 20 cm electron (clinic)
+    measurement_depth_cm: float
     pdd: float = 1.0
     k_Q: float = 1.0
-    quality_index: Optional[float] = None   # TPR20,10 or %dd(10)x
+    quality_index: Optional[float] = None
     ssd_cm: float = 100.0
     field_size: str = "10x10"
     notes: str = ""
 
 
 # ---------------------------------------------------------------------------
-# Tolerance Tables
+# Tolerance
 # ---------------------------------------------------------------------------
 
 @dataclass
 class ToleranceTable:
     id: str
-    name: str                           # e.g. "TrueBeam Photon Daily", "HDR Source Strength"
-    linac_id: Optional[str] = None      # None = global / brachy
-    modality: str = "photon"            # photon | electron | brachy
-    energy: Optional[str] = None        # specific energy or None = all
-    parameter: str = "output"           # output | k_Q | source_strength | etc.
-    tolerance_percent: float = 2.0      # ± %
-    action_level_percent: Optional[float] = None
+    name: str
+    linac_id: Optional[str] = None
+    modality: str = "photon"
+    energy: Optional[str] = None
+    parameter: str = "output"
+    tolerance_percent: float = 2.0
+    action_level_percent: Optional[float] = 3.0
     notes: str = ""
 
 
 # ---------------------------------------------------------------------------
-# Output Measurement & Tuning Record
+# Output Record
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -103,8 +131,8 @@ class OutputRecord:
     beam_id: str
     modality: str
     energy: str
-    date_time: str                      # ISO
-    measured_output_cGy_MU: float       # before any tuning
+    date_time: str
+    measured_output_cGy_MU: float
     tuned_output_cGy_MU: Optional[float] = None
     tuning_performed: bool = False
     detector_id: Optional[str] = None
@@ -114,10 +142,32 @@ class OutputRecord:
     k_Q: float = 1.0
     notes: str = ""
     physicist: str = ""
+    nominal_output_cGy_MU: float = 1.0   # expected / reference
+    status: str = "unknown"              # pass | warning | fail
 
 
 # ---------------------------------------------------------------------------
-# In-memory stores
+# Pending Change (approval workflow)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PendingChange:
+    id: str
+    entity_type: str          # detector | linac | beam | tolerance | department
+    entity_id: str
+    action: str               # create | update | delete
+    proposed_data: Dict[str, Any]
+    original_data: Optional[Dict[str, Any]] = None
+    requested_by: str = ""
+    requested_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    status: str = "pending"   # pending | approved | rejected
+    reviewed_by: str = ""
+    reviewed_at: Optional[str] = None
+    comment: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Stores
 # ---------------------------------------------------------------------------
 
 _DETECTORS: Dict[str, Detector] = {}
@@ -125,9 +175,10 @@ _LINACS: Dict[str, Linac] = {}
 _BEAMS: Dict[str, Beam] = {}
 _TOLERANCES: Dict[str, ToleranceTable] = {}
 _OUTPUT_RECORDS: Dict[str, OutputRecord] = {}
+_PENDING: Dict[str, PendingChange] = {}
 
 
-# -------------------- Detector CRUD --------------------
+# -------------------- Detector --------------------
 
 def add_detector(det: Detector) -> Detector:
     _DETECTORS[det.id] = det
@@ -155,7 +206,7 @@ def delete_detector(det_id: str) -> bool:
     return False
 
 
-# -------------------- Linac CRUD --------------------
+# -------------------- Linac --------------------
 
 def add_linac(linac: Linac) -> Linac:
     _LINACS[linac.id] = linac
@@ -185,7 +236,7 @@ def delete_linac(linac_id: str) -> bool:
     return False
 
 
-# -------------------- Beam CRUD --------------------
+# -------------------- Beam --------------------
 
 def add_beam(beam: Beam) -> Beam:
     _BEAMS[beam.id] = beam
@@ -218,7 +269,7 @@ def delete_beam(beam_id: str) -> bool:
     return False
 
 
-# -------------------- Tolerance CRUD --------------------
+# -------------------- Tolerance --------------------
 
 def add_tolerance(tol: ToleranceTable) -> ToleranceTable:
     _TOLERANCES[tol.id] = tol
@@ -234,6 +285,18 @@ def list_tolerances(linac_id: Optional[str] = None, modality: Optional[str] = No
     if modality:
         tols = [t for t in tols if t.modality == modality]
     return sorted(tols, key=lambda t: (t.modality, t.name))
+
+def find_tolerance(modality: str, energy: Optional[str] = None, linac_id: Optional[str] = None) -> Optional[ToleranceTable]:
+    """Find the most specific matching tolerance."""
+    candidates = list_tolerances(linac_id=linac_id, modality=modality)
+    # Prefer exact energy match, then energy=None
+    for t in candidates:
+        if t.energy == energy:
+            return t
+    for t in candidates:
+        if t.energy is None:
+            return t
+    return None
 
 def update_tolerance(tol_id: str, **kwargs) -> Optional[ToleranceTable]:
     tol = _TOLERANCES.get(tol_id)
@@ -251,7 +314,20 @@ def delete_tolerance(tol_id: str) -> bool:
     return False
 
 
-# -------------------- Output Record CRUD --------------------
+def check_tolerance(measured: float, nominal: float, tol: Optional[ToleranceTable]) -> str:
+    """Return 'pass' | 'warning' | 'fail' | 'unknown'."""
+    if not tol or nominal == 0:
+        return "unknown"
+    pct = abs(measured - nominal) / nominal * 100.0
+    action = tol.action_level_percent if tol.action_level_percent is not None else tol.tolerance_percent * 1.5
+    if pct <= tol.tolerance_percent:
+        return "pass"
+    if pct <= action:
+        return "warning"
+    return "fail"
+
+
+# -------------------- Output Record --------------------
 
 def add_output_record(rec: OutputRecord) -> OutputRecord:
     _OUTPUT_RECORDS[rec.id] = rec
@@ -266,13 +342,76 @@ def list_output_records(linac_id: Optional[str] = None, beam_id: Optional[str] =
     return sorted(recs, key=lambda r: r.date_time, reverse=True)
 
 
-# -------------------- Seed example data --------------------
+# -------------------- Pending Changes (Approval) --------------------
+
+def submit_change(entity_type: str, entity_id: str, action: str,
+                  proposed_data: dict, original_data: Optional[dict] = None,
+                  requested_by: str = "") -> PendingChange:
+    pc = PendingChange(
+        id=_new_id(),
+        entity_type=entity_type,
+        entity_id=entity_id,
+        action=action,
+        proposed_data=proposed_data,
+        original_data=original_data,
+        requested_by=requested_by,
+    )
+    _PENDING[pc.id] = pc
+    return pc
+
+def list_pending(status: str = "pending") -> List[PendingChange]:
+    return sorted(
+        [p for p in _PENDING.values() if p.status == status],
+        key=lambda p: p.requested_at, reverse=True,
+    )
+
+def get_pending(pc_id: str) -> Optional[PendingChange]:
+    return _PENDING.get(pc_id)
+
+def approve_change(pc_id: str, reviewed_by: str = "") -> Optional[PendingChange]:
+    pc = _PENDING.get(pc_id)
+    if not pc or pc.status != "pending":
+        return None
+    # Apply the change
+    if pc.entity_type == "beam" and pc.action == "update":
+        update_beam(pc.entity_id, **pc.proposed_data)
+    elif pc.entity_type == "detector" and pc.action == "update":
+        update_detector(pc.entity_id, **pc.proposed_data)
+    elif pc.entity_type == "linac" and pc.action == "update":
+        update_linac(pc.entity_id, **pc.proposed_data)
+    elif pc.entity_type == "tolerance" and pc.action == "update":
+        update_tolerance(pc.entity_id, **pc.proposed_data)
+    elif pc.entity_type == "department" and pc.action == "update":
+        update_department(**pc.proposed_data)
+    elif pc.entity_type == "beam" and pc.action == "delete":
+        delete_beam(pc.entity_id)
+    elif pc.entity_type == "detector" and pc.action == "delete":
+        delete_detector(pc.entity_id)
+    elif pc.entity_type == "tolerance" and pc.action == "delete":
+        delete_tolerance(pc.entity_id)
+
+    pc.status = "approved"
+    pc.reviewed_by = reviewed_by
+    pc.reviewed_at = datetime.utcnow().isoformat()
+    return pc
+
+def reject_change(pc_id: str, reviewed_by: str = "", comment: str = "") -> Optional[PendingChange]:
+    pc = _PENDING.get(pc_id)
+    if not pc or pc.status != "pending":
+        return None
+    pc.status = "rejected"
+    pc.reviewed_by = reviewed_by
+    pc.reviewed_at = datetime.utcnow().isoformat()
+    pc.comment = comment
+    return pc
+
+
+# -------------------- Seed --------------------
 
 def seed_libraries() -> None:
     if _DETECTORS:
         return
 
-    # Detectors
     add_detector(Detector(
         id="det-farmer-01", name="PTW Farmer 30013", detector_type="Cylindrical (Farmer)",
         serial_number="1234", calibration_factor=0.04521, calibration_quality="Co-60",
@@ -292,13 +431,11 @@ def seed_libraries() -> None:
         next_due_date="2026-01-10", notes="HDR well chamber", unit="µGy m² h⁻¹ / nA",
     ))
 
-    # Linacs
     add_linac(Linac(id="linac-tb1", name="TrueBeam 1", manufacturer="Varian",
                     model="TrueBeam", serial_number="TB-1001", location="Bunker A"))
     add_linac(Linac(id="linac-hx1", name="Halcyon 1", manufacturer="Varian",
                     model="Halcyon", serial_number="HX-2003", location="Bunker B"))
 
-    # Beams – TrueBeam
     add_beam(Beam(id="beam-tb1-6x", linac_id="linac-tb1", modality="photon",
                   nominal_energy="6 MV", measurement_depth_cm=10.0, pdd=0.667, k_Q=0.994, quality_index=0.667))
     add_beam(Beam(id="beam-tb1-10x", linac_id="linac-tb1", modality="photon",
@@ -311,16 +448,12 @@ def seed_libraries() -> None:
                   nominal_energy="9 MeV", measurement_depth_cm=20.0, pdd=0.12, k_Q=0.910))
     add_beam(Beam(id="beam-tb1-12e", linac_id="linac-tb1", modality="electron",
                   nominal_energy="12 MeV", measurement_depth_cm=20.0, pdd=0.25, k_Q=0.900))
-
-    # Beams – Halcyon
     add_beam(Beam(id="beam-hx1-6x", linac_id="linac-hx1", modality="photon",
                   nominal_energy="6 MV", measurement_depth_cm=10.0, pdd=0.670, k_Q=0.993))
 
-    # Default tolerances
     add_tolerance(ToleranceTable(
-        id="tol-photon-output", name="Photon Output (Daily/Monthly)",
+        id="tol-photon-output", name="Photon Output",
         modality="photon", parameter="output", tolerance_percent=2.0, action_level_percent=3.0,
-        notes="Typical AAPM TG-142 style",
     ))
     add_tolerance(ToleranceTable(
         id="tol-electron-output", name="Electron Output",
@@ -329,5 +462,11 @@ def seed_libraries() -> None:
     add_tolerance(ToleranceTable(
         id="tol-brachy-sk", name="HDR Source Strength",
         modality="brachy", parameter="source_strength", tolerance_percent=3.0,
-        notes="Typical manufacturer / institutional tolerance",
     ))
+
+    update_department(
+        name="Department of Radiation Oncology",
+        hospital="Example Cancer Centre",
+        city="Your City", country="Your Country",
+        head_physicist="Chief Medical Physicist",
+    )
