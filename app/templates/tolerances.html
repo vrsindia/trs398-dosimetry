@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tolerance Tables – TRS-398</title>
+    <style>
+        :root { --primary: #1a365d; --accent: #2b6cb0; --bg: #f7fafc; --card: #fff; --danger: #c53030; }
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); color: #1a202c; margin: 0; line-height: 1.5; }
+        header { background: var(--primary); color: white; padding: 1.2rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        header a { color: #bee3f8; text-decoration: none; }
+        main { max-width: 1000px; margin: 1.5rem auto; padding: 0 1.5rem; }
+        .card { background: var(--card); border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        h1, h2 { color: var(--primary); margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid #e2e8f0; }
+        th { color: #4a5568; }
+        label { display: block; font-weight: 600; margin-top: 0.7rem; font-size: 0.9rem; }
+        input, select { width: 100%; padding: 0.45rem 0.6rem; margin-top: 0.2rem; border: 1px solid #cbd5e0; border-radius: 6px; }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+        button { background: var(--accent); color: white; border: none; padding: 0.55rem 1.1rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        button:hover { background: #2c5282; }
+        .btn-danger { background: var(--danger); }
+        .btn-sm { padding: 0.3rem 0.65rem; font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <strong>Tolerance Tables</strong>
+        <a href="/">← Home</a>
+    </header>
+    <main>
+        <div class="card">
+            <h1>Tolerance Library</h1>
+            <p style="color:#4a5568;">Define different tolerance tables for linac beam energies and brachytherapy.</p>
+            {% if tolerances %}
+            <table>
+                <tr>
+                    <th>Name</th>
+                    <th>Modality</th>
+                    <th>Energy</th>
+                    <th>Parameter</th>
+                    <th>Tolerance ±%</th>
+                    <th>Action Level ±%</th>
+                    <th></th>
+                </tr>
+                {% for t in tolerances %}
+                <tr>
+                    <td>{{ t.name }}</td>
+                    <td>{{ t.modality }}</td>
+                    <td>{{ t.energy or "All" }}</td>
+                    <td>{{ t.parameter }}</td>
+                    <td>{{ t.tolerance_percent }}%</td>
+                    <td>{{ t.action_level_percent or "—" }}</td>
+                    <td>
+                        <form method="post" action="/tolerances/{{ t.id }}/delete" style="display:inline;"
+                              onsubmit="return confirm('Delete this tolerance?');">
+                            <button type="submit" class="btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% else %}
+            <p>No tolerance tables defined yet.</p>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>Add Tolerance Table</h2>
+            <form method="post" action="/tolerances/add">
+                <div class="row">
+                    <div><label>Name *</label><input name="name" required placeholder="TrueBeam 6 MV Output"></div>
+                    <div>
+                        <label>Modality *</label>
+                        <select name="modality" required>
+                            <option value="photon">Photon</option>
+                            <option value="electron">Electron</option>
+                            <option value="brachy">Brachytherapy</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row3">
+                    <div><label>Energy (optional)</label><input name="energy" placeholder="6 MV / leave blank for all"></div>
+                    <div><label>Parameter</label><input name="parameter" value="output"></div>
+                    <div><label>Linac (optional)</label>
+                        <select name="linac_id">
+                            <option value="">Global / All</option>
+                            {% for l in linacs %}
+                            <option value="{{ l.id }}">{{ l.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div><label>Tolerance ±%</label><input type="number" step="any" name="tolerance_percent" value="2.0" required></div>
+                    <div><label>Action Level ±% (optional)</label><input type="number" step="any" name="action_level_percent"></div>
+                </div>
+                <label>Notes</label><input name="notes">
+                <button type="submit" style="margin-top:1rem; width:100%;">Add Tolerance</button>
+            </form>
+        </div>
+    </main>
+</body>
+</html>
