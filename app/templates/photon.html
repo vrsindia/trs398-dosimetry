@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photon Absolute Dosimetry – TRS-398</title>
+    <style>
+        :root {
+            --primary: #1a365d;
+            --accent: #2b6cb0;
+            --bg: #f7fafc;
+            --card: #ffffff;
+            --success: #276749;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: #1a202c;
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+        }
+        header {
+            background: var(--primary);
+            color: white;
+            padding: 1.2rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header a { color: #bee3f8; text-decoration: none; }
+        main { max-width: 800px; margin: 1.5rem auto; padding: 0 1.5rem; }
+        .card {
+            background: var(--card);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        h1 { font-size: 1.4rem; margin: 0 0 0.5rem; color: var(--primary); }
+        label { display: block; font-weight: 600; margin-top: 0.9rem; font-size: 0.9rem; }
+        input {
+            width: 100%;
+            padding: 0.5rem 0.7rem;
+            margin-top: 0.25rem;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1.5rem;
+            width: 100%;
+        }
+        button:hover { background: #2c5282; }
+        .result-box {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            border-radius: 8px;
+            padding: 1.2rem;
+        }
+        .result-box h2 { margin-top: 0; color: var(--success); }
+        .dose { font-size: 1.8rem; font-weight: 700; color: var(--success); }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #e2e8f0; }
+        th { color: #4a5568; }
+        .note { font-size: 0.85rem; color: #718096; margin-top: 1rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <strong>TRS-398 Photon Absolute Dosimetry</strong>
+        <a href="/">← Home</a>
+    </header>
+
+    <main>
+        <div class="card">
+            <h1>Photon Beam – Absorbed Dose to Water</h1>
+            <p style="color:#4a5568; margin-top:0;">IAEA TRS-398 formalism</p>
+
+            <form method="post" action="/photon">
+                <div class="row">
+                    <div>
+                        <label>Raw charge M (nC)</label>
+                        <input type="number" step="any" name="raw_charge_nC" required
+                               value="{{ inputs.raw_charge_nC if inputs else '20.0' }}">
+                    </div>
+                    <div>
+                        <label>N<sub>D,w</sub> (Gy/nC)</label>
+                        <input type="number" step="any" name="N_Dw" required
+                               value="{{ inputs.N_Dw if inputs else '0.045' }}">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>k<sub>Q</sub></label>
+                        <input type="number" step="any" name="k_Q" required
+                               value="{{ inputs.k_Q if inputs else '0.994' }}">
+                    </div>
+                    <div>
+                        <label>Electrometer factor</label>
+                        <input type="number" step="any" name="electrometer_calibration_factor"
+                               value="{{ inputs.electrometer_calibration_factor if inputs else '1.0' }}">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>k<sub>pol</sub></label>
+                        <input type="number" step="any" name="k_pol"
+                               value="{{ inputs.k_pol if inputs else '1.0' }}">
+                    </div>
+                    <div>
+                        <label>k<sub>s</sub> (recombination)</label>
+                        <input type="number" step="any" name="k_s"
+                               value="{{ inputs.k_s if inputs else '1.0' }}">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>Temperature (°C)</label>
+                        <input type="number" step="any" name="temperature_C"
+                               value="{{ inputs.temperature_C if inputs else '20.0' }}">
+                    </div>
+                    <div>
+                        <label>Pressure (hPa)</label>
+                        <input type="number" step="any" name="pressure_hPa"
+                               value="{{ inputs.pressure_hPa if inputs else '1013.25' }}">
+                    </div>
+                </div>
+
+                <label>k<sub>other</sub> (optional)</label>
+                <input type="number" step="any" name="k_other"
+                       value="{{ inputs.k_other if inputs else '1.0' }}">
+
+                <button type="submit">Calculate Dose to Water</button>
+            </form>
+        </div>
+
+        {% if result %}
+        <div class="card result-box">
+            <h2>Result</h2>
+            <div class="dose">{{ "%.5f"|format(result.dose_to_water_Gy) }} Gy</div>
+            <p>Absorbed dose to water at the reference point</p>
+
+            <table>
+                <tr><th>Factor</th><th>Value</th></tr>
+                <tr><td>M<sub>Q</sub> (corrected charge)</td><td>{{ "%.5f"|format(result.M_Q_corrected) }} nC</td></tr>
+                <tr><td>k<sub>TP</sub></td><td>{{ "%.6f"|format(result.k_TP) }}</td></tr>
+                <tr><td>N<sub>D,w</sub></td><td>{{ result.factors_used.N_Dw }}</td></tr>
+                <tr><td>k<sub>Q</sub></td><td>{{ result.factors_used.k_Q }}</td></tr>
+                <tr><td>k<sub>pol</sub></td><td>{{ result.factors_used.k_pol }}</td></tr>
+                <tr><td>k<sub>s</sub></td><td>{{ result.factors_used.k_s }}</td></tr>
+            </table>
+
+            <p class="note">Formula: D<sub>w</sub> = M<sub>Q</sub> × N<sub>D,w</sub> × k<sub>Q</sub> × k<sub>pol</sub> × k<sub>s</sub> × k<sub>TP</sub> × k<sub>other</sub></p>
+        </div>
+        {% endif %}
+    </main>
+</body>
+</html>
