@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Directory – DOSE pro</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <strong>User Directory</strong>
+        <div>
+            <span style="color:var(--text-muted); font-size:0.85rem; margin-right:1rem;">{{ current_user.full_name }} ({{ current_user.role }})</span>
+            <a href="/">Home</a>
+        </div>
+    </header>
+    <main>
+        <div class="card">
+            <h1>Users</h1>
+            <p style="color:var(--text-muted);">Visible only to Admin and Developer. Assign roles and rights here.</p>
+            <table>
+                <tr>
+                    <th>Username</th><th>Full Name</th><th>Role</th><th>Active</th><th>Permissions</th><th></th>
+                </tr>
+                {% for u in users %}
+                <tr>
+                    <td>{{ u.username }}</td>
+                    <td>{{ u.full_name }}</td>
+                    <td>{{ u.role }}</td>
+                    <td>{{ "Yes" if u.active else "No" }}</td>
+                    <td style="font-size:0.75rem; color:var(--text-muted);">{{ u.permissions | join(", ") }}</td>
+                    <td>
+                        <details>
+                            <summary style="font-size:0.85rem;">Edit</summary>
+                            <form method="post" action="/users/{{ u.id }}/edit" style="margin-top:0.6rem;">
+                                <label>Full name</label><input name="full_name" value="{{ u.full_name }}">
+                                <label>Role</label>
+                                <select name="role">
+                                    {% for r in roles %}
+                                    <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
+                                    {% endfor %}
+                                </select>
+                                <label>New password (leave blank to keep)</label>
+                                <input type="password" name="password" autocomplete="new-password">
+                                <label style="margin-top:0.8rem;">Permissions</label>
+                                {% for p in all_perms %}
+                                <label style="font-weight:400; display:flex; align-items:center; gap:0.4rem; margin-top:0.3rem;">
+                                    <input type="checkbox" name="permissions" value="{{ p }}" style="width:auto;"
+                                           {% if p in u.permissions %}checked{% endif %}> {{ p }}
+                                </label>
+                                {% endfor %}
+                                <label style="margin-top:0.6rem; display:flex; align-items:center; gap:0.4rem;">
+                                    <input type="checkbox" name="active" value="1" style="width:auto;" {% if u.active %}checked{% endif %}> Active
+                                </label>
+                                <button type="submit" class="btn-sm" style="margin-top:0.7rem;">Save</button>
+                            </form>
+                            {% if u.role != 'developer' or users|selectattr('role','equalto','developer')|list|length > 1 %}
+                            <form method="post" action="/users/{{ u.id }}/delete" style="margin-top:0.4rem;"
+                                  onsubmit="return confirm('Delete user {{ u.username }}?');">
+                                <button type="submit" class="btn-sm btn-danger">Delete</button>
+                            </form>
+                            {% endif %}
+                        </details>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Create User</h2>
+            <form method="post" action="/users/add">
+                <div class="grid grid-2">
+                    <div><label>Username *</label><input name="username" required autocomplete="off"></div>
+                    <div><label>Full name *</label><input name="full_name" required></div>
+                </div>
+                <div class="grid grid-2">
+                    <div><label>Password *</label><input type="password" name="password" required autocomplete="new-password"></div>
+                    <div>
+                        <label>Role *</label>
+                        <select name="role" required>
+                            {% for r in roles %}
+                            <option value="{{ r }}">{{ r }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <p class="note">Default permissions for the role will be applied. You can adjust them after creation.</p>
+                <button type="submit" style="margin-top:1rem; width:100%;">Create User</button>
+            </form>
+        </div>
+    </main>
+</body>
+</html>

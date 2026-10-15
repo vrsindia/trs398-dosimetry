@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOSE pro – Login</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .login-wrap { max-width: 400px; margin: 4rem auto; }
+        .brand { text-align: center; margin-bottom: 1.5rem; }
+        .brand h1 { font-size: 2rem; margin: 0; color: var(--primary); letter-spacing: 0.05em; }
+        .brand p { color: var(--text-muted); margin: 0.3rem 0 0; font-size: 0.95rem; }
+        .error { background: var(--danger-bg); color: var(--danger); padding: 0.7rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="login-wrap">
+        <div class="brand">
+            <h1>DOSE pro</h1>
+            <p>Clinical Dosimetry Solution</p>
+        </div>
+        <div class="card">
+            <h2 style="margin-top:0;">Sign in</h2>
+            {% if error %}
+            <div class="error">{{ error }}</div>
+            {% endif %}
+            <form method="post" action="/login">
+                <label>Username</label>
+                <input type="text" name="username" required autofocus autocomplete="username">
+                <label>Password</label>
+                <input type="password" name="password" required autocomplete="current-password">
+                <button type="submit" style="margin-top:1.3rem; width:100%;">Sign in</button>
+            </form>
+        </div>
+        <p style="text-align:center; color:var(--text-muted); font-size:0.8rem; margin-top:1.5rem;">
+            Access is restricted. Contact your administrator for credentials.
+        </p>
+    </div>
+</body>
+</html>

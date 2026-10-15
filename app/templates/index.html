@@ -3,40 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TRS-398 Dosimetry</title>
+    <title>DOSE pro</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
         <div>
-            <strong>TRS-398 Dosimetry</strong>
-            <span style="color:var(--text-muted); font-size:0.85rem; margin-left:0.5rem;">v1.1</span>
+            <strong style="color:var(--primary); letter-spacing:0.04em;">DOSE pro</strong>
+            <span style="color:var(--text-muted); font-size:0.85rem; margin-left:0.5rem;">Clinical Dosimetry Solution</span>
         </div>
-        <a href="/department">Department</a>
+        <div style="display:flex; align-items:center; gap:1rem;">
+            <span style="color:var(--text-muted); font-size:0.85rem;">{{ current_user.full_name }} · {{ current_user.role }}</span>
+            <a href="/logout">Logout</a>
+        </div>
     </header>
 
     <main>
         <div class="card">
             <h1>Absolute Dosimetry</h1>
             <p style="color:var(--text-muted); margin-top:0;">Guided clinical workflow for linac and brachytherapy</p>
+            {% if current_user.has('calculate') %}
             <div class="grid grid-2" style="margin-top:1.25rem;">
                 <a class="btn btn-block" href="/linac" style="padding:1.3rem; font-size:1.1rem;">Linac Absolute Dosimetry</a>
                 <a class="btn btn-block btn-success" href="/brachy" style="padding:1.3rem; font-size:1.1rem;">Brachytherapy</a>
             </div>
+            {% else %}
+            <p style="color:var(--text-muted); margin-top:1rem;">Your role ({{ current_user.role }}) has view-only access.</p>
+            {% endif %}
         </div>
 
         <div class="card">
             <h2>Libraries &amp; Records</h2>
-            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+                {% if current_user.has('library_view') %}
                 <a class="btn btn-outline btn-block" href="/detectors">Detectors</a>
                 <a class="btn btn-outline btn-block" href="/linacs">Linacs &amp; Beams</a>
                 <a class="btn btn-outline btn-block" href="/tolerances">Tolerances</a>
+                {% endif %}
+                {% if current_user.has('history_view') %}
                 <a class="btn btn-outline btn-block" href="/output-history">Output History</a>
+                {% endif %}
+                {% if current_user.has('approve') %}
                 <a class="btn btn-outline btn-block" href="/approvals">Approvals</a>
+                {% endif %}
+                {% if current_user.has('dept_edit') or current_user.has('library_view') %}
                 <a class="btn btn-outline btn-block" href="/department">Department</a>
+                {% endif %}
+                {% if current_user.has('admin_panel') %}
+                <a class="btn btn-outline btn-block" href="/users">User Directory</a>
+                {% endif %}
             </div>
         </div>
     </main>
-    <footer>TRS-398 Dosimetry · Single-physicist tool · Not validated for clinical use</footer>
+    <footer>DOSE pro · Clinical Dosimetry Solution</footer>
 </body>
 </html>
