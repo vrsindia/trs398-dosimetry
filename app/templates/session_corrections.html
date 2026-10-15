@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Correction Factors – Session</title>
+    <style>
+        :root { --primary: #1a365d; --accent: #2b6cb0; --bg: #f7fafc; --card: #fff; }
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); color: #1a202c; margin: 0; line-height: 1.5; }
+        header { background: var(--primary); color: white; padding: 1.2rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        header a { color: #bee3f8; text-decoration: none; }
+        main { max-width: 700px; margin: 1.5rem auto; padding: 0 1.5rem; }
+        .card { background: var(--card); border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        h1 { color: var(--primary); margin-top: 0; font-size: 1.35rem; }
+        .step { font-size: 0.85rem; color: #718096; margin-bottom: 0.8rem; }
+        label { display: block; font-weight: 600; margin-top: 0.9rem; font-size: 0.9rem; }
+        input, select { width: 100%; padding: 0.5rem 0.7rem; margin-top: 0.25rem; border: 1px solid #cbd5e0; border-radius: 6px; }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        button { background: var(--accent); color: white; border: none; padding: 0.75rem; border-radius: 8px; font-weight: 600; width: 100%; margin-top: 1.5rem; cursor: pointer; }
+        button:hover { background: #2c5282; }
+        .note { font-size: 0.85rem; color: #4a5568; margin-top: 1rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <strong>{{ linac.name }} · {{ modality|capitalize }}</strong>
+        <a href="/linac/{{ linac.id }}">← Back</a>
+    </header>
+    <main>
+        <div class="card">
+            <div class="step">Step 3 – Shared Correction Factors</div>
+            <h1>Calculate k<sub>TP</sub>, k<sub>pol</sub>, k<sub>s</sub></h1>
+            <p style="color:#4a5568;">These factors will be reused for all energies in this session.</p>
+
+            <form method="post" action="/session/{{ session.id }}/corrections">
+                <div class="row">
+                    <div>
+                        <label>Temperature (°C)</label>
+                        <input type="number" step="any" name="temperature_C" value="20.0" required>
+                    </div>
+                    <div>
+                        <label>Pressure (hPa)</label>
+                        <input type="number" step="any" name="pressure_hPa" value="1013.25" required>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>Reading + polarity (nC)</label>
+                        <input type="number" step="any" name="M_plus" value="20.0" required>
+                    </div>
+                    <div>
+                        <label>Reading − polarity (nC)</label>
+                        <input type="number" step="any" name="M_minus" value="19.95" required>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>Reading at V1 (higher voltage)</label>
+                        <input type="number" step="any" name="M1" value="20.0" required>
+                    </div>
+                    <div>
+                        <label>Reading at V2 (lower voltage)</label>
+                        <input type="number" step="any" name="M2" value="19.7" required>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>V1 (V)</label>
+                        <input type="number" step="any" name="V1" value="300" required>
+                    </div>
+                    <div>
+                        <label>V2 (V)</label>
+                        <input type="number" step="any" name="V2" value="100" required>
+                    </div>
+                </div>
+
+                <label>Detector</label>
+                <select name="detector_id">
+                    <option value="">— Select detector —</option>
+                    {% for d in detectors %}
+                    <option value="{{ d.id }}">{{ d.name }} ({{ "%.5f"|format(d.calibration_factor) }})</option>
+                    {% endfor %}
+                </select>
+
+                <button type="submit">Calculate &amp; Save Correction Factors</button>
+            </form>
+            <p class="note">k<sub>TP</sub> is calculated from T &amp; P. k<sub>pol</sub> and k<sub>s</sub> use the classic TRS-398 two-voltage / polarity formulae.</p>
+        </div>
+    </main>
+</body>
+</html>
