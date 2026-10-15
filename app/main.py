@@ -100,12 +100,20 @@ class ChamberCreate(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "stage": 7})
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={"stage": 7},
+    )
 
 
 @app.get("/photon", response_class=HTMLResponse)
 async def photon_form(request: Request):
-    return templates.TemplateResponse("photon.html", {"request": request, "result": None})
+    return templates.TemplateResponse(
+        request=request,
+        name="photon.html",
+        context={"result": None},
+    )
 
 
 @app.post("/photon", response_class=HTMLResponse)
@@ -134,14 +142,19 @@ async def photon_calculate(
     )
     result = calculate_dose_to_water_photon(inp)
     return templates.TemplateResponse(
-        "photon.html",
-        {"request": request, "result": result, "inputs": inp},
+        request=request,
+        name="photon.html",
+        context={"result": result, "inputs": inp},
     )
 
 
 @app.get("/electron", response_class=HTMLResponse)
 async def electron_form(request: Request):
-    return templates.TemplateResponse("electron.html", {"request": request, "result": None})
+    return templates.TemplateResponse(
+        request=request,
+        name="electron.html",
+        context={"result": None},
+    )
 
 
 @app.post("/electron", response_class=HTMLResponse)
@@ -174,14 +187,19 @@ async def electron_calculate(
     )
     result = calculate_dose_to_water_electron(inp)
     return templates.TemplateResponse(
-        "electron.html",
-        {"request": request, "result": result, "inputs": inp},
+        request=request,
+        name="electron.html",
+        context={"result": result, "inputs": inp},
     )
 
 
 @app.get("/brachy", response_class=HTMLResponse)
 async def brachy_form(request: Request):
-    return templates.TemplateResponse("brachy.html", {"request": request, "result": None})
+    return templates.TemplateResponse(
+        request=request,
+        name="brachy.html",
+        context={"result": None},
+    )
 
 
 @app.post("/brachy", response_class=HTMLResponse)
@@ -214,8 +232,9 @@ async def brachy_calculate(
     )
     result = calculate_air_kerma_strength(inp)
     return templates.TemplateResponse(
-        "brachy.html",
-        {"request": request, "result": result, "inputs": inp},
+        request=request,
+        name="brachy.html",
+        context={"result": result, "inputs": inp},
     )
 
 
