@@ -3,24 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Select Linac – TRS-398</title>
-    <style>
-        :root { --primary: #1a365d; --accent: #2b6cb0; --bg: #f7fafc; --card: #fff; }
-        * { box-sizing: border-box; }
-        body { font-family: system-ui, sans-serif; background: var(--bg); color: #1a202c; margin: 0; line-height: 1.5; }
-        header { background: var(--primary); color: white; padding: 1.2rem 2rem; display: flex; justify-content: space-between; align-items: center; }
-        header a { color: #bee3f8; text-decoration: none; }
-        main { max-width: 700px; margin: 2rem auto; padding: 0 1.5rem; }
-        .card { background: var(--card); border-radius: 10px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-        h1 { color: var(--primary); margin-top: 0; }
-        a.machine {
-            display: block; padding: 1.1rem 1.3rem; background: #edf2f7; border-radius: 8px;
-            text-decoration: none; color: #1a202c; font-weight: 600; margin-bottom: 0.7rem;
-            border: 2px solid transparent;
-        }
-        a.machine:hover { border-color: var(--accent); background: #e2e8f0; }
-        .meta { font-size: 0.9rem; color: #4a5568; font-weight: 400; margin-top: 0.2rem; }
-    </style>
+    <title>Select Linac</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
@@ -29,18 +13,15 @@
     </header>
     <main>
         <div class="card">
+            <div class="step">Step 1</div>
             <h1>Select Linac</h1>
-            <p style="color:#4a5568;">Choose the machine for which you will perform absolute dosimetry.</p>
             {% for linac in linacs %}
-            <a class="machine" href="/linac/{{ linac.id }}">
+            <a class="machine-card" href="/linac/{{ linac.id }}">
                 {{ linac.name }}
-                <div class="meta">
-                    {{ linac.manufacturer }} {{ linac.model }}
-                    {% if linac.location %} · {{ linac.location }}{% endif %}
-                </div>
+                <div class="meta">{{ linac.manufacturer }} {{ linac.model }}{% if linac.location %} · {{ linac.location }}{% endif %}</div>
             </a>
             {% else %}
-            <p>No linacs registered. <a href="/linacs">Add a linac first</a>.</p>
+            <p style="color:var(--text-muted);">No linacs. <a href="/linacs">Add one</a>.</p>
             {% endfor %}
         </div>
     </main>

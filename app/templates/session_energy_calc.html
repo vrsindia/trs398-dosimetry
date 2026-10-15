@@ -4,23 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ beam.nominal_energy }} Output</title>
-    <style>
-        :root { --primary: #1a365d; --accent: #2b6cb0; --bg: #f7fafc; --card: #fff; --success: #276749; }
-        * { box-sizing: border-box; }
-        body { font-family: system-ui, sans-serif; background: var(--bg); color: #1a202c; margin: 0; line-height: 1.5; }
-        header { background: var(--primary); color: white; padding: 1.2rem 2rem; display: flex; justify-content: space-between; align-items: center; }
-        header a { color: #bee3f8; text-decoration: none; }
-        main { max-width: 700px; margin: 1.5rem auto; padding: 0 1.5rem; }
-        .card { background: var(--card); border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-        h1 { color: var(--primary); margin-top: 0; font-size: 1.35rem; }
-        label { display: block; font-weight: 600; margin-top: 0.9rem; font-size: 0.9rem; }
-        input { width: 100%; padding: 0.5rem 0.7rem; margin-top: 0.25rem; border: 1px solid #cbd5e0; border-radius: 6px; }
-        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-        button { background: var(--accent); color: white; border: none; padding: 0.7rem; border-radius: 8px; font-weight: 600; width: 100%; margin-top: 1.2rem; cursor: pointer; }
-        .result-box { background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 8px; padding: 1.2rem; }
-        .dose { font-size: 1.6rem; font-weight: 700; color: var(--success); }
-        .factors { font-size: 0.9rem; color: #4a5568; margin-top: 0.8rem; }
-    </style>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
@@ -30,63 +14,56 @@
     <main>
         <div class="card">
             <h1>Output Measurement</h1>
-            <p style="color:#4a5568;">
+            <p style="color:var(--text-muted);">
                 Depth {{ beam.measurement_depth_cm }} cm · PDD {{ "%.3f"|format(beam.pdd) }} · k<sub>Q</sub> {{ "%.4f"|format(beam.k_Q) }}
             </p>
-
             <form method="post" action="/session/{{ session.id }}/energy/{{ beam.id }}">
-                <div class="row">
-                    <div>
-                        <label>Raw charge (nC)</label>
-                        <input type="number" step="any" name="raw_charge_nC" required value="20.0">
-                    </div>
-                    <div>
-                        <label>MU delivered</label>
-                        <input type="number" step="any" name="mu" required value="100">
-                    </div>
+                <div class="grid grid-2">
+                    <div><label>Raw charge (nC)</label><input type="number" step="any" name="raw_charge_nC" required value="20.0"></div>
+                    <div><label>MU delivered</label><input type="number" step="any" name="mu" required value="100"></div>
                 </div>
-
-                <div class="row">
-                    <div>
-                        <label>N<sub>D,w</sub> (Gy/nC)</label>
-                        <input type="number" step="any" name="N_Dw" required
-                               value="{{ detector.calibration_factor if detector else '0.045' }}">
-                    </div>
-                    <div>
-                        <label>k<sub>Q</sub></label>
-                        <input type="number" step="any" name="k_Q" required value="{{ beam.k_Q }}">
-                    </div>
+                <div class="grid grid-2">
+                    <div><label>N<sub>D,w</sub> (Gy/nC)</label>
+                        <input type="number" step="any" name="N_Dw" required value="{{ detector.calibration_factor if detector else '0.045' }}"></div>
+                    <div><label>k<sub>Q</sub></label><input type="number" step="any" name="k_Q" required value="{{ beam.k_Q }}"></div>
                 </div>
-
-                <p style="font-size:0.85rem; color:#718096; margin-top:1rem;">
-                    Using session factors: k<sub>TP</sub>={{ "%.4f"|format(session.corrections.k_TP) }},
-                    k<sub>pol</sub>={{ "%.4f"|format(session.corrections.k_pol) }},
-                    k<sub>s</sub>={{ "%.4f"|format(session.corrections.k_s) }}
-                </p>
-
-                <button type="submit">Calculate Output</button>
+                <label>Nominal / expected output (cGy/MU)</label>
+                <input type="number" step="any" name="nominal_output" value="1.0">
+                <p class="note">Session factors: k<sub>TP</sub>={{ "%.4f"|format(session.corrections.k_TP) }}, k<sub>pol</sub>={{ "%.4f"|format(session.corrections.k_pol) }}, k<sub>s</sub>={{ "%.4f"|format(session.corrections.k_s) }}</p>
+                <button type="submit" style="margin-top:1rem; width:100%;">Calculate Output</button>
             </form>
         </div>
 
         {% if result %}
-        <div class="card result-box">
-            <h2 style="margin-top:0; color:var(--success);">Result</h2>
-            <div class="dose">{{ "%.3f"|format(result.output_cGy_MU) }} cGy/MU</div>
-            <p>at measurement depth (before PDD correction to d<sub>max</sub>)</p>
-            <div class="factors">
-                D<sub>w</sub> = {{ "%.4f"|format(result.dose_Gy) }} Gy for {{ result.mu }} MU<br>
-                M<sub>Q</sub> = {{ "%.4f"|format(result.M_Q) }} nC
+        <div class="card result-box result-{{ status or 'unknown' }}">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2 style="margin:0;">Result</h2>
+                {% if status == 'pass' %}
+                <span class="badge-pass">WITHIN TOLERANCE</span>
+                {% elif status == 'warning' %}
+                <span class="badge-warning">BORDERLINE</span>
+                {% elif status == 'fail' %}
+                <span class="badge-fail">OUT OF TOLERANCE</span>
+                {% else %}
+                <span style="color:var(--text-muted);">No tolerance set</span>
+                {% endif %}
             </div>
+            <div class="dose" style="margin-top:0.6rem;">{{ "%.3f"|format(result.output_cGy_MU) }} cGy/MU</div>
+            <p style="color:var(--text-muted); margin:0.3rem 0 0;">at measurement depth</p>
+            {% if tolerance %}
+            <p class="note">Tolerance ±{{ tolerance.tolerance_percent }}%
+               {% if tolerance.action_level_percent %} · Action level ±{{ tolerance.action_level_percent }}%{% endif %}
+               · Nominal {{ nominal_output }} cGy/MU</p>
+            {% endif %}
 
-            <form method="post" action="/session/{{ session.id }}/energy/{{ beam.id }}/tune" style="margin-top:1.5rem;">
+            <form method="post" action="/session/{{ session.id }}/energy/{{ beam.id }}/tune" style="margin-top:1.4rem;">
                 <input type="hidden" name="measured_output" value="{{ result.output_cGy_MU }}">
+                <input type="hidden" name="nominal_output" value="{{ nominal_output }}">
                 <label>Tune output to (cGy/MU) – optional</label>
                 <input type="number" step="any" name="tuned_output" placeholder="Leave blank if no tuning">
-                <label>Physicist name</label>
-                <input type="text" name="physicist" placeholder="Your name">
-                <label>Notes</label>
-                <input type="text" name="notes">
-                <button type="submit">Save Record (and Tune if entered)</button>
+                <label>Physicist</label><input type="text" name="physicist">
+                <label>Notes</label><input type="text" name="notes">
+                <button type="submit" style="margin-top:1rem; width:100%;">Save Record</button>
             </form>
         </div>
         {% endif %}

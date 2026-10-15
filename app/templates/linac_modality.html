@@ -3,26 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ linac.name }} – Select Modality</title>
-    <style>
-        :root { --primary: #1a365d; --accent: #2b6cb0; --bg: #f7fafc; --card: #fff; }
-        * { box-sizing: border-box; }
-        body { font-family: system-ui, sans-serif; background: var(--bg); color: #1a202c; margin: 0; line-height: 1.5; }
-        header { background: var(--primary); color: white; padding: 1.2rem 2rem; display: flex; justify-content: space-between; align-items: center; }
-        header a { color: #bee3f8; text-decoration: none; }
-        main { max-width: 600px; margin: 2rem auto; padding: 0 1.5rem; }
-        .card { background: var(--card); border-radius: 10px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-        h1 { color: var(--primary); margin-top: 0; font-size: 1.4rem; }
-        a.choice {
-            display: block; padding: 1.3rem; background: #edf2f7; border-radius: 8px;
-            text-decoration: none; color: #1a202c; font-weight: 600; margin-bottom: 0.8rem;
-            text-align: center; font-size: 1.15rem; border: 2px solid transparent;
-        }
-        a.choice:hover { border-color: var(--accent); }
-        a.choice.electron { background: #f0fff4; }
-        a.choice.electron:hover { border-color: #276749; }
-        .step { font-size: 0.85rem; color: #718096; margin-bottom: 1rem; }
-    </style>
+    <title>{{ linac.name }} – Modality</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
@@ -31,11 +13,10 @@
     </header>
     <main>
         <div class="card">
-            <div class="step">Step 2 of workflow</div>
+            <div class="step">Step 2</div>
             <h1>Select Modality</h1>
-            <p style="color:#4a5568;">Choose photon or electron absolute dose calculation.</p>
-            <a class="choice" href="/linac/{{ linac.id }}/photon">Photon Absolute Dosimetry</a>
-            <a class="choice electron" href="/linac/{{ linac.id }}/electron">Electron Absolute Dosimetry</a>
+            <a class="btn btn-block" href="/linac/{{ linac.id }}/photon" style="padding:1.2rem; margin-bottom:0.8rem;">Photon Absolute Dosimetry</a>
+            <a class="btn btn-block btn-success" href="/linac/{{ linac.id }}/electron" style="padding:1.2rem;">Electron Absolute Dosimetry</a>
         </div>
     </main>
 </body>

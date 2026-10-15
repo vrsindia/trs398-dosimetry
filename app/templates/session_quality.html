@@ -4,54 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Beam Quality Index</title>
-    <style>
-        :root { --primary: #1a365d; --accent: #2b6cb0; --bg: #f7fafc; --card: #fff; }
-        * { box-sizing: border-box; }
-        body { font-family: system-ui, sans-serif; background: var(--bg); color: #1a202c; margin: 0; line-height: 1.5; }
-        header { background: var(--primary); color: white; padding: 1.2rem 2rem; display: flex; justify-content: space-between; align-items: center; }
-        header a { color: #bee3f8; text-decoration: none; }
-        main { max-width: 650px; margin: 1.5rem auto; padding: 0 1.5rem; }
-        .card { background: var(--card); border-radius: 10px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-        h1 { color: var(--primary); margin-top: 0; font-size: 1.35rem; }
-        .step { font-size: 0.85rem; color: #718096; margin-bottom: 0.8rem; }
-        label { display: block; font-weight: 600; margin-top: 0.9rem; font-size: 0.9rem; }
-        input { width: 100%; padding: 0.5rem 0.7rem; margin-top: 0.25rem; border: 1px solid #cbd5e0; border-radius: 6px; }
-        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-        button { background: var(--accent); color: white; border: none; padding: 0.75rem; border-radius: 8px; font-weight: 600; width: 100%; margin-top: 1.5rem; cursor: pointer; }
-        .result { background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
-        .result strong { font-size: 1.4rem; color: #276749; }
-    </style>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
-        <strong>Beam Quality Index (Photon)</strong>
+        <strong>Beam Quality Index</strong>
         <a href="/session/{{ session.id }}/energies">Skip → Energies</a>
     </header>
     <main>
         <div class="card">
-            <div class="step">Step 4 – Photon Beam Quality Index</div>
+            <div class="step">Step 4 – Photon</div>
             <h1>TPR<sub>20,10</sub></h1>
-            <p style="color:#4a5568;">Enter readings at 10 cm and 20 cm depth (same MU, same geometry).</p>
-
             <form method="post" action="/session/{{ session.id }}/quality">
-                <div class="row">
-                    <div>
-                        <label>Reading / Dose at 10 cm</label>
-                        <input type="number" step="any" name="dose_10" required>
-                    </div>
-                    <div>
-                        <label>Reading / Dose at 20 cm</label>
-                        <input type="number" step="any" name="dose_20" required>
-                    </div>
+                <div class="grid grid-2">
+                    <div><label>Reading / Dose at 10 cm</label><input type="number" step="any" name="dose_10" required></div>
+                    <div><label>Reading / Dose at 20 cm</label><input type="number" step="any" name="dose_20" required></div>
                 </div>
-                <button type="submit">Calculate TPR<sub>20,10</sub></button>
+                <button type="submit" style="margin-top:1.2rem; width:100%;">Calculate TPR<sub>20,10</sub></button>
             </form>
-
             {% if qi %}
-            <div class="result">
-                <div>TPR<sub>20,10</sub> = <strong>{{ "%.4f"|format(qi.tpr20_10) }}</strong></div>
-                <p style="margin:0.5rem 0 0; font-size:0.9rem;">{{ qi.notes }}</p>
-                <p style="margin:0.8rem 0 0;"><a href="/session/{{ session.id }}/energies">Continue to Energy Output →</a></p>
+            <div class="result-box result-pass" style="margin-top:1.2rem;">
+                <div>TPR<sub>20,10</sub> = <strong style="font-size:1.5rem;">{{ "%.4f"|format(qi.tpr20_10) }}</strong></div>
+                <p class="note">{{ qi.notes }}</p>
+                <a href="/session/{{ session.id }}/energies" class="btn" style="margin-top:0.8rem;">Continue to Energies →</a>
             </div>
             {% endif %}
         </div>

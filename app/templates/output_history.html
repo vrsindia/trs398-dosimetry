@@ -3,58 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Output History – TRS-398</title>
-    <style>
-        :root { --primary: #1a365d; --accent: #2b6cb0; --bg: #f7fafc; --card: #fff; }
-        * { box-sizing: border-box; }
-        body { font-family: system-ui, sans-serif; background: var(--bg); color: #1a202c; margin: 0; line-height: 1.5; }
-        header { background: var(--primary); color: white; padding: 1.2rem 2rem; display: flex; justify-content: space-between; align-items: center; }
-        header a { color: #bee3f8; text-decoration: none; }
-        main { max-width: 1100px; margin: 1.5rem auto; padding: 0 1.5rem; }
-        .card { background: var(--card); border-radius: 10px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-        h1 { color: var(--primary); margin-top: 0; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-        th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid #e2e8f0; }
-        th { color: #4a5568; }
-        .tuned { color: #276749; font-weight: 600; }
-    </style>
+    <title>Output History</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
-        <strong>Output Measurement &amp; Tuning History</strong>
+        <strong>Output History</strong>
         <a href="/">← Home</a>
     </header>
     <main>
         <div class="card">
-            <h1>Output Records</h1>
-            <p style="color:#4a5568;">Before and after output tuning are stored for every energy.</p>
+            <h1>Measurement &amp; Tuning Records</h1>
             {% if records %}
             <table>
                 <tr>
-                    <th>Date/Time</th>
-                    <th>Linac</th>
-                    <th>Energy</th>
-                    <th>Measured (cGy/MU)</th>
-                    <th>Tuned (cGy/MU)</th>
-                    <th>Tuned?</th>
-                    <th>Physicist</th>
+                    <th>Date</th><th>Energy</th><th>Measured</th><th>Tuned</th><th>Status</th><th>Physicist</th>
                 </tr>
                 {% for r in records %}
                 <tr>
                     <td>{{ r.date_time[:16] }}</td>
-                    <td>{{ r.linac_id }}</td>
                     <td>{{ r.energy }}</td>
                     <td>{{ "%.3f"|format(r.measured_output_cGy_MU) }}</td>
-                    <td class="{% if r.tuning_performed %}tuned{% endif %}">
-                        {{ "%.3f"|format(r.tuned_output_cGy_MU) if r.tuned_output_cGy_MU else "—" }}
+                    <td>{{ "%.3f"|format(r.tuned_output_cGy_MU) if r.tuned_output_cGy_MU else "—" }}</td>
+                    <td>
+                        {% if r.status == 'pass' %}<span class="badge-pass">PASS</span>
+                        {% elif r.status == 'warning' %}<span class="badge-warning">WARN</span>
+                        {% elif r.status == 'fail' %}<span class="badge-fail">FAIL</span>
+                        {% else %}—{% endif %}
                     </td>
-                    <td>{{ "Yes" if r.tuning_performed else "No" }}</td>
                     <td>{{ r.physicist or "—" }}</td>
                 </tr>
                 {% endfor %}
             </table>
             {% else %}
-            <p>No output records yet. Perform a linac absolute dosimetry session to create records.</p>
+            <p style="color:var(--text-muted);">No records yet.</p>
             {% endif %}
         </div>
     </main>
