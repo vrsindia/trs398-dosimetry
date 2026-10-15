@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Department Details</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <strong>Department Details</strong>
+        <a href="/">← Home</a>
+    </header>
+    <main>
+        <div class="card">
+            <h1>Department Information</h1>
+            <p style="color:var(--text-muted);">These details appear on reports. Edits go through approval.</p>
+
+            <form method="post" action="/department/edit">
+                <div class="grid grid-2">
+                    <div><label>Department Name</label><input name="name" value="{{ dept.name }}"></div>
+                    <div><label>Hospital / Centre</label><input name="hospital" value="{{ dept.hospital }}"></div>
+                </div>
+                <label>Address</label><input name="address" value="{{ dept.address }}">
+                <div class="grid grid-2">
+                    <div><label>City</label><input name="city" value="{{ dept.city }}"></div>
+                    <div><label>Country</label><input name="country" value="{{ dept.country }}"></div>
+                </div>
+                <div class="grid grid-2">
+                    <div><label>Phone</label><input name="phone" value="{{ dept.phone }}"></div>
+                    <div><label>Email</label><input name="email" value="{{ dept.email }}"></div>
+                </div>
+                <label>Head of Medical Physics</label><input name="head_physicist" value="{{ dept.head_physicist }}">
+                <label>Notes</label><input name="notes" value="{{ dept.notes }}">
+                <label>Your name (for approval)</label><input name="requested_by" placeholder="Physicist name">
+                <button type="submit" style="margin-top:1.2rem; width:100%;">Submit Changes for Approval</button>
+            </form>
+        </div>
+    </main>
+</body>
+</html>

@@ -4,64 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TRS-398 Dosimetry</title>
-    <style>
-        :root { --primary: #1a365d; --accent: #2b6cb0; --bg: #f7fafc; --card: #fff; }
-        * { box-sizing: border-box; }
-        body { font-family: system-ui, sans-serif; background: var(--bg); color: #1a202c; margin: 0; line-height: 1.5; }
-        header { background: var(--primary); color: white; padding: 1.5rem 2rem; }
-        header h1 { margin: 0; font-size: 1.6rem; }
-        header p { margin: 0.3rem 0 0; opacity: 0.85; }
-        main { max-width: 900px; margin: 2rem auto; padding: 0 1.5rem; }
-        .card { background: var(--card); border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-        .card h2 { margin-top: 0; color: var(--primary); }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
-        a.btn {
-            display: block; background: var(--accent); color: white; text-decoration: none;
-            padding: 1.4rem 1.2rem; border-radius: 10px; text-align: center; font-weight: 600; font-size: 1.15rem;
-        }
-        a.btn:hover { background: #2c5282; }
-        a.btn.brachy { background: #276749; }
-        a.btn.brachy:hover { background: #22543d; }
-        a.btn.secondary { background: #4a5568; font-size: 0.95rem; padding: 0.9rem; }
-        a.btn.secondary:hover { background: #2d3748; }
-        .status { font-size: 0.9rem; color: #4a5568; }
-        footer { text-align: center; padding: 2rem; color: #718096; font-size: 0.85rem; }
-        .badge { display: inline-block; background: #c6f6d5; color: #276749; font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px; }
-    </style>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
-        <h1>TRS-398 Dosimetry <span class="badge">v0.9</span></h1>
-        <p>Clinical Absolute Dosimetry Workflow</p>
+        <div>
+            <strong>TRS-398 Dosimetry</strong>
+            <span style="color:var(--text-muted); font-size:0.85rem; margin-left:0.5rem;">v1.1</span>
+        </div>
+        <a href="/department">Department</a>
     </header>
 
     <main>
         <div class="card">
-            <h2>Start Absolute Dosimetry</h2>
-            <div class="grid">
-                <a class="btn" href="/linac">Linac Absolute Dosimetry</a>
-                <a class="btn brachy" href="/brachy-select">Brachytherapy</a>
+            <h1>Absolute Dosimetry</h1>
+            <p style="color:var(--text-muted); margin-top:0;">Guided clinical workflow for linac and brachytherapy</p>
+            <div class="grid grid-2" style="margin-top:1.25rem;">
+                <a class="btn btn-block" href="/linac" style="padding:1.3rem; font-size:1.1rem;">Linac Absolute Dosimetry</a>
+                <a class="btn btn-block btn-success" href="/brachy" style="padding:1.3rem; font-size:1.1rem;">Brachytherapy</a>
             </div>
         </div>
 
         <div class="card">
             <h2>Libraries &amp; Records</h2>
-            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
-                <a class="btn secondary" href="/detectors">Detectors</a>
-                <a class="btn secondary" href="/linacs">Linacs &amp; Beams</a>
-                <a class="btn secondary" href="/tolerances">Tolerance Tables</a>
-                <a class="btn secondary" href="/output-history">Output History</a>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
+                <a class="btn btn-outline btn-block" href="/detectors">Detectors</a>
+                <a class="btn btn-outline btn-block" href="/linacs">Linacs &amp; Beams</a>
+                <a class="btn btn-outline btn-block" href="/tolerances">Tolerances</a>
+                <a class="btn btn-outline btn-block" href="/output-history">Output History</a>
+                <a class="btn btn-outline btn-block" href="/approvals">Approvals</a>
+                <a class="btn btn-outline btn-block" href="/department">Department</a>
             </div>
         </div>
-
-        <div class="card">
-            <p class="status">
-                Select <strong>Linac</strong> or <strong>Brachytherapy</strong> to begin the guided absolute dosimetry workflow.<br>
-                Correction factors (k<sub>TP</sub>, k<sub>pol</sub>, k<sub>s</sub>) are calculated once and reused for subsequent energies in the same session.
-            </p>
-        </div>
     </main>
-
     <footer>TRS-398 Dosimetry · Single-physicist tool · Not validated for clinical use</footer>
 </body>
 </html>
