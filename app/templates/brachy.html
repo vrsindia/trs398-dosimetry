@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brachytherapy Well Chamber – Source Strength</title>
+    <style>
+        :root {
+            --primary: #1a365d;
+            --accent: #2b6cb0;
+            --bg: #f7fafc;
+            --card: #ffffff;
+            --success: #276749;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: #1a202c;
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+        }
+        header {
+            background: var(--primary);
+            color: white;
+            padding: 1.2rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header a { color: #bee3f8; text-decoration: none; }
+        main { max-width: 800px; margin: 1.5rem auto; padding: 0 1.5rem; }
+        .card {
+            background: var(--card);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        h1 { font-size: 1.4rem; margin: 0 0 0.5rem; color: var(--primary); }
+        label { display: block; font-weight: 600; margin-top: 0.9rem; font-size: 0.9rem; }
+        input, select {
+            width: 100%;
+            padding: 0.5rem 0.7rem;
+            margin-top: 0.25rem;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1.5rem;
+            width: 100%;
+        }
+        button:hover { background: #2c5282; }
+        .result-box {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            border-radius: 8px;
+            padding: 1.2rem;
+        }
+        .result-box h2 { margin-top: 0; color: var(--success); }
+        .dose { font-size: 1.8rem; font-weight: 700; color: var(--success); }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #e2e8f0; }
+        th { color: #4a5568; }
+        .note { font-size: 0.85rem; color: #718096; margin-top: 1rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <strong>Brachytherapy Well-Chamber Source Strength</strong>
+        <a href="/">← Home</a>
+    </header>
+
+    <main>
+        <div class="card">
+            <h1>Air Kerma Strength (S<sub>K</sub>)</h1>
+            <p style="color:#4a5568; margin-top:0;">Well-type ionization chamber measurement</p>
+
+            <form method="post" action="/brachy">
+                <div class="row">
+                    <div>
+                        <label>Raw reading (nA or nC)</label>
+                        <input type="number" step="any" name="raw_reading" required
+                               value="{{ inputs.raw_reading if inputs else '12.0' }}">
+                    </div>
+                    <div>
+                        <label>N<sub>SK</sub> (calibration factor)</label>
+                        <input type="number" step="any" name="N_SK" required
+                               value="{{ inputs.N_SK if inputs else '0.85' }}">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>Nuclide</label>
+                        <select name="nuclide">
+                            <option value="Ir-192" {% if inputs and inputs.nuclide == 'Ir-192' %}selected{% endif %}>Ir-192</option>
+                            <option value="Co-60" {% if inputs and inputs.nuclide == 'Co-60' %}selected{% endif %}>Co-60</option>
+                            <option value="Cs-137" {% if inputs and inputs.nuclide == 'Cs-137' %}selected{% endif %}>Cs-137</option>
+                            <option value="I-125" {% if inputs and inputs.nuclide == 'I-125' %}selected{% endif %}>I-125</option>
+                            <option value="Pd-103" {% if inputs and inputs.nuclide == 'Pd-103' %}selected{% endif %}>Pd-103</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Electrometer factor</label>
+                        <input type="number" step="any" name="electrometer_calibration_factor"
+                               value="{{ inputs.electrometer_calibration_factor if inputs else '1.0' }}">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>Temperature (°C)</label>
+                        <input type="number" step="any" name="temperature_C"
+                               value="{{ inputs.temperature_C if inputs else '20.0' }}">
+                    </div>
+                    <div>
+                        <label>Pressure (hPa)</label>
+                        <input type="number" step="any" name="pressure_hPa"
+                               value="{{ inputs.pressure_hPa if inputs else '1013.25' }}">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>k<sub>ion</sub> (recombination)</label>
+                        <input type="number" step="any" name="k_ion"
+                               value="{{ inputs.k_ion if inputs else '1.0' }}">
+                    </div>
+                    <div>
+                        <label>Integration time (s) – if charge mode</label>
+                        <input type="number" step="any" name="integration_time_s"
+                               value="{{ inputs.integration_time_s if inputs and inputs.integration_time_s else '' }}">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>Source calibration date/time (ISO)</label>
+                        <input type="text" name="calibration_datetime" placeholder="2025-06-01T12:00:00"
+                               value="{{ inputs.calibration_datetime if inputs and inputs.calibration_datetime else '' }}">
+                    </div>
+                    <div>
+                        <label>Measurement date/time (ISO)</label>
+                        <input type="text" name="measurement_datetime" placeholder="2025-07-15T10:30:00"
+                               value="{{ inputs.measurement_datetime if inputs and inputs.measurement_datetime else '' }}">
+                    </div>
+                </div>
+
+                <label>k<sub>other</sub></label>
+                <input type="number" step="any" name="k_other"
+                       value="{{ inputs.k_other if inputs else '1.0' }}">
+
+                <button type="submit">Calculate Air Kerma Strength</button>
+            </form>
+        </div>
+
+        {% if result %}
+        <div class="card result-box">
+            <h2>Result</h2>
+            <div class="dose">{{ "%.4f"|format(result.air_kerma_strength) }}</div>
+            <p>Air Kerma Strength (S<sub>K</sub>) in the unit of the calibration factor</p>
+
+            <table>
+                <tr><th>Factor</th><th>Value</th></tr>
+                <tr><td>Decay factor</td><td>{{ "%.6f"|format(result.decay_factor) }}</td></tr>
+                <tr><td>k<sub>TP</sub></td><td>{{ "%.6f"|format(result.k_TP) }}</td></tr>
+                <tr><td>N<sub>SK</sub></td><td>{{ result.factors_used.N_SK }}</td></tr>
+                <tr><td>Nuclide</td><td>{{ result.factors_used.nuclide }}</td></tr>
+            </table>
+
+            <p class="note">S<sub>K</sub> = M × N<sub>SK</sub> × k<sub>TP</sub> × k<sub>ion</sub> × k<sub>other</sub> × decay factor</p>
+        </div>
+        {% endif %}
+    </main>
+</body>
+</html>

@@ -1,6 +1,6 @@
 """
 TRS-398 Dosimetry App - FastAPI entry point
-Stages 1-3: Photon + Electron absolute dosimetry
+Stages 1-4: Photon + Electron + Brachytherapy
 """
 
 from fastapi import FastAPI, Request, Form
@@ -17,11 +17,15 @@ from app.calculations.electron import (
     ElectronMeasurementInput,
     calculate_dose_to_water_electron,
 )
+from app.calculations.brachy import (
+    BrachyWellInput,
+    calculate_air_kerma_strength,
+)
 
 app = FastAPI(
     title="TRS-398 Dosimetry",
     description="Absolute dosimetry for photons, electrons and brachytherapy (IAEA TRS-398)",
-    version="0.3.0",
+    version="0.4.0",
 )
 
 templates = Jinja2Templates(directory="app/templates")
@@ -55,11 +59,25 @@ class ElectronCalcRequest(BaseModel):
     nominal_energy_MeV: Optional[float] = None
 
 
+class BrachyCalcRequest(BaseModel):
+    raw_reading: float = Field(..., description="Charge (nC) or current (nA)")
+    N_SK: float = Field(..., gt=0, description="Well chamber calibration factor")
+    electrometer_calibration_factor: float = Field(1.0, gt=0)
+    temperature_C: float = Field(20.0)
+    pressure_hPa: float = Field(1013.25, gt=0)
+    k_ion: float = Field(1.0, gt=0)
+    k_other: float = Field(1.0, gt=0)
+    nuclide: str = Field("Ir-192")
+    calibration_datetime: Optional[str] = None
+    measurement_datetime: Optional[str] = None
+    integration_time_s: Optional[float] = None
+
+
 # -------------------- Routes --------------------
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "stage": 3})
+    return templates.TemplateResponse("index.html", {"request": request, "stage": 4})
 
 
 @app.get("/photon", response_class=HTMLResponse)
@@ -138,6 +156,46 @@ async def electron_calculate(
     )
 
 
+@app.get("/brachy", response_class=HTMLResponse)
+async def brachy_form(request: Request):
+    return templates.TemplateResponse("brachy.html", {"request": request, "result": None})
+
+
+@app.post("/brachy", response_class=HTMLResponse)
+async def brachy_calculate(
+    request: Request,
+    raw_reading: float = Form(...),
+    N_SK: float = Form(...),
+    electrometer_calibration_factor: float = Form(1.0),
+    temperature_C: float = Form(20.0),
+    pressure_hPa: float = Form(1013.25),
+    k_ion: float = Form(1.0),
+    k_other: float = Form(1.0),
+    nuclide: str = Form("Ir-192"),
+    calibration_datetime: Optional[str] = Form(None),
+    measurement_datetime: Optional[str] = Form(None),
+    integration_time_s: Optional[float] = Form(None),
+):
+    inp = BrachyWellInput(
+        raw_reading=raw_reading,
+        N_SK=N_SK,
+        electrometer_calibration_factor=electrometer_calibration_factor,
+        temperature_C=temperature_C,
+        pressure_hPa=pressure_hPa,
+        k_ion=k_ion,
+        k_other=k_other,
+        nuclide=nuclide,
+        calibration_datetime=calibration_datetime or None,
+        measurement_datetime=measurement_datetime or None,
+        integration_time_s=integration_time_s,
+    )
+    result = calculate_air_kerma_strength(inp)
+    return templates.TemplateResponse(
+        "brachy.html",
+        {"request": request, "result": result, "inputs": inp},
+    )
+
+
 @app.post("/api/photon")
 async def api_photon_calculate(data: PhotonCalcRequest):
     inp = PhotonMeasurementInput(**data.model_dump())
@@ -162,11 +220,23 @@ async def api_electron_calculate(data: ElectronCalcRequest):
     }
 
 
+@app.post("/api/brachy")
+async def api_brachy_calculate(data: BrachyCalcRequest):
+    inp = BrachyWellInput(**data.model_dump())
+    result = calculate_air_kerma_strength(inp)
+    return {
+        "air_kerma_strength": result.air_kerma_strength,
+        "decay_factor": result.decay_factor,
+        "k_TP": result.k_TP,
+        "factors_used": result.factors_used,
+    }
+
+
 @app.get("/health")
 async def health():
     return {
         "status": "ok",
-        "stage": 3,
-        "modules": ["photon", "electron"],
-        "version": "0.3.0",
+        "stage": 4,
+        "modules": ["photon", "electron", "brachy"],
+        "version": "0.4.0",
     }
