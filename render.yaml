@@ -1,6 +1,4 @@
 # Render Blueprint for free-tier deployment
-# https://render.com/docs/blueprint-spec
-
 services:
   - type: web
     name: trs398-dosimetry
@@ -10,4 +8,4 @@ services:
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.12.0
+        value: "3.12.8"
