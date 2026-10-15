@@ -1,8 +1,5 @@
 """
 TRS-398 Absolute Dosimetry – High Energy Electron Beams
-
-Implements the core formalism from IAEA TRS-398 for electron beams.
-Uses parallel-plate or cylindrical chambers with appropriate k_Q / k_Q,Qo.
 """
 
 from __future__ import annotations
@@ -10,33 +7,27 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from .photon import calculate_k_TP  # reuse the same k_TP function
+from .photon import calculate_k_TP
 
 
 @dataclass(frozen=True)
 class ElectronMeasurementInput:
     """Raw measurement data + chamber calibration data for electrons."""
 
+    # Required fields first
     raw_charge_nC: float
-    electrometer_calibration_factor: float = 1.0
-
-    # N_D,w at the calibration quality (usually Co-60)
     N_Dw: float
-
-    # Beam quality correction factor for the electron beam
     k_Q: float
 
+    # Optional fields with defaults
+    electrometer_calibration_factor: float = 1.0
     k_pol: float = 1.0
     k_s: float = 1.0
-
     temperature_C: float = 20.0
     pressure_hPa: float = 1013.25
     T0_C: float = 20.0
     P0_hPa: float = 1013.25
-
     k_other: float = 1.0
-
-    # Optional: nominal energy / R50 for documentation
     R50_cm: Optional[float] = None
     nominal_energy_MeV: Optional[float] = None
 
@@ -52,8 +43,6 @@ class ElectronDoseResult:
 def calculate_dose_to_water_electron(inp: ElectronMeasurementInput) -> ElectronDoseResult:
     """
     Main TRS-398 calculation for high-energy electron beams.
-
-    Dw (Gy) = M_Q * N_D,w * k_Q * k_pol * k_s * k_TP * k_other
     """
 
     k_TP = calculate_k_TP(
