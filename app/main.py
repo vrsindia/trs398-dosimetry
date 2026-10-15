@@ -1,13 +1,13 @@
 """
 TRS-398 Dosimetry App - FastAPI entry point
-Stages 1-4: Photon + Electron + Brachytherapy
+Final version (Stages 1-7)
 """
 
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 
 from app.calculations.photon import (
     PhotonMeasurementInput,
@@ -21,14 +21,25 @@ from app.calculations.brachy import (
     BrachyWellInput,
     calculate_air_kerma_strength,
 )
+from app.chambers import (
+    Chamber,
+    add_chamber,
+    get_chamber,
+    list_chambers,
+    delete_chamber,
+    seed_example_chambers,
+)
 
 app = FastAPI(
     title="TRS-398 Dosimetry",
     description="Absolute dosimetry for photons, electrons and brachytherapy (IAEA TRS-398)",
-    version="0.4.0",
+    version="0.7.0",
 )
 
 templates = Jinja2Templates(directory="app/templates")
+
+# Seed example chambers on startup (in-memory)
+seed_example_chambers()
 
 
 # -------------------- Pydantic models --------------------
@@ -60,8 +71,8 @@ class ElectronCalcRequest(BaseModel):
 
 
 class BrachyCalcRequest(BaseModel):
-    raw_reading: float = Field(..., description="Charge (nC) or current (nA)")
-    N_SK: float = Field(..., gt=0, description="Well chamber calibration factor")
+    raw_reading: float
+    N_SK: float = Field(..., gt=0)
     electrometer_calibration_factor: float = Field(1.0, gt=0)
     temperature_C: float = Field(20.0)
     pressure_hPa: float = Field(1013.25, gt=0)
@@ -73,11 +84,23 @@ class BrachyCalcRequest(BaseModel):
     integration_time_s: Optional[float] = None
 
 
+class ChamberCreate(BaseModel):
+    id: str
+    name: str
+    type: str
+    serial_number: str
+    N_Dw: float
+    calibration_quality: str = "Co-60"
+    calibration_date: Optional[str] = None
+    calibration_lab: Optional[str] = None
+    notes: str = ""
+
+
 # -------------------- Routes --------------------
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "stage": 4})
+    return templates.TemplateResponse("index.html", {"request": request, "stage": 7})
 
 
 @app.get("/photon", response_class=HTMLResponse)
@@ -196,6 +219,53 @@ async def brachy_calculate(
     )
 
 
+# ----- Chamber registry API (simple) -----
+
+@app.get("/api/chambers")
+async def api_list_chambers():
+    return [asdict_chamber(c) for c in list_chambers()]
+
+
+@app.post("/api/chambers")
+async def api_add_chamber(data: ChamberCreate):
+    if get_chamber(data.id):
+        raise HTTPException(status_code=400, detail="Chamber ID already exists")
+    ch = Chamber(**data.model_dump())
+    add_chamber(ch)
+    return asdict_chamber(ch)
+
+
+@app.get("/api/chambers/{chamber_id}")
+async def api_get_chamber(chamber_id: str):
+    ch = get_chamber(chamber_id)
+    if not ch:
+        raise HTTPException(status_code=404, detail="Chamber not found")
+    return asdict_chamber(ch)
+
+
+@app.delete("/api/chambers/{chamber_id}")
+async def api_delete_chamber(chamber_id: str):
+    if not delete_chamber(chamber_id):
+        raise HTTPException(status_code=404, detail="Chamber not found")
+    return {"status": "deleted"}
+
+
+def asdict_chamber(c: Chamber) -> dict:
+    return {
+        "id": c.id,
+        "name": c.name,
+        "type": c.type,
+        "serial_number": c.serial_number,
+        "N_Dw": c.N_Dw,
+        "calibration_quality": c.calibration_quality,
+        "calibration_date": c.calibration_date,
+        "calibration_lab": c.calibration_lab,
+        "notes": c.notes,
+    }
+
+
+# ----- Calculation APIs -----
+
 @app.post("/api/photon")
 async def api_photon_calculate(data: PhotonCalcRequest):
     inp = PhotonMeasurementInput(**data.model_dump())
@@ -236,7 +306,7 @@ async def api_brachy_calculate(data: BrachyCalcRequest):
 async def health():
     return {
         "status": "ok",
-        "stage": 4,
-        "modules": ["photon", "electron", "brachy"],
-        "version": "0.4.0",
+        "stage": 7,
+        "modules": ["photon", "electron", "brachy", "chambers"],
+        "version": "0.7.0",
     }

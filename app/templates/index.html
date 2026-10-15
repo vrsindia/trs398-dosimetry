@@ -51,11 +51,12 @@
         a.btn:hover { background: #2c5282; }
         .status { font-size: 0.9rem; color: #4a5568; }
         footer { text-align: center; padding: 2rem; color: #718096; font-size: 0.85rem; }
+        .badge { display: inline-block; background: #c6f6d5; color: #276749; font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px; margin-left: 0.5rem; }
     </style>
 </head>
 <body>
     <header>
-        <h1>TRS-398 Dosimetry</h1>
+        <h1>TRS-398 Dosimetry <span class="badge">v0.7</span></h1>
         <p>IAEA TRS-398 Absolute Dosimetry &amp; Brachytherapy Source Strength</p>
     </header>
 
@@ -72,15 +73,20 @@
         <div class="card">
             <h2>Project Status</h2>
             <p class="status">
-                <strong>Stage 4</strong> — Photon + Electron + Brachytherapy modules ready.<br>
-                Single-physicist private tool. Not validated for clinical use yet.
+                <strong>All planned stages (1–7) complete.</strong><br>
+                Photon · Electron · Brachytherapy · Chamber registry · CI · Render-ready.<br><br>
+                Single-physicist tool. <strong>Not validated for clinical use.</strong>
             </p>
-            <p><a href="/docs">OpenAPI documentation</a> · <a href="/health">Health check</a></p>
+            <p>
+                <a href="/docs">OpenAPI documentation</a> ·
+                <a href="/health">Health check</a> ·
+                <a href="/api/chambers">List chambers (API)</a>
+            </p>
         </div>
     </main>
 
     <footer>
-        TRS-398 Dosimetry App · Pure Python calculation library · FastAPI
+        TRS-398 Dosimetry App · Pure Python calculation library · FastAPI · Zero-cost ready
     </footer>
 </body>
 </html>
