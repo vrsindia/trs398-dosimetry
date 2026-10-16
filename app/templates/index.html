@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DOSE pro – GARUDA</title>
+    <title>DOSE pro</title>
     <link rel="stylesheet" href="/static/style.css">
     <link rel="icon" href="/static/garuda.jpg" type="image/jpeg">
     <script src="/static/theme.js"></script>
@@ -11,10 +11,12 @@
 <body>
     <header>
         <div class="header-nav">
-            <img src="/static/garuda.jpg" alt="Garuda" width="44" height="44" style="border-radius:8px;object-fit:contain;background:#fff;padding:2px;" onerror="this.style.display='none'">
+            <img src="/static/garuda.jpg" alt="Garuda" width="48" height="48"
+                 style="border-radius:8px;object-fit:contain;background:#fff;padding:2px;"
+                 onerror="this.src='/static/garuda.svg'">
             <div>
-                <strong style="color:var(--primary); letter-spacing:0.04em;">DOSE pro</strong>
-                <span style="color:var(--text-muted); font-size:0.8rem; display:block;">Project GARUDA · Clinical Dosimetry</span>
+                <strong style="color:var(--primary); letter-spacing:0.04em; font-size:1.15rem;">DOSE pro</strong>
+                <span style="color:var(--text-muted); font-size:0.85rem; display:block;">Dosimetry Solution</span>
             </div>
         </div>
         <div class="header-actions">
@@ -32,14 +34,18 @@
                 <a class="btn btn-block" href="/linac" style="padding:1.3rem; font-size:1.05rem;">Linac Absolute Dosimetry<br><span style="font-size:0.8rem;font-weight:400;opacity:0.85;">CT Linac · MR Linac</span></a>
                 <a class="btn btn-block btn-success" href="/brachy" style="padding:1.3rem; font-size:1.05rem;">Brachytherapy<br><span style="font-size:0.8rem;font-weight:400;opacity:0.85;">HDR source strength</span></a>
             </div>
-            <a class="btn btn-outline btn-block" href="/activity" style="margin-top:0.85rem; padding:1.1rem;">
-                Source Activity Calculator<br>
-                <span style="font-size:0.8rem;font-weight:400;opacity:0.85;">Decay by days or dates · Bq / Ci · Co-60, Ir-192, I-125, Ru-106…</span>
-            </a>
             {% else %}
             <p style="color:var(--text-muted); margin-top:1rem;">Your role ({{ current_user.role }}) has view-only access.</p>
             {% endif %}
         </div>
+
+        {% if current_user.has('calculate') %}
+        <div class="card">
+            <h2>Utilities</h2>
+            <a class="btn btn-outline btn-block" href="/activity" style="padding:1.15rem; font-size:1.05rem;">Source Activity Calculator</a>
+        </div>
+        {% endif %}
+
         <div class="card">
             <h2>Libraries &amp; Records</h2>
             <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
