@@ -1,27 +1,17 @@
-"""Application entrypoint for Render.
-
-startCommand: uvicorn app.bootstrap:app --host 0.0.0.0 --port $PORT
-"""
+"""Render entrypoint: uvicorn app.bootstrap:app --host 0.0.0.0 --port $PORT"""
 import traceback
-
-try:
-    from app.garuda_static_route import ensure_garuda_logo
-    ensure_garuda_logo()
-except Exception as e:
-    print("garuda_logo:", e)
-    traceback.print_exc()
 
 from app.main import app, templates
 
-# Logo routes
+# Register utilities FIRST so they always exist
 try:
-    from app.garuda_static_route import register_garuda_static
-    register_garuda_static(app, templates)
+    from app.force_utils import register_force_utils
+    register_force_utils(app, templates)
+    print("force_utils OK")
 except Exception as e:
-    print("garuda_static:", e)
+    print("FORCE_UTILS FAILED:", e)
     traceback.print_exc()
 
-# Core extras
 for _label, _mod, _fn in [
     ("extra_routes", "app.extra_routes", "register_extra_routes"),
     ("history_routes", "app.history_routes", "register_history_routes"),
@@ -38,25 +28,22 @@ for _label, _mod, _fn in [
         print(_label, "OK")
     except Exception as e:
         print(_label + ":", e)
-        traceback.print_exc()
 
-# Utilities MUST be last so /activity, /bed, /bed-combined are registered
+# Register force_utils AGAIN last so utility routes are present
 try:
-    from app.utility_routes import register_utility_routes
-    register_utility_routes(app, templates)
-    print("utility_routes OK")
+    import app.force_utils as fu
+    fu._DONE = False
+    fu.register_force_utils(app, templates)
+    print("force_utils re-OK")
 except Exception as e:
-    print("utility_routes FAILED:", e)
+    print("FORCE_UTILS 2 FAILED:", e)
     traceback.print_exc()
 
-# Patch /health to report utility routes
 try:
     from app.health_info import health_payload
 
     @app.get("/health")
-    async def health_with_utils():
+    async def _health():
         return health_payload(app)
-    print("health patched OK")
 except Exception as e:
-    print("health patch:", e)
-    traceback.print_exc()
+    print("health:", e)
