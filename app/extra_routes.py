@@ -5,10 +5,9 @@ from fastapi import Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from typing import Optional
 from datetime import datetime, date
-import json
 
 from app.models import (
-    list_calc_profiles, get_calc_profile, add_calc_profile, update_calc_profile, CalcProfile,
+    list_calc_profiles, add_calc_profile, update_calc_profile, CalcProfile,
     get_default_calc_profile, list_linacs, get_linac, get_beam, get_detector,
     find_tolerance, check_tolerance, add_output_record, OutputRecord, list_output_records,
     list_reports, get_report, _new_id,
@@ -17,7 +16,8 @@ from app.session import get_session
 from app.measurement_helpers import compute_output
 from app.reports import build_report_html, create_report_from_date
 from app.auth import (
-    get_user_by_token, PERM_CALCULATE, PERM_LIBRARY_VIEW, PERM_LIBRARY_EDIT, PERM_HISTORY_VIEW, PERM_TUNE,
+    get_user_by_token, PERM_CALCULATE, PERM_LIBRARY_VIEW, PERM_LIBRARY_EDIT,
+    PERM_HISTORY_VIEW, PERM_TUNE,
 )
 
 COOKIE = "dosepro_session"
@@ -39,19 +39,91 @@ def register_extra_routes(app, templates):
     def _login():
         return RedirectResponse("/login", 303)
 
+    # Remove existing POST energy route so we can replace it
+    to_remove = []
+    for r in app.router.routes:
+        path = getattr(r, "path", None)
+        methods = getattr(r, "methods", set()) or set()
+        if path == "/session/{sid}/energy/{bid}" and "POST" in methods:
+            to_remove.append(r)
+    for r in to_remove:
+        app.router.routes.remove(r)
+
+    @app.post("/session/{sid}/energy/{bid}", response_class=HTMLResponse)
+    async def energy_calc_v2(
+        request: Request, sid: str, bid: str,
+        raw_charge_nC: float = Form(...),
+        mu: float = Form(...),
+        N_Dw: float = Form(...),
+        k_Q: float = Form(...),
+        nominal_output: float = Form(1.0),
+        append_reading: str = Form("0"),
+        repeat_charge_nC: Optional[float] = Form(None),
+    ):
+        user = _require(request, PERM_CALCULATE)
+        if not user:
+            return _login()
+        sess, beam = get_session(sid), get_beam(bid)
+        if not sess or not beam:
+            raise HTTPException(404)
+        detector = get_detector(sess.detector_id) if sess.detector_id else None
+        if detector:
+            N_Dw = detector.calibration_factor
+        nominal = nominal_output if nominal_output else getattr(beam, "nominal_output_cGy_MU", 1.0)
+        if bid not in sess.beam_readings:
+            sess.beam_readings[bid] = []
+        if append_reading == "1" and repeat_charge_nC is not None:
+            sess.beam_readings[bid].append(float(repeat_charge_nC))
+        else:
+            sess.beam_readings[bid] = [float(raw_charge_nC)]
+        readings = list(sess.beam_readings[bid])
+        profile = get_default_calc_profile()
+        computed = compute_output(readings, mu, N_Dw, k_Q, sess.corrections, profile)
+
+        class ER:
+            pass
+        result = ER()
+        for k, v in computed.items():
+            setattr(result, k, v)
+
+        tol = find_tolerance(sess.modality, beam.nominal_energy, sess.linac_id, parameter="output")
+        status = check_tolerance(computed["output_cGy_MU"], nominal, tol)
+        beam_qi = sess.beam_quality_index.get(bid) or beam.quality_index
+        tpr_status = None
+        if beam_qi is not None:
+            tpr_tol = find_tolerance(sess.modality, beam.nominal_energy, sess.linac_id, parameter="tpr20_10")
+            if tpr_tol:
+                tpr_status = check_tolerance(beam_qi, tpr_tol.baseline_value or beam_qi, tpr_tol)
+
+        return templates.TemplateResponse(
+            request=request, name="session_energy_calc.html",
+            context={
+                "session": sess, "beam": beam, "linac": get_linac(sess.linac_id),
+                "detector": detector, "beam_qi": beam_qi, "profile": profile,
+                "result": result, "status": status, "tolerance": tol, "tpr_status": tpr_status,
+                "nominal_output": nominal, "current_user": user,
+                "prior_readings": readings[:-1] if len(readings) > 1 else [],
+                "last_reading": readings[-1], "last_mu": mu,
+            },
+        )
+
     @app.get("/calc-profiles", response_class=HTMLResponse)
     async def calc_profiles_page(request: Request):
         user = _require(request, PERM_LIBRARY_VIEW)
         if not user:
             return _login()
-        return templates.TemplateResponse(request=request, name="calc_profiles.html",
-            context={"profiles": list_calc_profiles(), "current_user": user})
+        return templates.TemplateResponse(
+            request=request, name="calc_profiles.html",
+            context={"profiles": list_calc_profiles(), "current_user": user},
+        )
 
     @app.post("/calc-profiles/add")
-    async def calc_prof_add(request: Request, name: str = Form(...),
-                            use_k_TP: Optional[str] = Form(None), use_k_pol: Optional[str] = Form(None),
-                            use_k_s: Optional[str] = Form(None), use_k_Q: Optional[str] = Form(None),
-                            use_electrometer_factor: Optional[str] = Form(None)):
+    async def calc_prof_add(
+        request: Request, name: str = Form(...),
+        use_k_TP: Optional[str] = Form(None), use_k_pol: Optional[str] = Form(None),
+        use_k_s: Optional[str] = Form(None), use_k_Q: Optional[str] = Form(None),
+        use_electrometer_factor: Optional[str] = Form(None),
+    ):
         if not _require(request, PERM_LIBRARY_EDIT):
             return _login()
         add_calc_profile(CalcProfile(
@@ -62,17 +134,20 @@ def register_extra_routes(app, templates):
         return RedirectResponse("/calc-profiles", 303)
 
     @app.post("/calc-profiles/{pid}/edit")
-    async def calc_prof_edit(request: Request, pid: str, name: str = Form(...),
-                             use_k_TP: Optional[str] = Form(None), use_k_pol: Optional[str] = Form(None),
-                             use_k_s: Optional[str] = Form(None), use_k_Q: Optional[str] = Form(None),
-                             use_electrometer_factor: Optional[str] = Form(None),
-                             is_default: Optional[str] = Form(None)):
+    async def calc_prof_edit(
+        request: Request, pid: str, name: str = Form(...),
+        use_k_TP: Optional[str] = Form(None), use_k_pol: Optional[str] = Form(None),
+        use_k_s: Optional[str] = Form(None), use_k_Q: Optional[str] = Form(None),
+        use_electrometer_factor: Optional[str] = Form(None),
+        is_default: Optional[str] = Form(None),
+    ):
         if not _require(request, PERM_LIBRARY_EDIT):
             return _login()
-        update_calc_profile(pid, name=name, use_k_TP=bool(use_k_TP), use_k_pol=bool(use_k_pol),
-                            use_k_s=bool(use_k_s), use_k_Q=bool(use_k_Q),
-                            use_electrometer_factor=bool(use_electrometer_factor),
-                            is_default=bool(is_default))
+        update_calc_profile(
+            pid, name=name, use_k_TP=bool(use_k_TP), use_k_pol=bool(use_k_pol),
+            use_k_s=bool(use_k_s), use_k_Q=bool(use_k_Q),
+            use_electrometer_factor=bool(use_electrometer_factor), is_default=bool(is_default),
+        )
         return RedirectResponse("/calc-profiles", 303)
 
     @app.get("/reports", response_class=HTMLResponse)
@@ -80,13 +155,19 @@ def register_extra_routes(app, templates):
         user = _require(request, PERM_HISTORY_VIEW)
         if not user:
             return _login()
-        return templates.TemplateResponse(request=request, name="reports.html",
-            context={"reports": list_reports(), "linacs": list_linacs(),
-                     "today": date.today().isoformat(), "current_user": user})
+        return templates.TemplateResponse(
+            request=request, name="reports.html",
+            context={
+                "reports": list_reports(), "linacs": list_linacs(),
+                "today": date.today().isoformat(), "current_user": user,
+            },
+        )
 
     @app.post("/reports/generate")
-    async def reports_gen(request: Request, linac_id: str = Form(...), report_date: str = Form(...),
-                          notes: str = Form("")):
+    async def reports_gen(
+        request: Request, linac_id: str = Form(...),
+        report_date: str = Form(...), notes: str = Form(""),
+    ):
         user = _require(request, PERM_HISTORY_VIEW)
         if not user:
             return _login()
@@ -103,11 +184,11 @@ def register_extra_routes(app, templates):
         rep = get_report(rid)
         if not rep:
             raise HTTPException(404)
-        records = [r for r in list_output_records(linac_id=rep.linac_id) if r.id in rep.measurement_ids]
-        if not records:
-            records = list_output_records(linac_id=rep.linac_id, report_date=rep.report_date)
-        return templates.TemplateResponse(request=request, name="report_view.html",
-            context={"report": rep, "records": records, "current_user": user})
+        records = list_output_records(linac_id=rep.linac_id, report_date=rep.report_date)
+        return templates.TemplateResponse(
+            request=request, name="report_view.html",
+            context={"report": rep, "records": records, "current_user": user},
+        )
 
     @app.get("/reports/{rid}/html")
     async def report_html(request: Request, rid: str):
@@ -119,12 +200,13 @@ def register_extra_routes(app, templates):
             raise HTTPException(404)
         records = list_output_records(linac_id=rep.linac_id, report_date=rep.report_date)
         html = build_report_html(rep, records)
-        return Response(content=html, media_type="text/html",
-                        headers={"Content-Disposition": f'inline; filename="dosepro_{rep.report_date}.html"'})
+        return Response(
+            content=html, media_type="text/html",
+            headers={"Content-Disposition": f'inline; filename="dosepro_{rep.report_date}.html"'},
+        )
 
     @app.get("/reports/{rid}/doc")
     async def report_doc(request: Request, rid: str):
-        """DOC-compatible: HTML Word can open, or plain document download."""
         user = _require(request, PERM_HISTORY_VIEW)
         if not user:
             return _login()
@@ -133,13 +215,11 @@ def register_extra_routes(app, templates):
             raise HTTPException(404)
         records = list_output_records(linac_id=rep.linac_id, report_date=rep.report_date)
         html = build_report_html(rep, records)
-        # Word opens .doc from HTML with MS header
+        body = html.split("<body>", 1)[-1].replace("</body></html>", "")
         doc_html = (
             "<html xmlns:o='urn:schemas-microsoft-com:office:office' "
             "xmlns:w='urn:schemas-microsoft-com:office:word'>"
-            "<head><meta charset='utf-8'></head><body>"
-            + html.split("<body>", 1)[-1].replace("</body></html>", "")
-            + "</body></html>"
+            "<head><meta charset='utf-8'></head><body>" + body + "</body></html>"
         )
         return Response(
             content=doc_html.encode("utf-8"),
@@ -148,14 +228,17 @@ def register_extra_routes(app, templates):
         )
 
     @app.post("/session/{sid}/energy/{bid}/save")
-    async def energy_save(request: Request, sid: str, bid: str,
-                          measured_output: float = Form(...),
-                          nominal_output: float = Form(1.0),
-                          avg_charge: float = Form(0),
-                          readings_json: str = Form(""),
-                          mu: float = Form(100),
-                          tuned_output: Optional[float] = Form(None),
-                          physicist: str = Form(""), notes: str = Form("")):
+    async def energy_save(
+        request: Request, sid: str, bid: str,
+        measured_output: float = Form(...),
+        nominal_output: float = Form(1.0),
+        avg_charge: float = Form(0),
+        readings_json: str = Form(""),
+        mu: float = Form(100),
+        tuned_output: Optional[float] = Form(None),
+        physicist: str = Form(""),
+        notes: str = Form(""),
+    ):
         user = _require(request, PERM_CALCULATE)
         if not user:
             return _login()
@@ -171,8 +254,9 @@ def register_extra_routes(app, templates):
         can_tune = user.has(PERM_TUNE)
         tuning = can_tune and tuned_output is not None and tuned_output > 0
         final = tuned_output if tuning else measured_output
+        nom = nominal_output or getattr(beam, "nominal_output_cGy_MU", 1.0)
         tol = find_tolerance(sess.modality, beam.nominal_energy, sess.linac_id, parameter="output")
-        status = check_tolerance(final, nominal_output or beam.nominal_output_cGy_MU, tol)
+        status = check_tolerance(final, nom, tol)
         tpr = sess.beam_quality_index.get(bid) or beam.quality_index
         add_output_record(OutputRecord(
             id=_new_id(), linac_id=sess.linac_id, beam_id=bid, modality=sess.modality,
@@ -182,8 +266,8 @@ def register_extra_routes(app, templates):
             tuning_performed=tuning, detector_id=sess.detector_id,
             k_TP=sess.corrections.k_TP, k_pol=sess.corrections.k_pol, k_s=sess.corrections.k_s,
             k_Q=beam.k_Q, notes=notes, physicist=physicist or user.full_name,
-            nominal_output_cGy_MU=nominal_output or beam.nominal_output_cGy_MU,
-            status=status, raw_readings=readings, average_reading_nC=avg_charge or None,
+            nominal_output_cGy_MU=nom, status=status,
+            raw_readings=readings, average_reading_nC=avg_charge or None,
             tpr20_10=tpr, saved_for_report=True,
         ))
         if beam.nominal_energy not in sess.completed_energies:
