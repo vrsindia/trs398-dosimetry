@@ -1,14 +1,6 @@
 """Application entrypoint for Render."""
 from app.main import app, templates
 
-# Ensure Linac has category attribute even if model was older
-try:
-    from app.models import Linac
-    if not hasattr(Linac, "__dataclass_fields__") or "category" not in getattr(Linac, "__dataclass_fields__", {}):
-        pass  # field may already exist
-except Exception:
-    pass
-
 try:
     from app.extra_routes import register_extra_routes
     register_extra_routes(app, templates)
@@ -38,3 +30,9 @@ try:
     register_linac_category_routes(app, templates)
 except Exception as e:
     print("linac_category:", e)
+
+try:
+    from app.branding_routes import register_branding_routes
+    register_branding_routes(app, templates)
+except Exception as e:
+    print("branding_routes:", e)
