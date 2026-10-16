@@ -1,4 +1,4 @@
-"""Apply calc profile factors and average readings."""
+"""Apply calc profile factors, average readings, optional MR k_B."""
 
 from __future__ import annotations
 from typing import List, Optional, Tuple
@@ -25,13 +25,19 @@ def effective_factors(corr: SessionCorrectionFactors, profile: Optional[CalcProf
 
 
 def compute_output(readings: List[float], mu: float, N_Dw: float, k_Q: float,
-                   corr: SessionCorrectionFactors, profile: Optional[CalcProfile] = None) -> dict:
+                   corr: SessionCorrectionFactors, profile: Optional[CalcProfile] = None,
+                   k_B: float = 1.0) -> dict:
+    """
+    TRS-398 style output. k_B is magnetic field correction for MR-linac (default 1.0).
+    Applied as additional multiplicative factor (not PDD).
+    """
     if not readings:
         raise ValueError("No readings")
     avg = float(sum(readings) / len(readings))
     mu = float(mu) if mu else 100.0
     N_Dw = float(N_Dw)
     k_Q = float(k_Q)
+    k_B = float(k_B) if k_B else 1.0
     k_TP, k_pol, k_s, k_Q_eff, elec = effective_factors(corr, profile, k_Q)
     t_c = getattr(corr, "temperature_C", 20.0) or 20.0
     p_h = getattr(corr, "pressure_hPa", 1013.25) or 1013.25
@@ -46,6 +52,7 @@ def compute_output(readings: List[float], mu: float, N_Dw: float, k_Q: float,
         k_s=k_s,
         temperature_C=t_c,
         pressure_hPa=p_h,
+        k_other=k_B,
     )
     dr = calculate_dose_to_water_photon(inp)
     out = (dr.dose_to_water_Gy * 100.0) / mu if mu > 0 else 0.0
@@ -60,5 +67,6 @@ def compute_output(readings: List[float], mu: float, N_Dw: float, k_Q: float,
         "last_charge": readings[-1],
         "N_Dw": N_Dw,
         "k_Q": k_Q_eff,
+        "k_B": k_B,
         "readings_json": ",".join(str(x) for x in readings),
     }

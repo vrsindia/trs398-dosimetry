@@ -1,4 +1,4 @@
-"""Guided session store with per-beam readings for repeat/average."""
+"""Guided session store with per-beam readings and MR magnetic factor."""
 
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -26,9 +26,9 @@ class DosimetrySession:
     calc_profile_id: Optional[str] = None
     corrections: SessionCorrectionFactors = field(default_factory=SessionCorrectionFactors)
     beam_quality_index: Dict[str, float] = field(default_factory=dict)
-    # beam_id -> list of meter readings (nC) for averaging
     beam_readings: Dict[str, List[float]] = field(default_factory=dict)
     completed_energies: List[str] = field(default_factory=list)
+    k_B: float = 1.0  # MR magnetic field correction (1.0 for CT linac)
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
 
 
@@ -42,5 +42,5 @@ def create_session(linac_id: str, modality: str) -> DosimetrySession:
     return sess
 
 
-def get_session(session_id: str) -> Optional[DosimetrySession]:
-    return _SESSIONS.get(session_id)
+def get_session(sid: str) -> Optional[DosimetrySession]:
+    return _SESSIONS.get(sid)

@@ -20,35 +20,38 @@
         </div>
     </header>
     <main>
-        <p class="note">Brachytherapy machines are listed only under Brachytherapy on the home page.</p>
-        {% set cats = [
-            ('ct_linac', 'CT Linac', 'badge-ct'),
-            ('mr_linac', 'MR Linac', 'badge-mr')
-        ] %}
-        {% for cat_id, cat_label, badge in cats %}
-        {% set group = [] %}
-        {% for l in linacs %}
-          {% set c = l.category if l.category is defined else 'ct_linac' %}
-          {% if c == cat_id %}
-            {% set _ = group.append(l) %}
-          {% endif %}
-        {% endfor %}
+        <p class="note">Only CT Linac and MR Linac. Brachytherapy is under the separate Brachytherapy menu.</p>
+
         <div class="card">
-            <h2><span class="badge {{ badge }}">{{ cat_label }}</span></h2>
-            {% if group %}
+            <h2><span class="badge badge-ct">CT Linac</span></h2>
             <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top:1rem;">
-                {% for l in group %}
+                {% for l in linacs %}
+                {% set c = l.category if l.category is defined else 'ct_linac' %}
+                {% if c == 'ct_linac' %}
                 <a class="btn btn-outline btn-block" href="/linac/{{ l.id }}" style="padding:1.1rem;">
                     {{ l.name }}<br>
                     <span style="font-size:0.8rem;font-weight:400;color:var(--text-muted);">{{ l.manufacturer }} {{ l.model }}</span>
                 </a>
+                {% endif %}
                 {% endfor %}
             </div>
-            {% else %}
-            <p class="note">No machines in this category.</p>
-            {% endif %}
         </div>
-        {% endfor %}
+
+        <div class="card">
+            <h2><span class="badge badge-mr">MR Linac</span></h2>
+            <p class="note">Photon only (e.g. 7 MV FFF). Magnetic correction k<sub>B</sub>. No electrons. Not PDD-based.</p>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top:1rem;">
+                {% for l in linacs %}
+                {% set c = l.category if l.category is defined else 'ct_linac' %}
+                {% if c == 'mr_linac' %}
+                <a class="btn btn-outline btn-block" href="/linac/{{ l.id }}" style="padding:1.1rem;">
+                    {{ l.name }}<br>
+                    <span style="font-size:0.8rem;font-weight:400;color:var(--text-muted);">{{ l.manufacturer }} {{ l.model }}</span>
+                </a>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
     </main>
     <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
 </body>
