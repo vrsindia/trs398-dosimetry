@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Linac & Beam Library – DOSE pro</title>
+    <title>Machine Directory – DOSE pro</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
-        <strong>Linac &amp; Beam Library</strong>
+        <strong>Machine Directory</strong>
         <a href="/">← Home</a>
     </header>
     <main>
@@ -24,7 +24,7 @@
                     </p>
                 </div>
                 {% if current_user.has('library_edit') %}
-                <form method="post" action="/linacs/{{ linac.id }}/delete" onsubmit="return confirm('Delete linac and all beams?');">
+                <form method="post" action="/linacs/{{ linac.id }}/delete" onsubmit="return confirm('Delete machine and all beams?');">
                     <button type="submit" class="btn-sm btn-danger">Delete</button>
                 </form>
                 {% endif %}
@@ -35,7 +35,7 @@
             {% if linac_beams %}
             <table>
                 <tr>
-                    <th>Modality</th><th>Energy</th><th>Depth</th><th>PDD</th><th>k_Q</th><th>SSD</th><th>Field</th>
+                    <th>Modality</th><th>Energy</th><th>Depth</th><th>PDD</th><th>k_Q</th><th>Nominal</th><th>SSD</th><th>Field</th>
                     {% if current_user.has('library_edit') %}<th></th>{% endif %}
                 </tr>
                 {% for b in linac_beams %}
@@ -45,6 +45,7 @@
                     <td>{{ b.measurement_depth_cm }} cm</td>
                     <td>{{ "%.3f"|format(b.pdd) }}</td>
                     <td>{{ "%.4f"|format(b.k_Q) }}</td>
+                    <td>{{ "%.3f"|format(b.nominal_output_cGy_MU) }}</td>
                     <td>{{ b.ssd_cm }}</td>
                     <td>{{ b.field_size }}</td>
                     {% if current_user.has('library_edit') %}
@@ -59,10 +60,13 @@
                                 </div>
                                 <div class="grid grid-3">
                                     <div><label>k_Q</label><input type="number" step="any" name="k_Q" value="{{ b.k_Q }}" required></div>
+                                    <div><label>Nominal cGy/MU</label><input type="number" step="any" name="nominal_output_cGy_MU" value="{{ b.nominal_output_cGy_MU }}"></div>
                                     <div><label>SSD</label><input type="number" step="any" name="ssd_cm" value="{{ b.ssd_cm }}"></div>
-                                    <div><label>Field</label><input name="field_size" value="{{ b.field_size }}"></div>
                                 </div>
-                                <label>Notes</label><input name="notes" value="{{ b.notes }}">
+                                <div class="grid grid-2">
+                                    <div><label>Field</label><input name="field_size" value="{{ b.field_size }}"></div>
+                                    <div><label>Notes</label><input name="notes" value="{{ b.notes }}"></div>
+                                </div>
                                 <label>Your name (approval)</label><input name="requested_by" value="{{ current_user.full_name }}">
                                 <button type="submit" class="btn-sm" style="margin-top:0.7rem;">Submit Edit for Approval</button>
                             </form>
@@ -79,20 +83,30 @@
             <p style="color:var(--text-muted);">No beams defined.</p>
             {% endif %}
 
-            <h3 style="margin-top:1.4rem; font-size:1rem;">Tolerances for this linac</h3>
+            <h3 style="margin-top:1.4rem; font-size:1rem;">Tolerances for this machine</h3>
             {% set linac_tols = tolerances | selectattr('linac_id', 'equalto', linac.id) | list %}
             {% set global_tols = tolerances | selectattr('linac_id', 'none') | list %}
             {% if linac_tols or global_tols %}
             <table>
-                <tr><th>Name</th><th>Modality</th><th>Energy</th><th>±% Tol</th><th>±% Action</th><th>Scope</th></tr>
+                <tr><th>Name</th><th>Modality</th><th>Energy</th><th>Parameter</th><th>±% Tol</th><th>±% Action</th><th>Scope</th>
+                {% if current_user.role in ['developer', 'admin'] %}<th></th>{% endif %}
+                </tr>
                 {% for t in linac_tols %}
                 <tr>
                     <td>{{ t.name }}</td>
                     <td>{{ t.modality }}</td>
                     <td>{{ t.energy or "All" }}</td>
+                    <td>{{ t.parameter }}</td>
                     <td>{{ t.tolerance_percent }}%</td>
                     <td>{{ t.action_level_percent or "—" }}</td>
-                    <td>This linac</td>
+                    <td>This machine</td>
+                    {% if current_user.role in ['developer', 'admin'] %}
+                    <td>
+                        <form method="post" action="/tolerances/{{ t.id }}/delete" onsubmit="return confirm('Delete this tolerance entry?');">
+                            <button type="submit" class="btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
                 {% for t in global_tols %}
@@ -100,13 +114,21 @@
                     <td>{{ t.name }}</td>
                     <td>{{ t.modality }}</td>
                     <td>{{ t.energy or "All" }}</td>
+                    <td>{{ t.parameter }}</td>
                     <td>{{ t.tolerance_percent }}%</td>
                     <td>{{ t.action_level_percent or "—" }}</td>
                     <td style="color:var(--text-muted);">Global</td>
+                    {% if current_user.role in ['developer', 'admin'] %}
+                    <td>
+                        <form method="post" action="/tolerances/{{ t.id }}/delete" onsubmit="return confirm('Delete this tolerance entry?');">
+                            <button type="submit" class="btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </table>
-            <p class="note"><a href="/tolerances">Manage tolerance tables →</a></p>
+            <p class="note"><a href="/tolerances">Manage all tolerance tables →</a></p>
             {% else %}
             <p style="color:var(--text-muted);">No tolerances linked. <a href="/tolerances">Add tolerances</a>.</p>
             {% endif %}
@@ -130,11 +152,11 @@
                     <div class="grid grid-3">
                         <div><label>PDD</label><input type="number" step="any" name="pdd" required placeholder="0.667"></div>
                         <div><label>k_Q</label><input type="number" step="any" name="k_Q" required placeholder="0.994"></div>
-                        <div><label>SSD</label><input type="number" step="any" name="ssd_cm" value="100"></div>
+                        <div><label>Nominal cGy/MU</label><input type="number" step="any" name="nominal_output_cGy_MU" value="1.0"></div>
                     </div>
                     <div class="grid grid-2">
+                        <div><label>SSD</label><input type="number" step="any" name="ssd_cm" value="100"></div>
                         <div><label>Field Size</label><input name="field_size" value="10x10"></div>
-                        <div><label>Notes</label><input name="notes"></div>
                     </div>
                     <button type="submit" style="margin-top:0.8rem;">Add Beam</button>
                 </form>
@@ -145,7 +167,7 @@
 
         {% if current_user.has('library_edit') %}
         <div class="card">
-            <h2>Add New Linac</h2>
+            <h2>Add New Machine</h2>
             <form method="post" action="/linacs/add">
                 <div class="grid grid-2">
                     <div><label>Name *</label><input name="name" required placeholder="TrueBeam 1"></div>
@@ -159,7 +181,7 @@
                     <div><label>Location</label><input name="location"></div>
                     <div><label>Notes</label><input name="notes"></div>
                 </div>
-                <button type="submit" style="margin-top:1rem; width:100%;">Add Linac</button>
+                <button type="submit" style="margin-top:1rem; width:100%;">Add Machine</button>
             </form>
         </div>
         {% endif %}

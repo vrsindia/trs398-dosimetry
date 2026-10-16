@@ -13,12 +13,12 @@
     </header>
     <main>
         <div class="card">
-            <h1>Generate report</h1>
-            <p style="color:var(--text-muted);">Reports are stored by machine and date. Export as HTML (print to PDF) or DOC.</p>
+            <h1>Generate report (PDF)</h1>
+            <p style="color:var(--text-muted);">Reports are stored by machine and date. Download as professional PDF with hospital header.</p>
             <form method="post" action="/reports/generate">
                 <div class="grid grid-2">
                     <div>
-                        <label>Linac *</label>
+                        <label>Machine *</label>
                         <select name="linac_id" required>
                             {% for l in linacs %}
                             <option value="{{ l.id }}">{{ l.name }}</option>
@@ -32,7 +32,7 @@
                 </div>
                 <label>Notes</label>
                 <input name="notes">
-                <button type="submit" style="margin-top:1rem; width:100%;">Generate report from measurements</button>
+                <button type="submit" style="margin-top:1rem; width:100%;">Generate PDF report</button>
             </form>
         </div>
 
@@ -48,9 +48,7 @@
                     <td>{{ r.title }}</td>
                     <td>{{ r.created_by }}</td>
                     <td style="white-space:nowrap;">
-                        <a class="btn btn-sm" href="/reports/{{ r.id }}">View</a>
-                        <a class="btn btn-sm btn-outline" href="/reports/{{ r.id }}/html" target="_blank">HTML/PDF</a>
-                        <a class="btn btn-sm btn-outline" href="/reports/{{ r.id }}/doc">DOC</a>
+                        <a class="btn btn-sm" href="/reports/{{ r.id }}/pdf">Download PDF</a>
                     </td>
                 </tr>
                 {% endfor %}
