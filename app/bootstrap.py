@@ -1,6 +1,4 @@
-"""
-Application entrypoint for Render.
-"""
+"""Application entrypoint for Render."""
 from app.main import app, templates
 
 try:
@@ -20,3 +18,9 @@ try:
     register_storage_hooks(app, templates)
 except Exception as e:
     print("storage_hooks:", e)
+
+try:
+    from app.report_view_route import register_report_view
+    register_report_view(app, templates)
+except Exception as e:
+    print("report_view:", e)
