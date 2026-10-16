@@ -48,3 +48,9 @@ try:
     register_mr_energy_patch(app, templates)
 except Exception as e:
     print("mr_energy_patch:", e)
+
+try:
+    from app.garuda_static_route import register_garuda_static
+    register_garuda_static(app, templates)
+except Exception as e:
+    print("garuda_static:", e)
