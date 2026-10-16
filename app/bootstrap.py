@@ -36,3 +36,9 @@ try:
     register_branding_routes(app, templates)
 except Exception as e:
     print("branding_routes:", e)
+
+try:
+    from app.mr_energy_patch import register_mr_energy_patch
+    register_mr_energy_patch(app, templates)
+except Exception as e:
+    print("mr_energy_patch:", e)
