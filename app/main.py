@@ -36,7 +36,7 @@ from app.auth import (
     PERM_APPROVE, PERM_USER_MANAGE, PERM_DEPT_EDIT, PERM_HISTORY_VIEW, PERM_ADMIN_PANEL,
 )
 
-app = FastAPI(title="DOSE pro", version="1.3.0")
+app = FastAPI(title="DOSE pro", version="1.4.1")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 seed_libraries()
@@ -208,8 +208,6 @@ async def start_electron(request: Request, linac_id: str):
     return RedirectResponse(f"/session/{sess.id}/corrections", 303)
 
 
-# ---- Session: corrections then energies (TPR per photon beam) ----
-
 @app.get("/session/{sid}/corrections", response_class=HTMLResponse)
 async def corr_form(request: Request, sid: str):
     user = _require(request, PERM_CALCULATE)
@@ -239,7 +237,6 @@ async def corr_calc(request: Request, sid: str, temperature_C: float = Form(...)
         temperature_C=temperature_C, pressure_hPa=pressure_hPa, calculated=True)
     if detector_id:
         sess.detector_id = detector_id
-    # Photons: go to energy list; TPR is per beam
     return RedirectResponse(f"/session/{sid}/energies", 303)
 
 @app.get("/session/{sid}/energies", response_class=HTMLResponse)
@@ -250,13 +247,12 @@ async def energies(request: Request, sid: str):
     sess = get_session(sid)
     if not sess:
         raise HTTPException(404)
-    detector = get_detector(sess.detector_id) if sess.detector_id else None
+    detector = get_detector(sess.detector_id) if getattr(sess, "detector_id", None) else None
     return templates.TemplateResponse(request=request, name="session_energies.html",
         context={"session": sess, "linac": get_linac(sess.linac_id),
                  "beams": list_beams(linac_id=sess.linac_id, modality=sess.modality),
                  "detector": detector, "current_user": user})
 
-# Per-beam TPR20,10
 @app.get("/session/{sid}/beam/{bid}/quality", response_class=HTMLResponse)
 async def beam_qi_form(request: Request, sid: str, bid: str):
     user = _require(request, PERM_CALCULATE)
@@ -265,7 +261,7 @@ async def beam_qi_form(request: Request, sid: str, bid: str):
     sess, beam = get_session(sid), get_beam(bid)
     if not sess or not beam:
         raise HTTPException(404)
-    existing = sess.beam_quality_index.get(bid)
+    existing = sess.beam_quality_index.get(bid) if hasattr(sess, "beam_quality_index") else None
     return templates.TemplateResponse(request=request, name="session_beam_qi.html",
         context={"session": sess, "beam": beam, "qi": None, "existing_qi": existing, "current_user": user})
 
@@ -279,8 +275,9 @@ async def beam_qi_calc(request: Request, sid: str, bid: str,
     if not sess or not beam:
         raise HTTPException(404)
     qi = calculate_tpr20_10(dose_20, dose_10)
+    if not hasattr(sess, "beam_quality_index") or sess.beam_quality_index is None:
+        sess.beam_quality_index = {}
     sess.beam_quality_index[bid] = qi.tpr20_10
-    # Optionally store on beam library
     from app.models import update_beam
     update_beam(bid, quality_index=qi.tpr20_10)
     return templates.TemplateResponse(request=request, name="session_beam_qi.html",
@@ -294,52 +291,103 @@ async def energy_form(request: Request, sid: str, bid: str):
     sess, beam = get_session(sid), get_beam(bid)
     if not sess or not beam:
         raise HTTPException(404)
-    detector = get_detector(sess.detector_id) if sess.detector_id else None
-    beam_qi = sess.beam_quality_index.get(bid) or beam.quality_index
+    detector = get_detector(sess.detector_id) if getattr(sess, "detector_id", None) else None
+    beam_qi = None
+    if hasattr(sess, "beam_quality_index") and sess.beam_quality_index:
+        beam_qi = sess.beam_quality_index.get(bid)
+    if beam_qi is None:
+        beam_qi = getattr(beam, "quality_index", None)
     return templates.TemplateResponse(request=request, name="session_energy_calc.html",
         context={"session": sess, "beam": beam, "linac": get_linac(sess.linac_id),
                  "detector": detector, "beam_qi": beam_qi,
-                 "result": None, "status": None, "current_user": user})
-
-@dataclass
-class EnergyResult:
-    dose_Gy: float
-    M_Q: float
-    output_cGy_MU: float
-    mu: float
+                 "result": None, "status": None, "current_user": user,
+                 "prior_readings": [], "last_reading": None, "last_mu": 100, "error": None})
 
 @app.post("/session/{sid}/energy/{bid}", response_class=HTMLResponse)
 async def energy_calc(request: Request, sid: str, bid: str,
                       raw_charge_nC: float = Form(...), mu: float = Form(...),
-                      N_Dw: float = Form(...), k_Q: float = Form(...),
-                      nominal_output: float = Form(1.0)):
+                      N_Dw: float = Form(0.04521), k_Q: float = Form(1.0),
+                      nominal_output: float = Form(1.0),
+                      append_reading: str = Form("0"),
+                      repeat_charge_nC: Optional[float] = Form(None)):
     user = _require(request, PERM_CALCULATE)
     if not user:
         return _login_redirect()
     sess, beam = get_session(sid), get_beam(bid)
     if not sess or not beam:
         raise HTTPException(404)
-    detector = get_detector(sess.detector_id) if sess.detector_id else None
-    # Prefer N_Dw from detector library when detector is selected
+    detector = get_detector(sess.detector_id) if getattr(sess, "detector_id", None) else None
     if detector:
-        N_Dw = detector.calibration_factor
-    corr = sess.corrections
-    inp = PhotonMeasurementInput(
-        raw_charge_nC=raw_charge_nC, N_Dw=N_Dw, k_Q=k_Q,
-        k_pol=corr.k_pol, k_s=corr.k_s,
-        temperature_C=corr.temperature_C, pressure_hPa=corr.pressure_hPa)
-    dr = calculate_dose_to_water_photon(inp)
-    out = (dr.dose_to_water_Gy * 100.0) / mu if mu > 0 else 0.0
-    result = EnergyResult(dose_Gy=dr.dose_to_water_Gy, M_Q=dr.M_Q_corrected,
-                          output_cGy_MU=out, mu=mu)
-    tol = find_tolerance(sess.modality, beam.nominal_energy, sess.linac_id)
-    status = check_tolerance(out, nominal_output, tol)
-    beam_qi = sess.beam_quality_index.get(bid) or beam.quality_index
-    return templates.TemplateResponse(request=request, name="session_energy_calc.html",
-        context={"session": sess, "beam": beam, "linac": get_linac(sess.linac_id),
-                 "detector": detector, "beam_qi": beam_qi,
-                 "result": result, "status": status, "tolerance": tol,
-                 "nominal_output": nominal_output, "current_user": user})
+        N_Dw = float(detector.calibration_factor)
+    else:
+        try:
+            N_Dw = float(N_Dw)
+        except Exception:
+            N_Dw = 0.04521
+    try:
+        mu = float(mu)
+        k_Q = float(k_Q) if k_Q else float(beam.k_Q)
+        nominal = float(nominal_output) if nominal_output else float(getattr(beam, "nominal_output_cGy_MU", 1.0) or 1.0)
+        if not hasattr(sess, "beam_readings") or sess.beam_readings is None:
+            sess.beam_readings = {}
+        if bid not in sess.beam_readings:
+            sess.beam_readings[bid] = []
+        if append_reading == "1" and repeat_charge_nC is not None:
+            sess.beam_readings[bid].append(float(repeat_charge_nC))
+        else:
+            sess.beam_readings[bid] = [float(raw_charge_nC)]
+        readings = list(sess.beam_readings[bid])
+        avg = sum(readings) / len(readings)
+        corr = sess.corrections
+        inp = PhotonMeasurementInput(
+            raw_charge_nC=avg, N_Dw=N_Dw, k_Q=k_Q,
+            k_pol=getattr(corr, "k_pol", 1.0) or 1.0,
+            k_s=getattr(corr, "k_s", 1.0) or 1.0,
+            temperature_C=getattr(corr, "temperature_C", 20.0) or 20.0,
+            pressure_hPa=getattr(corr, "pressure_hPa", 1013.25) or 1013.25,
+        )
+        dr = calculate_dose_to_water_photon(inp)
+        out = (dr.dose_to_water_Gy * 100.0) / mu if mu > 0 else 0.0
+
+        class ER:
+            pass
+        result = ER()
+        result.dose_Gy = dr.dose_to_water_Gy
+        result.M_Q = dr.M_Q_corrected
+        result.output_cGy_MU = out
+        result.mu = mu
+        result.avg_charge = avg
+        result.n_readings = len(readings)
+        result.readings = readings
+        result.last_charge = readings[-1]
+        result.N_Dw = N_Dw
+        result.k_Q = k_Q
+        result.readings_json = ",".join(str(x) for x in readings)
+
+        tol = find_tolerance(sess.modality, beam.nominal_energy, sess.linac_id)
+        status = check_tolerance(out, nominal, tol)
+        beam_qi = None
+        if hasattr(sess, "beam_quality_index") and sess.beam_quality_index:
+            beam_qi = sess.beam_quality_index.get(bid)
+        if beam_qi is None:
+            beam_qi = getattr(beam, "quality_index", None)
+
+        return templates.TemplateResponse(request=request, name="session_energy_calc.html",
+            context={"session": sess, "beam": beam, "linac": get_linac(sess.linac_id),
+                     "detector": detector, "beam_qi": beam_qi,
+                     "result": result, "status": status, "tolerance": tol,
+                     "nominal_output": nominal, "current_user": user,
+                     "prior_readings": readings[:-1] if len(readings) > 1 else [],
+                     "last_reading": readings[-1], "last_mu": mu, "error": None})
+    except Exception as e:
+        return templates.TemplateResponse(request=request, name="session_energy_calc.html",
+            context={"session": sess, "beam": beam, "linac": get_linac(sess.linac_id),
+                     "detector": detector, "beam_qi": getattr(beam, "quality_index", None),
+                     "result": None, "status": None, "tolerance": None,
+                     "nominal_output": 1.0, "current_user": user,
+                     "prior_readings": [], "last_reading": raw_charge_nC, "last_mu": mu,
+                     "error": f"Calculation error: {type(e).__name__}: {e}"})
+
 
 @app.post("/session/{sid}/energy/{bid}/tune")
 async def energy_tune(request: Request, sid: str, bid: str,
@@ -363,7 +411,7 @@ async def energy_tune(request: Request, sid: str, bid: str,
         energy=beam.nominal_energy, date_time=datetime.utcnow().isoformat(),
         measured_output_cGy_MU=measured_output,
         tuned_output_cGy_MU=tuned_output if tuning else None,
-        tuning_performed=tuning, detector_id=sess.detector_id,
+        tuning_performed=tuning, detector_id=getattr(sess, "detector_id", None),
         k_TP=sess.corrections.k_TP, k_pol=sess.corrections.k_pol, k_s=sess.corrections.k_s,
         k_Q=beam.k_Q, notes=notes, physicist=physicist or user.full_name,
         nominal_output_cGy_MU=nominal_output, status=status))
@@ -381,11 +429,9 @@ async def switch_mod(request: Request, sid: str):
     new_mod = "electron" if sess.modality == "photon" else "photon"
     ns = create_session(sess.linac_id, new_mod)
     ns.corrections = sess.corrections
-    ns.detector_id = sess.detector_id
+    ns.detector_id = getattr(sess, "detector_id", None)
     return RedirectResponse(f"/session/{ns.id}/energies", 303)
 
-
-# ---- Brachy ----
 
 @app.get("/brachy", response_class=HTMLResponse)
 async def brachy_form(request: Request):
@@ -407,7 +453,6 @@ async def brachy_calc(request: Request, raw_reading: float = Form(...), N_SK: fl
     user = _require(request, PERM_CALCULATE)
     if not user:
         return _login_redirect()
-    # Prefer well chamber N_SK from detector library if matching
     inp = BrachyWellInput(raw_reading=raw_reading, N_SK=N_SK,
         electrometer_calibration_factor=electrometer_calibration_factor,
         temperature_C=temperature_C, pressure_hPa=pressure_hPa, k_ion=k_ion, k_other=k_other,
@@ -417,8 +462,6 @@ async def brachy_calc(request: Request, raw_reading: float = Form(...), N_SK: fl
     return templates.TemplateResponse(request=request, name="brachy.html",
         context={"result": result, "inputs": inp, "detectors": list_detectors(), "current_user": user})
 
-
-# ---- Libraries ----
 
 @app.get("/detectors", response_class=HTMLResponse)
 async def detectors_page(request: Request):
@@ -501,12 +544,14 @@ async def linac_del(request: Request, lid: str):
 async def beam_add(request: Request, linac_id: str = Form(...), modality: str = Form(...),
                    nominal_energy: str = Form(...), measurement_depth_cm: float = Form(...),
                    pdd: float = Form(...), k_Q: float = Form(...),
-                   ssd_cm: float = Form(100.0), field_size: str = Form("10x10"), notes: str = Form("")):
+                   ssd_cm: float = Form(100.0), field_size: str = Form("10x10"), notes: str = Form(""),
+                   nominal_output_cGy_MU: float = Form(1.0)):
     if not _require(request, PERM_LIBRARY_EDIT):
         return _login_redirect()
     add_beam(Beam(id=_new_id(), linac_id=linac_id, modality=modality,
                   nominal_energy=nominal_energy, measurement_depth_cm=measurement_depth_cm,
-                  pdd=pdd, k_Q=k_Q, ssd_cm=ssd_cm, field_size=field_size, notes=notes))
+                  pdd=pdd, k_Q=k_Q, ssd_cm=ssd_cm, field_size=field_size, notes=notes,
+                  nominal_output_cGy_MU=nominal_output_cGy_MU))
     return RedirectResponse("/linacs", 303)
 
 @app.post("/beams/{bid}/edit")
@@ -514,7 +559,7 @@ async def beam_edit(request: Request, bid: str, nominal_energy: str = Form(...),
                     measurement_depth_cm: float = Form(...), pdd: float = Form(...),
                     k_Q: float = Form(...), ssd_cm: float = Form(100.0),
                     field_size: str = Form("10x10"), notes: str = Form(""),
-                    requested_by: str = Form("")):
+                    requested_by: str = Form(""), nominal_output_cGy_MU: float = Form(1.0)):
     user = _require(request, PERM_LIBRARY_EDIT)
     if not user:
         return _login_redirect()
@@ -522,7 +567,8 @@ async def beam_edit(request: Request, bid: str, nominal_energy: str = Form(...),
     if not beam:
         raise HTTPException(404)
     proposed = dict(nominal_energy=nominal_energy, measurement_depth_cm=measurement_depth_cm,
-                    pdd=pdd, k_Q=k_Q, ssd_cm=ssd_cm, field_size=field_size, notes=notes)
+                    pdd=pdd, k_Q=k_Q, ssd_cm=ssd_cm, field_size=field_size, notes=notes,
+                    nominal_output_cGy_MU=nominal_output_cGy_MU)
     submit_change("beam", bid, "update", proposed, beam.__dict__, requested_by or user.full_name)
     return RedirectResponse("/approvals", 303)
 
@@ -546,13 +592,15 @@ async def tol_page(request: Request):
 async def tol_add(request: Request, name: str = Form(...), modality: str = Form(...),
                   parameter: str = Form("output"), tolerance_percent: float = Form(...),
                   action_level_percent: Optional[float] = Form(None),
-                  energy: str = Form(""), linac_id: str = Form(""), notes: str = Form("")):
+                  energy: str = Form(""), linac_id: str = Form(""), notes: str = Form(""),
+                  baseline_value: Optional[float] = Form(None)):
     if not _require(request, PERM_LIBRARY_EDIT):
         return _login_redirect()
     add_tolerance(ToleranceTable(id=_new_id(), name=name, modality=modality, parameter=parameter,
         tolerance_percent=tolerance_percent,
         action_level_percent=action_level_percent if action_level_percent else None,
-        energy=energy or None, linac_id=linac_id or None, notes=notes))
+        energy=energy or None, linac_id=linac_id or None, notes=notes,
+        baseline_value=baseline_value))
     return RedirectResponse("/tolerances", 303)
 
 @app.post("/tolerances/{tid}/edit")
@@ -638,4 +686,12 @@ async def out_hist(request: Request):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "app": "DOSE pro", "version": "1.3.0"}
+    return {"status": "ok", "app": "DOSE pro", "version": "1.4.1"}
+
+
+# Register optional extra routes (reports, calc profiles, save measurement)
+try:
+    from app.extra_routes import register_extra_routes
+    register_extra_routes(app, templates)
+except Exception:
+    pass
