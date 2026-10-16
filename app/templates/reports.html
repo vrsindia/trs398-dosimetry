@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports – DOSE pro</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <strong>Reports</strong>
+        <a href="/">← Home</a>
+    </header>
+    <main>
+        <div class="card">
+            <h1>Generate report</h1>
+            <p style="color:var(--text-muted);">Reports are stored by machine and date. Export as HTML (print to PDF) or DOC.</p>
+            <form method="post" action="/reports/generate">
+                <div class="grid grid-2">
+                    <div>
+                        <label>Linac *</label>
+                        <select name="linac_id" required>
+                            {% for l in linacs %}
+                            <option value="{{ l.id }}">{{ l.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label>Date *</label>
+                        <input type="date" name="report_date" required value="{{ today }}">
+                    </div>
+                </div>
+                <label>Notes</label>
+                <input name="notes">
+                <button type="submit" style="margin-top:1rem; width:100%;">Generate report from measurements</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Stored reports</h2>
+            {% if reports %}
+            <table>
+                <tr><th>Date</th><th>Machine</th><th>Title</th><th>By</th><th></th></tr>
+                {% for r in reports %}
+                <tr>
+                    <td>{{ r.report_date }}</td>
+                    <td>{{ r.linac_name }}</td>
+                    <td>{{ r.title }}</td>
+                    <td>{{ r.created_by }}</td>
+                    <td style="white-space:nowrap;">
+                        <a class="btn btn-sm" href="/reports/{{ r.id }}">View</a>
+                        <a class="btn btn-sm btn-outline" href="/reports/{{ r.id }}/html" target="_blank">HTML/PDF</a>
+                        <a class="btn btn-sm btn-outline" href="/reports/{{ r.id }}/doc">DOC</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% else %}
+            <p style="color:var(--text-muted);">No reports yet. Save measurements during a session, then generate.</p>
+            {% endif %}
+        </div>
+    </main>
+</body>
+</html>

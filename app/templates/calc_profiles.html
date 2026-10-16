@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculation Profiles – DOSE pro</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <strong>Calculation Parameter Profiles</strong>
+        <a href="/">← Home</a>
+    </header>
+    <main>
+        <div class="card">
+            <h1>Which factors to apply</h1>
+            <p style="color:var(--text-muted);">Physicist chooses whether k<sub>pol</sub>, k<sub>s</sub>, k<sub>TP</sub>, k<sub>Q</sub>, electrometer factor, etc. are used in calculations.</p>
+            {% for p in profiles %}
+            <div class="card" style="margin-top:1rem; border-color: {% if p.is_default %}var(--primary){% else %}var(--border){% endif %};">
+                <strong>{{ p.name }}</strong>
+                {% if p.is_default %}<span class="badge-pass" style="margin-left:0.5rem;">DEFAULT</span>{% endif %}
+                <p style="font-size:0.85rem; color:var(--text-muted); margin:0.4rem 0;">
+                    k_TP: {{ "On" if p.use_k_TP else "Off" }} ·
+                    k_pol: {{ "On" if p.use_k_pol else "Off" }} ·
+                    k_s: {{ "On" if p.use_k_s else "Off" }} ·
+                    k_Q: {{ "On" if p.use_k_Q else "Off" }} ·
+                    Electrometer: {{ "On" if p.use_electrometer_factor else "Off" }}
+                </p>
+                {% if current_user.has('library_edit') %}
+                <form method="post" action="/calc-profiles/{{ p.id }}/edit" style="margin-top:0.6rem;">
+                    <label>Name</label><input name="name" value="{{ p.name }}">
+                    <label style="display:flex; gap:0.4rem; align-items:center; margin-top:0.5rem; font-weight:400;">
+                        <input type="checkbox" name="use_k_TP" value="1" style="width:auto;" {% if p.use_k_TP %}checked{% endif %}> Use k_TP
+                    </label>
+                    <label style="display:flex; gap:0.4rem; align-items:center; font-weight:400;">
+                        <input type="checkbox" name="use_k_pol" value="1" style="width:auto;" {% if p.use_k_pol %}checked{% endif %}> Use k_pol
+                    </label>
+                    <label style="display:flex; gap:0.4rem; align-items:center; font-weight:400;">
+                        <input type="checkbox" name="use_k_s" value="1" style="width:auto;" {% if p.use_k_s %}checked{% endif %}> Use k_s
+                    </label>
+                    <label style="display:flex; gap:0.4rem; align-items:center; font-weight:400;">
+                        <input type="checkbox" name="use_k_Q" value="1" style="width:auto;" {% if p.use_k_Q %}checked{% endif %}> Use k_Q
+                    </label>
+                    <label style="display:flex; gap:0.4rem; align-items:center; font-weight:400;">
+                        <input type="checkbox" name="use_electrometer_factor" value="1" style="width:auto;" {% if p.use_electrometer_factor %}checked{% endif %}> Use electrometer calibration factor
+                    </label>
+                    <label style="display:flex; gap:0.4rem; align-items:center; font-weight:400;">
+                        <input type="checkbox" name="is_default" value="1" style="width:auto;" {% if p.is_default %}checked{% endif %}> Set as default profile
+                    </label>
+                    <button type="submit" class="btn-sm" style="margin-top:0.6rem;">Save</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% if current_user.has('library_edit') %}
+        <div class="card">
+            <h2>Add profile</h2>
+            <form method="post" action="/calc-profiles/add">
+                <label>Name</label><input name="name" required placeholder="My clinic profile">
+                <label style="display:flex; gap:0.4rem; align-items:center; font-weight:400; margin-top:0.5rem;">
+                    <input type="checkbox" name="use_k_TP" value="1" style="width:auto;" checked> Use k_TP
+                </label>
+                <label style="display:flex; gap:0.4rem; align-items:center; font-weight:400;">
+                    <input type="checkbox" name="use_k_pol" value="1" style="width:auto;" checked> Use k_pol
+                </label>
+                <label style="display:flex; gap:0.4rem; align-items:center; font-weight:400;">
+                    <input type="checkbox" name="use_k_s" value="1" style="width:auto;" checked> Use k_s
+                </label>
+                <label style="display:flex; gap:0.4rem; align-items:center; font-weight:400;">
+                    <input type="checkbox" name="use_k_Q" value="1" style="width:auto;" checked> Use k_Q
+                </label>
+                <label style="display:flex; gap:0.4rem; align-items:center; font-weight:400;">
+                    <input type="checkbox" name="use_electrometer_factor" value="1" style="width:auto;" checked> Electrometer factor
+                </label>
+                <button type="submit" style="margin-top:1rem; width:100%;">Add profile</button>
+            </form>
+        </div>
+        {% endif %}
+    </main>
+</body>
+</html>
