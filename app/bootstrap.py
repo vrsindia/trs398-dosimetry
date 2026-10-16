@@ -1,77 +1,50 @@
-"""Application entrypoint for Render."""
+"""Application entrypoint for Render.
+
+startCommand: uvicorn app.bootstrap:app --host 0.0.0.0 --port $PORT
+"""
+import traceback
+
 try:
-    from app.garuda_static_route import ensure_garuda_logo, register_garuda_static
+    from app.garuda_static_route import ensure_garuda_logo
     ensure_garuda_logo()
 except Exception as e:
     print("garuda_logo:", e)
+    traceback.print_exc()
 
 from app.main import app, templates
 
+# Logo routes
 try:
     from app.garuda_static_route import register_garuda_static
     register_garuda_static(app, templates)
 except Exception as e:
     print("garuda_static:", e)
+    traceback.print_exc()
 
-try:
-    from app.extra_routes import register_extra_routes
-    register_extra_routes(app, templates)
-except Exception as e:
-    print("extra_routes:", e)
+# Core extras
+for _label, _mod, _fn in [
+    ("extra_routes", "app.extra_routes", "register_extra_routes"),
+    ("history_routes", "app.history_routes", "register_history_routes"),
+    ("storage_hooks", "app.storage_hooks", "register_storage_hooks"),
+    ("report_view", "app.report_view_route", "register_report_view"),
+    ("linac_category", "app.linac_add_patch", "register_linac_category_routes"),
+    ("branding_routes", "app.branding_routes", "register_branding_routes"),
+    ("mr_energy_patch", "app.mr_energy_patch", "register_mr_energy_patch"),
+    ("activity_routes", "app.activity_routes", "register_activity_routes"),
+]:
+    try:
+        mod = __import__(_mod, fromlist=[_fn])
+        getattr(mod, _fn)(app, templates)
+        print(_label, "OK")
+    except Exception as e:
+        print(_label + ":", e)
+        traceback.print_exc()
 
-try:
-    from app.history_routes import register_history_routes
-    register_history_routes(app, templates)
-except Exception as e:
-    print("history_routes:", e)
-
-try:
-    from app.storage_hooks import register_storage_hooks
-    register_storage_hooks(app, templates)
-except Exception as e:
-    print("storage_hooks:", e)
-
-try:
-    from app.report_view_route import register_report_view
-    register_report_view(app, templates)
-except Exception as e:
-    print("report_view:", e)
-
-try:
-    from app.linac_add_patch import register_linac_category_routes
-    register_linac_category_routes(app, templates)
-except Exception as e:
-    print("linac_category:", e)
-
-try:
-    from app.branding_routes import register_branding_routes
-    register_branding_routes(app, templates)
-except Exception as e:
-    print("branding_routes:", e)
-
-try:
-    from app.mr_energy_patch import register_mr_energy_patch
-    register_mr_energy_patch(app, templates)
-except Exception as e:
-    print("mr_energy_patch:", e)
-
-# Utilities last so they override any prior /activity routes
+# Utilities MUST be last so /activity, /bed, /bed-combined are registered
 try:
     from app.utility_routes import register_utility_routes
     register_utility_routes(app, templates)
+    print("utility_routes OK")
 except Exception as e:
-    print("utility_routes:", e)
-
-try:
-    from app.activity_routes import register_activity_routes
-    # Keep department admin routes from activity_routes; utility owns /activity
-    register_activity_routes(app, templates)
-except Exception as e:
-    print("activity_routes:", e)
-
-# Re-apply utility activity routes after activity_routes (so /activity stays hardened)
-try:
-    from app.utility_routes import register_utility_routes
-    register_utility_routes(app, templates)
-except Exception as e:
-    print("utility_routes_2:", e)
+    print("utility_routes FAILED:", e)
+    traceback.print_exc()

@@ -1,11 +1,12 @@
-"""Utility calculators: activity (hardened), BED/EQD2, EBRT+Brachy BED."""
+"""Utility calculators: activity, BED/EQD2, EBRT+Brachy BED.
+Never removes existing routes — only adds. Safe to call once.
+"""
 
 from __future__ import annotations
 from datetime import date
-from typing import Optional
 
-from fastapi import Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import Request
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 from app.auth import get_user_by_token, PERM_CALCULATE
 from app.calculations.activity import calculate_activity, list_sources
@@ -15,9 +16,14 @@ from app.calculations.bed import (
 
 COOKIE = "dosepro_session"
 UNITS = ["Ci", "mCi", "uCi", "Bq", "MBq", "GBq"]
+_REGISTERED = False
 
 
 def register_utility_routes(app, templates):
+    global _REGISTERED
+    if _REGISTERED:
+        return True
+    _REGISTERED = True
 
     def _user(request: Request):
         return get_user_by_token(request.cookies.get(COOKIE))
@@ -33,20 +39,18 @@ def register_utility_routes(app, templates):
             return None
         return user
 
-    # ---- Source activity (override / harden) ----
-    # Remove existing /activity routes if any so we own them
-    to_remove = [
-        r for r in list(app.router.routes)
-        if getattr(r, "path", None) in ("/activity",)
-    ]
-    for r in to_remove:
-        try:
-            app.router.routes.remove(r)
-        except ValueError:
-            pass
+    # Diagnostic — no auth, confirms utilities are live
+    @app.get("/utils-ping")
+    async def utils_ping():
+        paths = sorted({
+            getattr(r, "path", "") for r in app.router.routes
+            if getattr(r, "path", "") in ("/activity", "/bed", "/bed-combined", "/utils-ping")
+        })
+        return JSONResponse({"ok": True, "utility_paths": paths})
 
+    # ---- Source activity ----
     @app.get("/activity", response_class=HTMLResponse)
-    async def activity_page(request: Request):
+    async def util_activity_page(request: Request):
         user = _require_calc(request)
         if not user:
             return _login()
@@ -68,7 +72,7 @@ def register_utility_routes(app, templates):
         )
 
     @app.post("/activity", response_class=HTMLResponse)
-    async def activity_calc(request: Request):
+    async def util_activity_calc(request: Request):
         user = _require_calc(request)
         if not user:
             return _login()
@@ -81,7 +85,6 @@ def register_utility_routes(app, templates):
         days_raw = str(form.get("days") or "").strip()
         reference_date = str(form.get("reference_date") or "").strip()
         calculation_date = str(form.get("calculation_date") or "").strip()
-
         inputs = {
             "source": source, "activity": activity_raw, "unit": unit,
             "output_unit": output_unit, "mode": mode, "days": days_raw,
@@ -110,7 +113,6 @@ def register_utility_routes(app, templates):
                 )
         except Exception as e:
             error = f"{type(e).__name__}: {e}"
-
         return templates.TemplateResponse(
             request=request, name="activity.html",
             context={
@@ -126,7 +128,7 @@ def register_utility_routes(app, templates):
 
     # ---- BED / EQD2 ----
     @app.get("/bed", response_class=HTMLResponse)
-    async def bed_page(request: Request):
+    async def util_bed_page(request: Request):
         user = _require_calc(request)
         if not user:
             return _login()
@@ -144,7 +146,7 @@ def register_utility_routes(app, templates):
         )
 
     @app.post("/bed", response_class=HTMLResponse)
-    async def bed_calc(request: Request):
+    async def util_bed_calc(request: Request):
         user = _require_calc(request)
         if not user:
             return _login()
@@ -161,7 +163,10 @@ def register_utility_routes(app, templates):
         result = None
         try:
             ab = float(alpha_beta)
-            result = calculate_bed_eqd2(float(total_dose), float(n_fractions), ab, preset or f"α/β={ab}")
+            result = calculate_bed_eqd2(
+                float(total_dose), float(n_fractions), ab,
+                preset or f"a/b={ab}",
+            )
         except Exception as e:
             error = f"{type(e).__name__}: {e}"
         return templates.TemplateResponse(
@@ -175,7 +180,7 @@ def register_utility_routes(app, templates):
 
     # ---- EBRT + Brachy BED ----
     @app.get("/bed-combined", response_class=HTMLResponse)
-    async def bed_combined_page(request: Request):
+    async def util_bed_combined_page(request: Request):
         user = _require_calc(request)
         if not user:
             return _login()
@@ -193,7 +198,7 @@ def register_utility_routes(app, templates):
         )
 
     @app.post("/bed-combined", response_class=HTMLResponse)
-    async def bed_combined_calc(request: Request):
+    async def util_bed_combined_calc(request: Request):
         user = _require_calc(request)
         if not user:
             return _login()
