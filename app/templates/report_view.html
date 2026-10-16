@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ report.title }}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+<strong>{{ report.title }}</strong>
+<div>
+<a href="/reports/{{ report.id }}/html" target="_blank">HTML / Print PDF</a>
+&nbsp; <a href="/reports/{{ report.id }}/doc">DOC</a>
+&nbsp; <a href="/reports">← Reports</a>
+</div>
+</header>
+<main>
+<div class="card">
+<p style="color:var(--text-muted);">Machine: {{ report.linac_name }} · Date: {{ report.report_date }} · By: {{ report.created_by }}</p>
+<table>
+<tr><th>Energy</th><th>Measured</th><th>Final</th><th>Nominal</th><th>Status</th><th>Physicist</th></tr>
+{% for r in records %}
+<tr>
+<td>{{ r.energy }}</td>
+<td>{{ "%.3f"|format(r.measured_output_cGy_MU) }}</td>
+<td>{{ "%.3f"|format(r.tuned_output_cGy_MU) if r.tuned_output_cGy_MU else "%.3f"|format(r.measured_output_cGy_MU) }}</td>
+<td>{{ "%.3f"|format(r.nominal_output_cGy_MU) }}</td>
+<td>{{ r.status }}</td>
+<td>{{ r.physicist }}</td>
+</tr>
+{% endfor %}
+</table>
+</div>
+</main>
+</body>
+</html>
