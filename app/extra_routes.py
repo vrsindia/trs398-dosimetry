@@ -1,4 +1,4 @@
-"""Additional routes: calc profiles, reports, enhanced measurement save/repeat."""
+"""Additional routes: calc profiles, reports, enhanced measurement save/repeat, UX."""
 
 from __future__ import annotations
 from fastapi import Request, Form, HTTPException
@@ -8,9 +8,9 @@ from datetime import datetime, date
 
 from app.models import (
     list_calc_profiles, add_calc_profile, update_calc_profile, CalcProfile,
-    get_default_calc_profile, list_linacs, get_linac, get_beam, get_detector,
+    get_default_calc_profile, list_linacs, get_linac, get_beam, get_detector, list_detectors,
     find_tolerance, check_tolerance, add_output_record, OutputRecord, list_output_records,
-    list_reports, get_report, _new_id,
+    list_reports, get_report, _new_id, list_beams,
 )
 from app.session import get_session
 from app.measurement_helpers import compute_output
@@ -38,6 +38,13 @@ def register_extra_routes(app, templates):
 
     def _login():
         return RedirectResponse("/login", 303)
+
+    # --- UX: TPR energy select + detector set + enhanced GET energy ---
+    try:
+        from app.ux_routes import register_ux_routes
+        register_ux_routes(app, templates)
+    except Exception:
+        pass
 
     # Remove existing POST energy route so we can replace it
     to_remove = []
@@ -67,8 +74,11 @@ def register_extra_routes(app, templates):
         if not sess or not beam:
             raise HTTPException(404)
         detector = get_detector(sess.detector_id) if sess.detector_id else None
+        # N_Dw always from detector library when detector selected — never free-edit
         if detector:
             N_Dw = detector.calibration_factor
+        else:
+            raise HTTPException(400, "Select a detector before calculating")
         nominal = nominal_output if nominal_output else getattr(beam, "nominal_output_cGy_MU", 1.0)
         if bid not in sess.beam_readings:
             sess.beam_readings[bid] = []
@@ -99,7 +109,8 @@ def register_extra_routes(app, templates):
             request=request, name="session_energy_calc.html",
             context={
                 "session": sess, "beam": beam, "linac": get_linac(sess.linac_id),
-                "detector": detector, "beam_qi": beam_qi, "profile": profile,
+                "detector": detector, "detectors": list_detectors(),
+                "beam_qi": beam_qi, "profile": profile,
                 "result": result, "status": status, "tolerance": tol, "tpr_status": tpr_status,
                 "nominal_output": nominal, "current_user": user,
                 "prior_readings": readings[:-1] if len(readings) > 1 else [],
@@ -273,3 +284,6 @@ def register_extra_routes(app, templates):
         if beam.nominal_energy not in sess.completed_energies:
             sess.completed_energies.append(beam.nominal_energy)
         return RedirectResponse(f"/session/{sid}/energies", 303)
+
+    # Ensure register is always callable; also try activate on import side
+    return True
