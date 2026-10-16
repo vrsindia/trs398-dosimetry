@@ -1,10 +1,9 @@
-"""Force-register logo + utility routes. Called from main and bootstrap."""
+"""Register utility routes: activity, BED/EQD2, EBRT+Brachy BED. No logo."""
 from __future__ import annotations
 from datetime import date
-from pathlib import Path
 
 from fastapi import Request, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 COOKIE = "dosepro_session"
 UNITS = ["Ci", "mCi", "uCi", "Bq", "MBq", "GBq"]
@@ -18,17 +17,10 @@ def register_force_utils(app, templates):
     _DONE = True
 
     from app.auth import get_user_by_token, PERM_CALCULATE
-
-    try:
-        from app.calculations.activity import calculate_activity, list_sources
-        from app.calculations.bed import (
-            calculate_bed_eqd2, calculate_ebrt_brachy_bed, ALPHA_BETA_PRESETS,
-        )
-    except Exception as e:
-        print("force_utils import error:", e)
-        raise
-
-    static_dir = Path(__file__).resolve().parent / "static"
+    from app.calculations.activity import calculate_activity, list_sources
+    from app.calculations.bed import (
+        calculate_bed_eqd2, calculate_ebrt_brachy_bed, ALPHA_BETA_PRESETS,
+    )
 
     def _user(request: Request):
         return get_user_by_token(request.cookies.get(COOKIE))
@@ -44,23 +36,13 @@ def register_force_utils(app, templates):
             raise HTTPException(403, "Insufficient permissions")
         return u
 
-    @app.get("/logo.jpg")
-    async def force_logo():
-        p = static_dir / "garuda.jpg"
-        if p.exists():
-            return FileResponse(str(p), media_type="image/jpeg",
-                                headers={"Cache-Control": "public, max-age=86400"})
-        s = static_dir / "garuda.svg"
-        if s.exists():
-            return FileResponse(str(s), media_type="image/svg+xml")
-        return JSONResponse({"error": "logo file missing", "looked": str(p)}, status_code=404)
-
     @app.get("/utils-ping")
     async def force_ping():
-        paths = sorted({getattr(r, "path", "") for r in app.router.routes
-                        if getattr(r, "path", "") in
-                        ("/activity", "/bed", "/bed-combined", "/utils-ping", "/logo.jpg")})
-        return {"ok": True, "paths": paths, "logo": (static_dir / "garuda.jpg").exists()}
+        paths = sorted({
+            getattr(r, "path", "") for r in app.router.routes
+            if getattr(r, "path", "") in ("/activity", "/bed", "/bed-combined", "/utils-ping")
+        })
+        return {"ok": True, "paths": paths, "version": "1.7.0"}
 
     @app.get("/activity", response_class=HTMLResponse)
     async def force_activity_get(request: Request):
@@ -114,7 +96,9 @@ def register_force_utils(app, templates):
             else:
                 if days_raw == "":
                     raise ValueError("Days since reference is required")
-                result = calculate_activity(source, av, unit, days=float(days_raw), output_unit=output_unit)
+                result = calculate_activity(
+                    source, av, unit, days=float(days_raw), output_unit=output_unit,
+                )
         except Exception as e:
             error = f"{type(e).__name__}: {e}"
         return templates.TemplateResponse(
@@ -160,7 +144,9 @@ def register_force_utils(app, templates):
         error = result = None
         try:
             ab = float(alpha_beta)
-            result = calculate_bed_eqd2(float(total_dose), float(n_fractions), ab, preset or f"a/b={ab}")
+            result = calculate_bed_eqd2(
+                float(total_dose), float(n_fractions), ab, preset or f"a/b={ab}",
+            )
         except Exception as e:
             error = f"{type(e).__name__}: {e}"
         return templates.TemplateResponse(
@@ -227,5 +213,5 @@ def register_force_utils(app, templates):
             context={"result": result, "error": error, "inputs": inputs, "current_user": user},
         )
 
-    print("force_utils: registered /activity /bed /bed-combined /logo.jpg /utils-ping")
+    print("force_utils: /activity /bed /bed-combined /utils-ping registered")
     return True

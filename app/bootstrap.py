@@ -3,7 +3,6 @@ import traceback
 
 from app.main import app, templates
 
-# Register utilities FIRST so they always exist
 try:
     from app.force_utils import register_force_utils
     register_force_utils(app, templates)
@@ -29,21 +28,11 @@ for _label, _mod, _fn in [
     except Exception as e:
         print(_label + ":", e)
 
-# Register force_utils AGAIN last so utility routes are present
 try:
     import app.force_utils as fu
     fu._DONE = False
     fu.register_force_utils(app, templates)
     print("force_utils re-OK")
 except Exception as e:
-    print("FORCE_UTILS 2 FAILED:", e)
+    print("FORCE_UTILS 2:", e)
     traceback.print_exc()
-
-try:
-    from app.health_info import health_payload
-
-    @app.get("/health")
-    async def _health():
-        return health_payload(app)
-except Exception as e:
-    print("health:", e)
