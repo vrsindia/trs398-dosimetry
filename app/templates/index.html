@@ -11,7 +11,7 @@
 <body>
     <header>
         <div class="header-nav">
-            <img src="/static/garuda.jpg" alt="Garuda" width="44" height="44" style="border-radius:8px;object-fit:contain;background:#fff;padding:2px;">
+            <img src="/static/garuda.jpg" alt="Garuda" width="44" height="44" style="border-radius:8px;object-fit:contain;background:#fff;padding:2px;" onerror="this.style.display='none'">
             <div>
                 <strong style="color:var(--primary); letter-spacing:0.04em;">DOSE pro</strong>
                 <span style="color:var(--text-muted); font-size:0.8rem; display:block;">Project GARUDA · Clinical Dosimetry</span>
@@ -32,6 +32,10 @@
                 <a class="btn btn-block" href="/linac" style="padding:1.3rem; font-size:1.05rem;">Linac Absolute Dosimetry<br><span style="font-size:0.8rem;font-weight:400;opacity:0.85;">CT Linac · MR Linac</span></a>
                 <a class="btn btn-block btn-success" href="/brachy" style="padding:1.3rem; font-size:1.05rem;">Brachytherapy<br><span style="font-size:0.8rem;font-weight:400;opacity:0.85;">HDR source strength</span></a>
             </div>
+            <a class="btn btn-outline btn-block" href="/activity" style="margin-top:0.85rem; padding:1.1rem;">
+                Source Activity Calculator<br>
+                <span style="font-size:0.8rem;font-weight:400;opacity:0.85;">Decay by days or dates · Bq / Ci · Co-60, Ir-192, I-125, Ru-106…</span>
+            </a>
             {% else %}
             <p style="color:var(--text-muted); margin-top:1rem;">Your role ({{ current_user.role }}) has view-only access.</p>
             {% endif %}
@@ -52,9 +56,7 @@
                 {% if current_user.has('approve') %}
                 <a class="btn btn-outline btn-block" href="/approvals">Approvals</a>
                 {% endif %}
-                {% if current_user.has('dept_edit') or current_user.has('library_view') %}
                 <a class="btn btn-outline btn-block" href="/department">Department</a>
-                {% endif %}
                 {% if current_user.has('admin_panel') %}
                 <a class="btn btn-outline btn-block" href="/users">User Directory</a>
                 {% endif %}
