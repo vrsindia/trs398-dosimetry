@@ -23,18 +23,24 @@
     <main>
         <div class="card">
             <h1>Department Information</h1>
-            <p style="color:var(--text-muted);">Hospital logo and details appear on reports. Logo max 512 KB (PNG/JPG/SVG).</p>
+            <p style="color:var(--text-muted);">
+                Saved in database when Supabase is connected. Only <strong>Developer</strong> and <strong>Admin</strong> can edit.
+            </p>
+
             {% if dept.logo_url %}
             <div style="margin-bottom:1rem;">
                 <p class="note">Current hospital logo:</p>
                 <img src="{{ dept.logo_url }}" alt="Department logo" style="max-height:80px; max-width:220px; object-fit:contain; border:1px solid var(--border); border-radius:6px; padding:4px; background:var(--bg-input);">
             </div>
             {% endif %}
+
+            {% if can_edit %}
             <form method="post" action="/department/logo" enctype="multipart/form-data" style="margin-bottom:1.5rem;">
                 <label>Upload hospital logo (max 512 KB)</label>
                 <input type="file" name="logo" accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp" required>
                 <button type="submit" class="btn-sm" style="margin-top:0.5rem;">Upload logo</button>
             </form>
+
             <form method="post" action="/department/edit">
                 <div class="grid grid-2">
                     <div><label>Department Name</label><input name="name" value="{{ dept.name }}"></div>
@@ -51,9 +57,22 @@
                 </div>
                 <label>Head of Medical Physics</label><input name="head_physicist" value="{{ dept.head_physicist }}">
                 <label>Notes</label><input name="notes" value="{{ dept.notes }}">
-                <label>Your name (for approval)</label><input name="requested_by" placeholder="Physicist name">
-                <button type="submit" style="margin-top:1.2rem; width:100%;">Submit Changes for Approval</button>
+                <button type="submit" style="margin-top:1.2rem; width:100%;">Save department details</button>
             </form>
+            {% else %}
+            <table>
+                <tr><th>Department</th><td>{{ dept.name }}</td></tr>
+                <tr><th>Hospital</th><td>{{ dept.hospital }}</td></tr>
+                <tr><th>Address</th><td>{{ dept.address }}</td></tr>
+                <tr><th>City</th><td>{{ dept.city }}</td></tr>
+                <tr><th>Country</th><td>{{ dept.country }}</td></tr>
+                <tr><th>Phone</th><td>{{ dept.phone }}</td></tr>
+                <tr><th>Email</th><td>{{ dept.email }}</td></tr>
+                <tr><th>Head of Physics</th><td>{{ dept.head_physicist }}</td></tr>
+                <tr><th>Notes</th><td>{{ dept.notes }}</td></tr>
+            </table>
+            <p class="note" style="margin-top:1rem;">View only. Contact Developer or Admin to change these details.</p>
+            {% endif %}
         </div>
     </main>
     <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
