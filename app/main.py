@@ -8,7 +8,6 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from typing import Optional, List
 from datetime import datetime
-from dataclasses import dataclass
 
 from app.calculations.photon import (
     PhotonMeasurementInput, calculate_dose_to_water_photon,
@@ -36,7 +35,7 @@ from app.auth import (
     PERM_APPROVE, PERM_USER_MANAGE, PERM_DEPT_EDIT, PERM_HISTORY_VIEW, PERM_ADMIN_PANEL,
 )
 
-app = FastAPI(title="DOSE pro", version="1.4.1")
+app = FastAPI(title="DOSE pro", version="1.5.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 seed_libraries()
@@ -93,8 +92,6 @@ async def home(request: Request):
     return templates.TemplateResponse(request=request, name="index.html", context={"current_user": user})
 
 
-# ---- Users ----
-
 @app.get("/users", response_class=HTMLResponse)
 async def users_page(request: Request):
     user = _require(request, PERM_ADMIN_PANEL)
@@ -105,29 +102,6 @@ async def users_page(request: Request):
         "current_user": user, "users": list_users(), "roles": ROLES, "all_perms": all_perms,
         "pw_message": None, "pw_error": None,
     })
-
-@app.post("/users/change-password", response_class=HTMLResponse)
-async def change_my_password(request: Request, current_password: str = Form(...),
-                             new_password: str = Form(...), confirm_password: str = Form(...)):
-    user = _require(request, PERM_ADMIN_PANEL)
-    if not user:
-        return _login_redirect()
-    all_perms = sorted({p for perms in DEFAULT_PERMISSIONS.values() for p in perms})
-    ctx = {"current_user": user, "users": list_users(), "roles": ROLES, "all_perms": all_perms,
-           "pw_message": None, "pw_error": None}
-    if new_password != confirm_password:
-        ctx["pw_error"] = "New passwords do not match"
-        return templates.TemplateResponse(request=request, name="users.html", context=ctx)
-    if len(new_password) < 6:
-        ctx["pw_error"] = "Password must be at least 6 characters"
-        return templates.TemplateResponse(request=request, name="users.html", context=ctx)
-    if not user.check_password(current_password):
-        ctx["pw_error"] = "Current password is incorrect"
-        return templates.TemplateResponse(request=request, name="users.html", context=ctx)
-    update_user(user.id, password=new_password)
-    ctx["pw_message"] = "Password updated successfully"
-    ctx["current_user"] = get_user(user.id)
-    return templates.TemplateResponse(request=request, name="users.html", context=ctx)
 
 @app.post("/users/add")
 async def users_add(request: Request, username: str = Form(...), password: str = Form(...),
@@ -167,8 +141,6 @@ async def users_del(request: Request, uid: str):
         raise HTTPException(400, str(e))
     return RedirectResponse("/users", 303)
 
-
-# ---- Linac workflow ----
 
 @app.get("/linac", response_class=HTMLResponse)
 async def linac_select(request: Request):
@@ -686,12 +658,24 @@ async def out_hist(request: Request):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "app": "DOSE pro", "version": "1.4.1"}
+    from app.health_info import health_payload
+    return health_payload()
 
 
-# Register optional extra routes (reports, calc profiles, save measurement)
 try:
     from app.extra_routes import register_extra_routes
     register_extra_routes(app, templates)
-except Exception:
-    pass
+except Exception as e:
+    print("extra_routes:", e)
+
+try:
+    from app.storage_hooks import register_storage_hooks
+    register_storage_hooks(app, templates)
+except Exception as e:
+    print("storage_hooks:", e)
+
+try:
+    from app.history_routes import register_history_routes
+    register_history_routes(app, templates)
+except Exception as e:
+    print("history_routes:", e)
