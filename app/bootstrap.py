@@ -1,10 +1,17 @@
 """
 Application entrypoint used by Render.
-Loads main app then registers extra routes (calc profiles, reports, energy UX).
+Loads main app then registers extra routes.
 """
 from app.main import app, templates
 
-from app.extra_routes import register_extra_routes
-register_extra_routes(app, templates)
+try:
+    from app.extra_routes import register_extra_routes
+    register_extra_routes(app, templates)
+except Exception as e:
+    print("extra_routes failed:", e)
 
-# app is the FastAPI instance exported for uvicorn app.bootstrap:app
+try:
+    from app.history_routes import register_history_routes
+    register_history_routes(app, templates)
+except Exception as e:
+    print("history_routes failed:", e)
