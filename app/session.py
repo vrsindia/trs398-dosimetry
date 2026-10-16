@@ -1,6 +1,6 @@
 """
-Simple in-memory session store for a guided absolute dosimetry session.
-Holds shared correction factors so they can be reused across energies.
+Guided absolute dosimetry session store.
+Shared correction factors + per-beam TPR20,10 for photons.
 """
 
 from __future__ import annotations
@@ -24,10 +24,11 @@ class SessionCorrectionFactors:
 class DosimetrySession:
     id: str
     linac_id: str
-    modality: str                          # photon | electron
+    modality: str
     detector_id: Optional[str] = None
     corrections: SessionCorrectionFactors = field(default_factory=SessionCorrectionFactors)
-    quality_index: Optional[float] = None  # TPR20,10 for photons
+    # beam_id -> TPR20,10 (photon only, per energy)
+    beam_quality_index: Dict[str, float] = field(default_factory=dict)
     completed_energies: List[str] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
 
@@ -44,13 +45,3 @@ def create_session(linac_id: str, modality: str) -> DosimetrySession:
 
 def get_session(session_id: str) -> Optional[DosimetrySession]:
     return _SESSIONS.get(session_id)
-
-
-def update_session(session_id: str, **kwargs) -> Optional[DosimetrySession]:
-    sess = _SESSIONS.get(session_id)
-    if not sess:
-        return None
-    for k, v in kwargs.items():
-        if hasattr(sess, k):
-            setattr(sess, k, v)
-    return sess

@@ -16,15 +16,28 @@
             <h1>Output Measurement</h1>
             <p style="color:var(--text-muted);">
                 Depth {{ beam.measurement_depth_cm }} cm · PDD {{ "%.3f"|format(beam.pdd) }} · k<sub>Q</sub> {{ "%.4f"|format(beam.k_Q) }}
+                {% if beam_qi %} · TPR<sub>20,10</sub> {{ "%.4f"|format(beam_qi) }}{% endif %}
             </p>
+            {% if detector %}
+            <p style="color:var(--success); font-size:0.9rem;">
+                N<sub>D,w</sub> from detector library: <strong>{{ detector.name }}</strong> → {{ "%.5f"|format(detector.calibration_factor) }} {{ detector.unit }}
+            </p>
+            {% else %}
+            <p style="color:var(--warning); font-size:0.9rem;">No detector selected in session – enter N<sub>D,w</sub> manually or go back and select one.</p>
+            {% endif %}
+
             <form method="post" action="/session/{{ session.id }}/energy/{{ beam.id }}">
                 <div class="grid grid-2">
                     <div><label>Raw charge (nC)</label><input type="number" step="any" name="raw_charge_nC" required value="20.0"></div>
                     <div><label>MU delivered</label><input type="number" step="any" name="mu" required value="100"></div>
                 </div>
                 <div class="grid grid-2">
-                    <div><label>N<sub>D,w</sub> (Gy/nC)</label>
-                        <input type="number" step="any" name="N_Dw" required value="{{ detector.calibration_factor if detector else '0.045' }}"></div>
+                    <div>
+                        <label>N<sub>D,w</sub> (Gy/nC) – from detector library</label>
+                        <input type="number" step="any" name="N_Dw" required
+                               value="{{ detector.calibration_factor if detector else '0.045' }}"
+                               {% if detector %}readonly style="opacity:0.9;"{% endif %}>
+                    </div>
                     <div><label>k<sub>Q</sub></label><input type="number" step="any" name="k_Q" required value="{{ beam.k_Q }}"></div>
                 </div>
                 <label>Nominal / expected output (cGy/MU)</label>
@@ -38,30 +51,26 @@
         <div class="card result-box result-{{ status or 'unknown' }}">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h2 style="margin:0;">Result</h2>
-                {% if status == 'pass' %}
-                <span class="badge-pass">WITHIN TOLERANCE</span>
-                {% elif status == 'warning' %}
-                <span class="badge-warning">BORDERLINE</span>
-                {% elif status == 'fail' %}
-                <span class="badge-fail">OUT OF TOLERANCE</span>
-                {% else %}
-                <span style="color:var(--text-muted);">No tolerance set</span>
-                {% endif %}
+                {% if status == 'pass' %}<span class="badge-pass">WITHIN TOLERANCE</span>
+                {% elif status == 'warning' %}<span class="badge-warning">BORDERLINE</span>
+                {% elif status == 'fail' %}<span class="badge-fail">OUT OF TOLERANCE</span>
+                {% else %}<span style="color:var(--text-muted);">No tolerance set</span>{% endif %}
             </div>
             <div class="dose" style="margin-top:0.6rem;">{{ "%.3f"|format(result.output_cGy_MU) }} cGy/MU</div>
-            <p style="color:var(--text-muted); margin:0.3rem 0 0;">at measurement depth</p>
             {% if tolerance %}
             <p class="note">Tolerance ±{{ tolerance.tolerance_percent }}%
-               {% if tolerance.action_level_percent %} · Action level ±{{ tolerance.action_level_percent }}%{% endif %}
+               {% if tolerance.action_level_percent %} · Action ±{{ tolerance.action_level_percent }}%{% endif %}
                · Nominal {{ nominal_output }} cGy/MU</p>
             {% endif %}
 
             <form method="post" action="/session/{{ session.id }}/energy/{{ beam.id }}/tune" style="margin-top:1.4rem;">
                 <input type="hidden" name="measured_output" value="{{ result.output_cGy_MU }}">
                 <input type="hidden" name="nominal_output" value="{{ nominal_output }}">
+                {% if current_user.has('tune') %}
                 <label>Tune output to (cGy/MU) – optional</label>
                 <input type="number" step="any" name="tuned_output" placeholder="Leave blank if no tuning">
-                <label>Physicist</label><input type="text" name="physicist">
+                {% endif %}
+                <label>Physicist</label><input type="text" name="physicist" value="{{ current_user.full_name }}">
                 <label>Notes</label><input type="text" name="notes">
                 <button type="submit" style="margin-top:1rem; width:100%;">Save Record</button>
             </form>

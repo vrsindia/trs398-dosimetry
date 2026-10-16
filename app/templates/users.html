@@ -16,8 +16,28 @@
     </header>
     <main>
         <div class="card">
+            <h1>Change my password</h1>
+            <p style="color:var(--text-muted);">Developer / Admin can change their own password here.</p>
+            {% if pw_message %}
+            <p style="color:var(--success);">{{ pw_message }}</p>
+            {% endif %}
+            {% if pw_error %}
+            <p style="color:var(--danger);">{{ pw_error }}</p>
+            {% endif %}
+            <form method="post" action="/users/change-password">
+                <label>Current password</label>
+                <input type="password" name="current_password" required autocomplete="current-password">
+                <label>New password</label>
+                <input type="password" name="new_password" required autocomplete="new-password" minlength="6">
+                <label>Confirm new password</label>
+                <input type="password" name="confirm_password" required autocomplete="new-password" minlength="6">
+                <button type="submit" style="margin-top:1rem;">Update my password</button>
+            </form>
+        </div>
+
+        <div class="card">
             <h1>Users</h1>
-            <p style="color:var(--text-muted);">Visible only to Admin and Developer. Assign roles and rights here.</p>
+            <p style="color:var(--text-muted);">Visible only to Admin and Developer. Set password when editing any user.</p>
             <table>
                 <tr>
                     <th>Username</th><th>Full Name</th><th>Role</th><th>Active</th><th>Permissions</th><th></th>
@@ -31,7 +51,7 @@
                     <td style="font-size:0.75rem; color:var(--text-muted);">{{ u.permissions | join(", ") }}</td>
                     <td>
                         <details>
-                            <summary style="font-size:0.85rem;">Edit</summary>
+                            <summary style="font-size:0.85rem;">Edit / Set password</summary>
                             <form method="post" action="/users/{{ u.id }}/edit" style="margin-top:0.6rem;">
                                 <label>Full name</label><input name="full_name" value="{{ u.full_name }}">
                                 <label>Role</label>
@@ -40,8 +60,8 @@
                                     <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
                                     {% endfor %}
                                 </select>
-                                <label>New password (leave blank to keep)</label>
-                                <input type="password" name="password" autocomplete="new-password">
+                                <label>Set new password (leave blank to keep current)</label>
+                                <input type="password" name="password" autocomplete="new-password" placeholder="New password for this user">
                                 <label style="margin-top:0.8rem;">Permissions</label>
                                 {% for p in all_perms %}
                                 <label style="font-weight:400; display:flex; align-items:center; gap:0.4rem; margin-top:0.3rem;">
@@ -52,7 +72,7 @@
                                 <label style="margin-top:0.6rem; display:flex; align-items:center; gap:0.4rem;">
                                     <input type="checkbox" name="active" value="1" style="width:auto;" {% if u.active %}checked{% endif %}> Active
                                 </label>
-                                <button type="submit" class="btn-sm" style="margin-top:0.7rem;">Save</button>
+                                <button type="submit" class="btn-sm" style="margin-top:0.7rem;">Save user</button>
                             </form>
                             {% if u.role != 'developer' or users|selectattr('role','equalto','developer')|list|length > 1 %}
                             <form method="post" action="/users/{{ u.id }}/delete" style="margin-top:0.4rem;"
@@ -85,7 +105,6 @@
                         </select>
                     </div>
                 </div>
-                <p class="note">Default permissions for the role will be applied. You can adjust them after creation.</p>
                 <button type="submit" style="margin-top:1rem; width:100%;">Create User</button>
             </form>
         </div>
