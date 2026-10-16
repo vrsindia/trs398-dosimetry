@@ -1,11 +1,10 @@
-"""Extra routes: calc profiles, reports, hardened energy calculate/save."""
+"""Extra routes: calc profiles, reports PDF, energy calculate/save."""
 
 from __future__ import annotations
 from fastapi import Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from typing import Optional
 from datetime import datetime, date
-import traceback
 
 from app.models import (
     list_calc_profiles, add_calc_profile, update_calc_profile, CalcProfile,
@@ -15,7 +14,7 @@ from app.models import (
 )
 from app.session import get_session
 from app.measurement_helpers import compute_output
-from app.reports import build_report_html, create_report_from_date
+from app.reports import create_report_from_date, build_report_pdf
 from app.auth import (
     get_user_by_token, PERM_CALCULATE, PERM_LIBRARY_VIEW, PERM_LIBRARY_EDIT,
     PERM_HISTORY_VIEW, PERM_TUNE,
@@ -45,8 +44,12 @@ def register_extra_routes(app, templates):
         register_ux_routes(app, templates)
     except Exception:
         pass
+    try:
+        from app.history_routes import register_history_routes
+        register_history_routes(app, templates)
+    except Exception:
+        pass
 
-    # Replace POST /session/{sid}/energy/{bid}
     to_remove = []
     for r in list(app.router.routes):
         path = getattr(r, "path", None)
@@ -88,7 +91,6 @@ def register_extra_routes(app, templates):
         )
         k_Q = float(k_Q) if k_Q else float(beam.k_Q)
 
-        # Safe beam_readings init
         if not hasattr(sess, "beam_readings") or sess.beam_readings is None:
             sess.beam_readings = {}
         if bid not in sess.beam_readings:
@@ -209,10 +211,10 @@ def register_extra_routes(app, templates):
         rep = create_report_from_date(linac_id, report_date, user.full_name, notes)
         if not rep:
             raise HTTPException(400, "Could not create report")
-        return RedirectResponse(f"/reports/{rep.id}", 303)
+        return RedirectResponse(f"/reports/{rep.id}/pdf", 303)
 
-    @app.get("/reports/{rid}", response_class=HTMLResponse)
-    async def report_view(request: Request, rid: str):
+    @app.get("/reports/{rid}/pdf")
+    async def report_pdf(request: Request, rid: str):
         user = _require(request, PERM_HISTORY_VIEW)
         if not user:
             return _login()
@@ -220,43 +222,15 @@ def register_extra_routes(app, templates):
         if not rep:
             raise HTTPException(404)
         records = list_output_records(linac_id=rep.linac_id, report_date=rep.report_date)
-        return templates.TemplateResponse(
-            request=request, name="report_view.html",
-            context={"report": rep, "records": records, "current_user": user},
-        )
-
-    @app.get("/reports/{rid}/html")
-    async def report_html(request: Request, rid: str):
-        user = _require(request, PERM_HISTORY_VIEW)
-        if not user:
-            return _login()
-        rep = get_report(rid)
-        if not rep:
-            raise HTTPException(404)
-        records = list_output_records(linac_id=rep.linac_id, report_date=rep.report_date)
-        html = build_report_html(rep, records)
-        return Response(content=html, media_type="text/html")
-
-    @app.get("/reports/{rid}/doc")
-    async def report_doc(request: Request, rid: str):
-        user = _require(request, PERM_HISTORY_VIEW)
-        if not user:
-            return _login()
-        rep = get_report(rid)
-        if not rep:
-            raise HTTPException(404)
-        records = list_output_records(linac_id=rep.linac_id, report_date=rep.report_date)
-        html = build_report_html(rep, records)
-        body = html.split("<body>", 1)[-1].replace("</body></html>", "")
-        doc_html = (
-            "<html xmlns:o='urn:schemas-microsoft-com:office:office' "
-            "xmlns:w='urn:schemas-microsoft-com:office:word'>"
-            "<head><meta charset='utf-8'></head><body>" + body + "</body></html>"
-        )
+        try:
+            pdf_bytes = build_report_pdf(rep, records)
+        except Exception as e:
+            raise HTTPException(500, f"PDF generation failed: {e}")
+        filename = f"dosepro_{rep.linac_name.replace(' ', '_')}_{rep.report_date}.pdf"
         return Response(
-            content=doc_html.encode("utf-8"),
-            media_type="application/msword",
-            headers={"Content-Disposition": f'attachment; filename="dosepro_{rep.report_date}.doc"'},
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
     @app.post("/session/{sid}/energy/{bid}/save")
