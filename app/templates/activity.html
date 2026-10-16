@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Source Activity – DOSE pro</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="/static/garuda.jpg" type="image/jpeg">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-nav">
+            <a class="nav-btn" href="javascript:history.back()">← Back</a>
+            <a class="nav-btn" href="/">Home</a>
+            <img src="/static/garuda.jpg" alt="Garuda" width="32" height="32" style="border-radius:6px;object-fit:contain;background:#fff;padding:1px;" onerror="this.style.display='none'">
+            <strong>Source Activity</strong>
+        </div>
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
+        </div>
+    </header>
+    <main>
+        <div class="card">
+            <h1>Source activity calculator</h1>
+            <p style="color:var(--text-muted);">A(t) = A₀ · e<sup>−λt</sup> · λ = ln(2)/T<sub>½</sub>. Calculate by <strong>number of days</strong> or by <strong>two dates</strong>.</p>
+
+            <form method="post" action="/activity">
+                <div class="grid grid-2">
+                    <div>
+                        <label>Source *</label>
+                        <select name="source" required>
+                            {% for s in sources %}
+                            <option value="{{ s }}" {% if inputs and inputs.source == s %}selected{% endif %}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label>Reference activity *</label>
+                        <input type="number" step="any" name="activity" value="{{ inputs.activity if inputs else '10' }}" required>
+                    </div>
+                </div>
+                <div class="grid grid-2">
+                    <div>
+                        <label>Input unit *</label>
+                        <select name="unit">
+                            {% for u in units %}
+                            <option value="{{ u }}" {% if inputs and inputs.unit == u %}selected{% endif %}>{{ u }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label>Output unit *</label>
+                        <select name="output_unit">
+                            {% for u in units %}
+                            <option value="{{ u }}" {% if inputs and inputs.output_unit == u %}selected{% endif %}>{{ u }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <label>Calculation mode *</label>
+                <select name="mode" id="mode" onchange="toggleMode()">
+                    <option value="days" {% if not inputs or inputs.mode == 'days' %}selected{% endif %}>By number of days</option>
+                    <option value="dates" {% if inputs and inputs.mode == 'dates' %}selected{% endif %}>By reference date &amp; calculation date</option>
+                </select>
+
+                <div id="days-block">
+                    <label>Days since reference (elapsed) *</label>
+                    <input type="number" step="any" name="days" value="{{ inputs.days if inputs and inputs.days is defined else '30' }}">
+                </div>
+                <div id="dates-block" style="display:none;">
+                    <div class="grid grid-2">
+                        <div>
+                            <label>Reference date (calibration / assay) *</label>
+                            <input type="date" name="reference_date" value="{{ inputs.reference_date if inputs else '' }}">
+                        </div>
+                        <div>
+                            <label>Calculation date *</label>
+                            <input type="date" name="calculation_date" value="{{ inputs.calculation_date if inputs else today }}">
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" style="margin-top:1.2rem; width:100%;">Calculate activity</button>
+            </form>
+        </div>
+
+        {% if error %}
+        <div class="card result-fail">
+            <p><strong>Error:</strong> {{ error }}</p>
+        </div>
+        {% endif %}
+
+        {% if result %}
+        <div class="card result-pass">
+            <h2>Result — {{ result.source }}</h2>
+            <table>
+                <tr><th>Half-life</th><td>{{ "%.4g"|format(result.half_life_days) }} days</td></tr>
+                <tr><th>Elapsed</th><td>{{ "%.4g"|format(result.elapsed_days) }} days ({{ result.mode }})</td></tr>
+                <tr><th>Decay factor</th><td>{{ "%.6f"|format(result.decay_factor) }}</td></tr>
+                <tr><th>Reference activity</th><td>{{ "%.6g"|format(result.reference_activity_display) }} {{ result.unit_in }}</td></tr>
+                <tr><th>Current activity</th><td><strong>{{ "%.6g"|format(result.current_activity_display) }} {{ result.unit_out }}</strong></td></tr>
+                <tr><th>Also in Ci</th><td>{{ "%.6g"|format(result.current_activity_ci) }} Ci</td></tr>
+                <tr><th>Also in Bq</th><td>{{ "%.6g"|format(result.current_activity_bq_out) }} Bq</td></tr>
+            </table>
+            <p class="note" style="margin-top:0.8rem;">1 Ci = 3.7×10¹⁰ Bq. Values for clinical planning must be verified against the source certificate.</p>
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <h2>Available sources</h2>
+            <p class="note">Co-60, Ir-192, Ra-226, I-125 (incl. I-121 alias), Ru-106, Cs-137, Au-198, Pd-103, Sr-90, Y-90, F-18, Tc-99m, Am-241, Cf-252, P-32, Sm-153, Lu-177, Ra-223, Ac-225.</p>
+        </div>
+    </main>
+    <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
+    <script>
+    function toggleMode() {
+        var m = document.getElementById('mode').value;
+        document.getElementById('days-block').style.display = (m === 'days') ? 'block' : 'none';
+        document.getElementById('dates-block').style.display = (m === 'dates') ? 'block' : 'none';
+    }
+    toggleMode();
+    </script>
+</body>
+</html>
