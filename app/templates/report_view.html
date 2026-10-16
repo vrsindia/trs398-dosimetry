@@ -1,37 +1,78 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ report.title }}</title>
-<link rel="stylesheet" href="/static/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ report.title }} – DOSE pro</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
 </head>
 <body>
-<header>
-<strong>{{ report.title }}</strong>
-<div>
-<a href="/reports/{{ report.id }}/html" target="_blank">HTML / Print PDF</a>
-&nbsp; <a href="/reports/{{ report.id }}/doc">DOC</a>
-&nbsp; <a href="/reports">← Reports</a>
-</div>
-</header>
-<main>
-<div class="card">
-<p style="color:var(--text-muted);">Machine: {{ report.linac_name }} · Date: {{ report.report_date }} · By: {{ report.created_by }}</p>
-<table>
-<tr><th>Energy</th><th>Measured</th><th>Final</th><th>Nominal</th><th>Status</th><th>Physicist</th></tr>
-{% for r in records %}
-<tr>
-<td>{{ r.energy }}</td>
-<td>{{ "%.3f"|format(r.measured_output_cGy_MU) }}</td>
-<td>{{ "%.3f"|format(r.tuned_output_cGy_MU) if r.tuned_output_cGy_MU else "%.3f"|format(r.measured_output_cGy_MU) }}</td>
-<td>{{ "%.3f"|format(r.nominal_output_cGy_MU) }}</td>
-<td>{{ r.status }}</td>
-<td>{{ r.physicist }}</td>
-</tr>
-{% endfor %}
-</table>
-</div>
-</main>
+    <header>
+        <div class="header-nav">
+            <a class="nav-btn" href="javascript:history.back()">← Back</a>
+            <a class="nav-btn" href="/">Home</a>
+            <a class="nav-btn" href="/reports">Reports</a>
+            <strong>View report</strong>
+        </div>
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
+            <a class="btn btn-sm" href="/reports/{{ report.id }}/pdf">Download PDF</a>
+        </div>
+    </header>
+    <main>
+        <div class="card">
+            {% if dept %}
+            <p style="text-align:center; margin:0;">
+                <strong style="font-size:1.15rem;">{{ dept.hospital or 'Hospital' }}</strong><br>
+                <span style="color:var(--text-muted);">{{ dept.name }}</span><br>
+                {% if dept.address or dept.city %}
+                <span style="color:var(--text-muted); font-size:0.9rem;">{{ dept.address }}{% if dept.city %}, {{ dept.city }}{% endif %}</span>
+                {% endif %}
+            </p>
+            <hr style="border-color:var(--border); margin:1rem 0;">
+            {% endif %}
+            <h1 style="text-align:center;">Absolute Dosimetry Report</h1>
+            <p style="text-align:center; color:var(--text-muted);">{{ report.title }}</p>
+            <div class="grid grid-2" style="margin-top:1rem;">
+                <div><strong>Machine:</strong> {{ report.linac_name }}</div>
+                <div><strong>Date:</strong> {{ report.report_date }}</div>
+                <div><strong>Prepared by:</strong> {{ report.created_by }}</div>
+                <div><strong>Generated:</strong> {{ report.created_at[:16] if report.created_at else '—' }}</div>
+            </div>
+            {% if report.notes %}
+            <p style="margin-top:1rem;"><strong>Notes:</strong> {{ report.notes }}</p>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>Measurements</h2>
+            {% if records %}
+            <table>
+                <tr>
+                    <th>Energy</th><th>Modality</th><th>Measured</th><th>Final</th><th>Nominal</th><th>Status</th><th>Physicist</th>
+                </tr>
+                {% for r in records %}
+                <tr>
+                    <td>{{ r.energy }}</td>
+                    <td>{{ r.modality }}</td>
+                    <td>{{ "%.3f"|format(r.measured_output_cGy_MU) }}</td>
+                    <td>{{ "%.3f"|format(r.tuned_output_cGy_MU) if r.tuned_output_cGy_MU else "%.3f"|format(r.measured_output_cGy_MU) }}</td>
+                    <td>{{ "%.3f"|format(r.nominal_output_cGy_MU) }}</td>
+                    <td>
+                        {% if r.status == 'pass' %}<span class="status-pass">PASS</span>
+                        {% elif r.status == 'warning' %}<span class="status-warning">BORDERLINE</span>
+                        {% elif r.status == 'fail' %}<span class="status-fail">FAIL</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>{{ r.physicist }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% else %}
+            <p class="note">No measurement rows linked to this report date.</p>
+            {% endif %}
+        </div>
+    </main>
 </body>
 </html>

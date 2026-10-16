@@ -1,20 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reports – DOSE pro</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
 </head>
 <body>
     <header>
-        <strong>Reports</strong>
-        <a href="/">← Home</a>
+        <div class="header-nav">
+            <a class="nav-btn" href="javascript:history.back()">← Back</a>
+            <a class="nav-btn" href="/">Home</a>
+            <strong>Reports</strong>
+        </div>
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
+        </div>
     </header>
     <main>
         <div class="card">
             <h1>Generate report (PDF)</h1>
-            <p style="color:var(--text-muted);">Reports are stored by machine and date. Download as professional PDF with hospital header.</p>
+            <p style="color:var(--text-muted);">Stored by machine and date. View online or download PDF.</p>
             <form method="post" action="/reports/generate">
                 <div class="grid grid-2">
                     <div>
@@ -32,7 +39,7 @@
                 </div>
                 <label>Notes</label>
                 <input name="notes">
-                <button type="submit" style="margin-top:1rem; width:100%;">Generate PDF report</button>
+                <button type="submit" style="margin-top:1rem; width:100%;">Generate report</button>
             </form>
         </div>
 
@@ -48,7 +55,8 @@
                     <td>{{ r.title }}</td>
                     <td>{{ r.created_by }}</td>
                     <td style="white-space:nowrap;">
-                        <a class="btn btn-sm" href="/reports/{{ r.id }}/pdf">Download PDF</a>
+                        <a class="btn btn-sm btn-outline" href="/reports/{{ r.id }}/view">View</a>
+                        <a class="btn btn-sm" href="/reports/{{ r.id }}/pdf">PDF</a>
                     </td>
                 </tr>
                 {% endfor %}

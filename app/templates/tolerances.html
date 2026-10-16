@@ -1,93 +1,109 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tolerance Tables – DOSE pro</title>
+    <title>Tolerances – DOSE pro</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
 </head>
 <body>
     <header>
-        <strong>Tolerance Tables</strong>
-        <a href="/">← Home</a>
+        <div class="header-nav">
+            <a class="nav-btn" href="javascript:history.back()">← Back</a>
+            <a class="nav-btn" href="/">Home</a>
+            <strong>Tolerance Tables</strong>
+        </div>
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
+        </div>
     </header>
     <main>
         <div class="card">
-            <h1>Tolerance Library</h1>
-            {% if tolerances %}
+            <h1>Linac tolerances</h1>
+            <p class="note">Output / TPR₂₀,₁₀ — apply to CT Linac and MR Linac machines.</p>
             <table>
-                <tr>
-                    <th>Name</th><th>Modality</th><th>Energy</th><th>Parameter</th>
-                    <th>±% Tol</th><th>±% Action</th><th></th>
-                </tr>
-                {% for t in tolerances %}
+                <tr><th>Name</th><th>Modality</th><th>Energy</th><th>Parameter</th><th>±%</th><th>Action</th><th>Machine</th>
+                {% if current_user.has('library_edit') %}<th></th>{% endif %}</tr>
+                {% for t in tolerances if t.parameter != 'source_strength' and t.modality != 'brachy' %}
                 <tr>
                     <td>{{ t.name }}</td>
                     <td>{{ t.modality }}</td>
-                    <td>{{ t.energy or "All" }}</td>
+                    <td>{{ t.energy or 'All' }}</td>
                     <td>{{ t.parameter }}</td>
                     <td>{{ t.tolerance_percent }}%</td>
-                    <td>{{ t.action_level_percent or "—" }}</td>
+                    <td>{{ t.action_level_percent or '—' }}</td>
+                    <td>{{ t.linac_id or 'Global' }}</td>
+                    {% if current_user.has('library_edit') %}
                     <td>
-                        {% if current_user.has('library_edit') %}
-                        <details>
-                            <summary style="font-size:0.85rem;">Edit</summary>
-                            <form method="post" action="/tolerances/{{ t.id }}/edit" style="margin-top:0.6rem;">
-                                <label>Name</label><input name="name" value="{{ t.name }}" required>
-                                <div class="grid grid-2">
-                                    <div>
-                                        <label>Modality</label>
-                                        <select name="modality">
-                                            <option value="photon" {% if t.modality=='photon' %}selected{% endif %}>Photon</option>
-                                            <option value="electron" {% if t.modality=='electron' %}selected{% endif %}>Electron</option>
-                                            <option value="brachy" {% if t.modality=='brachy' %}selected{% endif %}>Brachy</option>
-                                        </select>
-                                    </div>
-                                    <div><label>Energy</label><input name="energy" value="{{ t.energy or '' }}"></div>
-                                </div>
-                                <div class="grid grid-2">
-                                    <div><label>Tolerance ±%</label><input type="number" step="any" name="tolerance_percent" value="{{ t.tolerance_percent }}" required></div>
-                                    <div><label>Action level ±%</label><input type="number" step="any" name="action_level_percent" value="{{ t.action_level_percent or '' }}"></div>
-                                </div>
-                                <label>Notes</label><input name="notes" value="{{ t.notes }}">
-                                <label>Your name (approval)</label><input name="requested_by" value="{{ current_user.full_name }}">
-                                <button type="submit" class="btn-sm" style="margin-top:0.6rem;">Submit for Approval</button>
-                            </form>
-                            <form method="post" action="/tolerances/{{ t.id }}/delete" style="margin-top:0.4rem;"
-                                  onsubmit="return confirm('Delete?');">
-                                <button type="submit" class="btn-sm btn-danger">Delete</button>
-                            </form>
-                        </details>
-                        {% endif %}
+                        <form method="post" action="/tolerances/{{ t.id }}/delete" onsubmit="return confirm('Delete?');">
+                            <button type="submit" class="btn-sm btn-danger">Delete</button>
+                        </form>
                     </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </table>
-            {% else %}
-            <p style="color:var(--text-muted);">No tolerances defined.</p>
-            {% endif %}
+        </div>
+
+        <div class="card">
+            <h1>Brachytherapy tolerances</h1>
+            <p class="note">HDR source strength — applies only to Brachy machines.</p>
+            <table>
+                <tr><th>Name</th><th>Parameter</th><th>±%</th><th>Action</th><th>Machine</th>
+                {% if current_user.has('library_edit') %}<th></th>{% endif %}</tr>
+                {% for t in tolerances if t.parameter == 'source_strength' or t.modality == 'brachy' %}
+                <tr>
+                    <td>{{ t.name }}</td>
+                    <td>{{ t.parameter }}</td>
+                    <td>{{ t.tolerance_percent }}%</td>
+                    <td>{{ t.action_level_percent or '—' }}</td>
+                    <td>{{ t.linac_id or 'Global' }}</td>
+                    {% if current_user.has('library_edit') %}
+                    <td>
+                        <form method="post" action="/tolerances/{{ t.id }}/delete" onsubmit="return confirm('Delete?');">
+                            <button type="submit" class="btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </table>
         </div>
 
         {% if current_user.has('library_edit') %}
         <div class="card">
-            <h2>Add Tolerance Table</h2>
+            <h2>Add tolerance</h2>
             <form method="post" action="/tolerances/add">
                 <div class="grid grid-2">
                     <div><label>Name *</label><input name="name" required></div>
                     <div>
-                        <label>Modality *</label>
+                        <label>Applies to *</label>
                         <select name="modality" required>
-                            <option value="photon">Photon</option>
-                            <option value="electron">Electron</option>
+                            <option value="photon">Linac – Photon</option>
+                            <option value="electron">Linac – Electron</option>
                             <option value="brachy">Brachytherapy</option>
                         </select>
                     </div>
                 </div>
-                <div class="grid grid-3">
-                    <div><label>Energy (optional)</label><input name="energy"></div>
-                    <div><label>Parameter</label><input name="parameter" value="output"></div>
+                <div class="grid grid-2">
                     <div>
-                        <label>Linac (optional)</label>
+                        <label>Parameter *</label>
+                        <select name="parameter" required>
+                            <option value="output">Output (cGy/MU) — Linac</option>
+                            <option value="tpr20_10">TPR20,10 — Linac</option>
+                            <option value="source_strength">HDR source strength — Brachy only</option>
+                        </select>
+                    </div>
+                    <div><label>± Tolerance %</label><input type="number" step="any" name="tolerance_percent" value="2" required></div>
+                </div>
+                <div class="grid grid-2">
+                    <div><label>Action level %</label><input type="number" step="any" name="action_level_percent" value="3"></div>
+                    <div><label>Energy (optional)</label><input name="energy" placeholder="6 MV or blank=all"></div>
+                </div>
+                <div class="grid grid-2">
+                    <div>
+                        <label>Machine (optional)</label>
                         <select name="linac_id">
                             <option value="">Global</option>
                             {% for l in linacs %}
@@ -95,12 +111,8 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div><label>Baseline (e.g. TPR)</label><input type="number" step="any" name="baseline_value"></div>
                 </div>
-                <div class="grid grid-2">
-                    <div><label>Tolerance ±%</label><input type="number" step="any" name="tolerance_percent" value="2.0" required></div>
-                    <div><label>Action level ±%</label><input type="number" step="any" name="action_level_percent" value="3.0"></div>
-                </div>
-                <label>Notes</label><input name="notes">
                 <button type="submit" style="margin-top:1rem; width:100%;">Add Tolerance</button>
             </form>
         </div>

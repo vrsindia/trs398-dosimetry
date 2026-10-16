@@ -1,29 +1,60 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Select Linac</title>
+    <title>Select Machine – DOSE pro</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
 </head>
 <body>
     <header>
-        <strong>Linac Absolute Dosimetry</strong>
-        <a href="/">← Home</a>
+        <div class="header-nav">
+            <a class="nav-btn" href="javascript:history.back()">← Back</a>
+            <a class="nav-btn" href="/">Home</a>
+            <strong>Select Machine</strong>
+        </div>
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
+        </div>
     </header>
     <main>
+        {% set cats = [
+            ('ct_linac', 'CT Linac', 'badge-ct'),
+            ('mr_linac', 'MR Linac', 'badge-mr'),
+            ('brachy', 'Brachytherapy', 'badge-brachy')
+        ] %}
+        {% for cat_id, cat_label, badge in cats %}
+        {% set group = linacs | selectattr('category', 'equalto', cat_id) | list %}
+        {% if not group and cat_id == 'ct_linac' %}
+          {# fallback: machines without category field #}
+          {% set group = linacs | selectattr('category', 'undefined') | list %}
+        {% endif %}
         <div class="card">
-            <div class="step">Step 1</div>
-            <h1>Select Linac</h1>
-            {% for linac in linacs %}
-            <a class="machine-card" href="/linac/{{ linac.id }}">
-                {{ linac.name }}
-                <div class="meta">{{ linac.manufacturer }} {{ linac.model }}{% if linac.location %} · {{ linac.location }}{% endif %}</div>
-            </a>
+            <h2><span class="badge {{ badge }}">{{ cat_label }}</span></h2>
+            {% if group %}
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top:1rem;">
+                {% for l in group %}
+                <a class="btn btn-outline btn-block" href="/linac/{{ l.id }}" style="padding:1.1rem;">
+                    {{ l.name }}<br>
+                    <span style="font-size:0.8rem;font-weight:400;color:var(--text-muted);">{{ l.manufacturer }} {{ l.model }}</span>
+                </a>
+                {% endfor %}
+            </div>
             {% else %}
-            <p style="color:var(--text-muted);">No linacs. <a href="/linacs">Add one</a>.</p>
-            {% endfor %}
+            <p class="note">No machines in this category. Add them under Machine Directory.</p>
+            {% endif %}
         </div>
+        {% endfor %}
+
+        {# Machines with missing/unknown category #}
+        {% set known = ['ct_linac','mr_linac','brachy'] %}
+        {% set other = [] %}
+        {% for l in linacs %}
+          {% set c = l.category if l.category is defined else 'ct_linac' %}
+          {% if c not in known %}
+          {% endif %}
+        {% endfor %}
     </main>
 </body>
 </html>

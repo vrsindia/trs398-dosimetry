@@ -1,22 +1,36 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Machine Directory – DOSE pro</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
 </head>
 <body>
     <header>
-        <strong>Machine Directory</strong>
-        <a href="/">← Home</a>
+        <div class="header-nav">
+            <a class="nav-btn" href="javascript:history.back()">← Back</a>
+            <a class="nav-btn" href="/">Home</a>
+            <strong>Machine Directory</strong>
+        </div>
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
+        </div>
     </header>
     <main>
         {% for linac in linacs %}
+        {% set cat = linac.category if linac.category is defined else 'ct_linac' %}
         <div class="card">
-            <div style="display:flex; justify-content:space-between; align-items:start;">
+            <div style="display:flex; justify-content:space-between; align-items:start; flex-wrap:wrap; gap:0.5rem;">
                 <div>
-                    <h2 style="margin-bottom:0.2rem;">{{ linac.name }}</h2>
+                    <h2 style="margin-bottom:0.3rem;">
+                        {{ linac.name }}
+                        {% if cat == 'ct_linac' %}<span class="badge badge-ct">CT Linac</span>
+                        {% elif cat == 'mr_linac' %}<span class="badge badge-mr">MR Linac</span>
+                        {% elif cat == 'brachy' %}<span class="badge badge-brachy">Brachy</span>
+                        {% endif %}
+                    </h2>
                     <p style="color:var(--text-muted); margin:0; font-size:0.9rem;">
                         {{ linac.manufacturer }} {{ linac.model }}
                         {% if linac.serial_number %} · S/N {{ linac.serial_number }}{% endif %}
@@ -24,18 +38,19 @@
                     </p>
                 </div>
                 {% if current_user.has('library_edit') %}
-                <form method="post" action="/linacs/{{ linac.id }}/delete" onsubmit="return confirm('Delete machine and all beams?');">
+                <form method="post" action="/linacs/{{ linac.id }}/delete" onsubmit="return confirm('Delete machine?');">
                     <button type="submit" class="btn-sm btn-danger">Delete</button>
                 </form>
                 {% endif %}
             </div>
 
+            {% if cat != 'brachy' %}
             <h3 style="margin-top:1.2rem; font-size:1rem;">Beams / Energies</h3>
             {% set linac_beams = beams | selectattr('linac_id', 'equalto', linac.id) | list %}
             {% if linac_beams %}
             <table>
                 <tr>
-                    <th>Modality</th><th>Energy</th><th>Depth</th><th>PDD</th><th>k_Q</th><th>Nominal</th><th>SSD</th><th>Field</th>
+                    <th>Modality</th><th>Energy</th><th>Depth</th><th>PDD</th><th>k_Q</th><th>Nominal</th>
                     {% if current_user.has('library_edit') %}<th></th>{% endif %}
                 </tr>
                 {% for b in linac_beams %}
@@ -46,81 +61,9 @@
                     <td>{{ "%.3f"|format(b.pdd) }}</td>
                     <td>{{ "%.4f"|format(b.k_Q) }}</td>
                     <td>{{ "%.3f"|format(b.nominal_output_cGy_MU) }}</td>
-                    <td>{{ b.ssd_cm }}</td>
-                    <td>{{ b.field_size }}</td>
                     {% if current_user.has('library_edit') %}
                     <td>
-                        <details>
-                            <summary style="font-size:0.85rem;">Edit</summary>
-                            <form method="post" action="/beams/{{ b.id }}/edit" style="margin-top:0.7rem;">
-                                <div class="grid grid-3">
-                                    <div><label>Energy</label><input name="nominal_energy" value="{{ b.nominal_energy }}" required></div>
-                                    <div><label>Depth (cm)</label><input type="number" step="any" name="measurement_depth_cm" value="{{ b.measurement_depth_cm }}" required></div>
-                                    <div><label>PDD</label><input type="number" step="any" name="pdd" value="{{ b.pdd }}" required></div>
-                                </div>
-                                <div class="grid grid-3">
-                                    <div><label>k_Q</label><input type="number" step="any" name="k_Q" value="{{ b.k_Q }}" required></div>
-                                    <div><label>Nominal cGy/MU</label><input type="number" step="any" name="nominal_output_cGy_MU" value="{{ b.nominal_output_cGy_MU }}"></div>
-                                    <div><label>SSD</label><input type="number" step="any" name="ssd_cm" value="{{ b.ssd_cm }}"></div>
-                                </div>
-                                <div class="grid grid-2">
-                                    <div><label>Field</label><input name="field_size" value="{{ b.field_size }}"></div>
-                                    <div><label>Notes</label><input name="notes" value="{{ b.notes }}"></div>
-                                </div>
-                                <label>Your name (approval)</label><input name="requested_by" value="{{ current_user.full_name }}">
-                                <button type="submit" class="btn-sm" style="margin-top:0.7rem;">Submit Edit for Approval</button>
-                            </form>
-                            <form method="post" action="/beams/{{ b.id }}/delete" style="margin-top:0.4rem;" onsubmit="return confirm('Delete beam?');">
-                                <button type="submit" class="btn-sm btn-danger">Delete Beam</button>
-                            </form>
-                        </details>
-                    </td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-            </table>
-            {% else %}
-            <p style="color:var(--text-muted);">No beams defined.</p>
-            {% endif %}
-
-            <h3 style="margin-top:1.4rem; font-size:1rem;">Tolerances for this machine</h3>
-            {% set linac_tols = tolerances | selectattr('linac_id', 'equalto', linac.id) | list %}
-            {% set global_tols = tolerances | selectattr('linac_id', 'none') | list %}
-            {% if linac_tols or global_tols %}
-            <table>
-                <tr><th>Name</th><th>Modality</th><th>Energy</th><th>Parameter</th><th>±% Tol</th><th>±% Action</th><th>Scope</th>
-                {% if current_user.role in ['developer', 'admin'] %}<th></th>{% endif %}
-                </tr>
-                {% for t in linac_tols %}
-                <tr>
-                    <td>{{ t.name }}</td>
-                    <td>{{ t.modality }}</td>
-                    <td>{{ t.energy or "All" }}</td>
-                    <td>{{ t.parameter }}</td>
-                    <td>{{ t.tolerance_percent }}%</td>
-                    <td>{{ t.action_level_percent or "—" }}</td>
-                    <td>This machine</td>
-                    {% if current_user.role in ['developer', 'admin'] %}
-                    <td>
-                        <form method="post" action="/tolerances/{{ t.id }}/delete" onsubmit="return confirm('Delete this tolerance entry?');">
-                            <button type="submit" class="btn-sm btn-danger">Delete</button>
-                        </form>
-                    </td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-                {% for t in global_tols %}
-                <tr>
-                    <td>{{ t.name }}</td>
-                    <td>{{ t.modality }}</td>
-                    <td>{{ t.energy or "All" }}</td>
-                    <td>{{ t.parameter }}</td>
-                    <td>{{ t.tolerance_percent }}%</td>
-                    <td>{{ t.action_level_percent or "—" }}</td>
-                    <td style="color:var(--text-muted);">Global</td>
-                    {% if current_user.role in ['developer', 'admin'] %}
-                    <td>
-                        <form method="post" action="/tolerances/{{ t.id }}/delete" onsubmit="return confirm('Delete this tolerance entry?');">
+                        <form method="post" action="/beams/{{ b.id }}/delete" onsubmit="return confirm('Delete beam?');">
                             <button type="submit" class="btn-sm btn-danger">Delete</button>
                         </form>
                     </td>
@@ -128,11 +71,9 @@
                 </tr>
                 {% endfor %}
             </table>
-            <p class="note"><a href="/tolerances">Manage all tolerance tables →</a></p>
             {% else %}
-            <p style="color:var(--text-muted);">No tolerances linked. <a href="/tolerances">Add tolerances</a>.</p>
+            <p class="note">No beams defined.</p>
             {% endif %}
-
             {% if current_user.has('library_edit') %}
             <details style="margin-top:1rem;">
                 <summary>+ Add Beam / Energy</summary>
@@ -150,18 +91,53 @@
                         <div><label>Depth (cm)</label><input type="number" step="any" name="measurement_depth_cm" value="10" required></div>
                     </div>
                     <div class="grid grid-3">
-                        <div><label>PDD</label><input type="number" step="any" name="pdd" required placeholder="0.667"></div>
-                        <div><label>k_Q</label><input type="number" step="any" name="k_Q" required placeholder="0.994"></div>
+                        <div><label>PDD</label><input type="number" step="any" name="pdd" required></div>
+                        <div><label>k_Q</label><input type="number" step="any" name="k_Q" required></div>
                         <div><label>Nominal cGy/MU</label><input type="number" step="any" name="nominal_output_cGy_MU" value="1.0"></div>
-                    </div>
-                    <div class="grid grid-2">
-                        <div><label>SSD</label><input type="number" step="any" name="ssd_cm" value="100"></div>
-                        <div><label>Field Size</label><input name="field_size" value="10x10"></div>
                     </div>
                     <button type="submit" style="margin-top:0.8rem;">Add Beam</button>
                 </form>
             </details>
             {% endif %}
+            {% else %}
+            <p class="note" style="margin-top:1rem;">Brachytherapy machine — use HDR source strength workflow and brachy tolerances (not linac beam output).</p>
+            {% endif %}
+
+            <h3 style="margin-top:1.4rem; font-size:1rem;">Tolerances for this machine</h3>
+            {% set linac_tols = tolerances | selectattr('linac_id', 'equalto', linac.id) | list %}
+            {% if cat == 'brachy' %}
+              {% set type_tols = tolerances | selectattr('parameter', 'equalto', 'source_strength') | list %}
+              {% set mod_tols = tolerances | selectattr('modality', 'equalto', 'brachy') | list %}
+            {% else %}
+              {% set type_tols = tolerances | selectattr('parameter', 'equalto', 'output') | list %}
+              {% set mod_tols = tolerances | rejectattr('modality', 'equalto', 'brachy') | list %}
+            {% endif %}
+            <table>
+                <tr><th>Name</th><th>Modality</th><th>Parameter</th><th>±% Tol</th><th>Scope</th>
+                {% if current_user.role in ['developer', 'admin'] %}<th></th>{% endif %}
+                </tr>
+                {% for t in linac_tols %}
+                <tr>
+                    <td>{{ t.name }}</td><td>{{ t.modality }}</td><td>{{ t.parameter }}</td>
+                    <td>{{ t.tolerance_percent }}%</td><td>This machine</td>
+                    {% if current_user.role in ['developer', 'admin'] %}
+                    <td><form method="post" action="/tolerances/{{ t.id }}/delete" onsubmit="return confirm('Delete?');">
+                        <button type="submit" class="btn-sm btn-danger">Delete</button></form></td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+                {% for t in mod_tols if not t.linac_id %}
+                <tr>
+                    <td>{{ t.name }}</td><td>{{ t.modality }}</td><td>{{ t.parameter }}</td>
+                    <td>{{ t.tolerance_percent }}%</td><td>Global</td>
+                    {% if current_user.role in ['developer', 'admin'] %}
+                    <td><form method="post" action="/tolerances/{{ t.id }}/delete" onsubmit="return confirm('Delete?');">
+                        <button type="submit" class="btn-sm btn-danger">Delete</button></form></td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </table>
+            <p class="note"><a href="/tolerances">Manage tolerance tables →</a></p>
         </div>
         {% endfor %}
 
@@ -171,15 +147,22 @@
             <form method="post" action="/linacs/add">
                 <div class="grid grid-2">
                     <div><label>Name *</label><input name="name" required placeholder="TrueBeam 1"></div>
-                    <div><label>Manufacturer</label><input name="manufacturer" placeholder="Varian"></div>
+                    <div>
+                        <label>Category *</label>
+                        <select name="category" required>
+                            <option value="ct_linac">CT Linac</option>
+                            <option value="mr_linac">MR Linac</option>
+                            <option value="brachy">Brachytherapy</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="grid grid-2">
+                    <div><label>Manufacturer</label><input name="manufacturer"></div>
                     <div><label>Model</label><input name="model"></div>
-                    <div><label>Serial</label><input name="serial_number"></div>
                 </div>
                 <div class="grid grid-2">
+                    <div><label>Serial</label><input name="serial_number"></div>
                     <div><label>Location</label><input name="location"></div>
-                    <div><label>Notes</label><input name="notes"></div>
                 </div>
                 <button type="submit" style="margin-top:1rem; width:100%;">Add Machine</button>
             </form>

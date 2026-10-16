@@ -1,30 +1,32 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DOSE pro</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
 </head>
 <body>
     <header>
-        <div>
+        <div class="header-nav">
             <strong style="color:var(--primary); letter-spacing:0.04em;">DOSE pro</strong>
-            <span style="color:var(--text-muted); font-size:0.85rem; margin-left:0.5rem;">Clinical Dosimetry Solution</span>
+            <span style="color:var(--text-muted); font-size:0.85rem;">Clinical Dosimetry Solution</span>
         </div>
-        <div style="display:flex; align-items:center; gap:1rem;">
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
             <span style="color:var(--text-muted); font-size:0.85rem;">{{ current_user.full_name }} · {{ current_user.role }}</span>
-            <a href="/logout">Logout</a>
+            <a class="nav-btn" href="/logout">Logout</a>
         </div>
     </header>
     <main>
         <div class="card">
             <h1>Absolute Dosimetry</h1>
-            <p style="color:var(--text-muted); margin-top:0;">Guided clinical workflow for linac and brachytherapy</p>
+            <p style="color:var(--text-muted); margin-top:0;">Guided clinical workflow by machine category</p>
             {% if current_user.has('calculate') %}
             <div class="grid grid-2" style="margin-top:1.25rem;">
-                <a class="btn btn-block" href="/linac" style="padding:1.3rem; font-size:1.1rem;">Linac Absolute Dosimetry</a>
-                <a class="btn btn-block btn-success" href="/brachy" style="padding:1.3rem; font-size:1.1rem;">Brachytherapy</a>
+                <a class="btn btn-block" href="/linac" style="padding:1.3rem; font-size:1.05rem;">Linac Absolute Dosimetry<br><span style="font-size:0.8rem;font-weight:400;opacity:0.85;">CT Linac · MR Linac</span></a>
+                <a class="btn btn-block btn-success" href="/brachy" style="padding:1.3rem; font-size:1.05rem;">Brachytherapy<br><span style="font-size:0.8rem;font-weight:400;opacity:0.85;">HDR source strength</span></a>
             </div>
             {% else %}
             <p style="color:var(--text-muted); margin-top:1rem;">Your role ({{ current_user.role }}) has view-only access.</p>
