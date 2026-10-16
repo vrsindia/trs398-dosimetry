@@ -1,6 +1,5 @@
 """
 DOSE pro – Clinical Dosimetry Solution
-Auth · Roles · Approval · Tolerance colour coding
 """
 
 from fastapi import FastAPI, Request, Form, HTTPException, Response
@@ -22,10 +21,10 @@ from app.models import (
     add_detector, get_detector, list_detectors, delete_detector,
     add_linac, get_linac, list_linacs, delete_linac,
     add_beam, get_beam, list_beams, delete_beam,
-    add_tolerance, list_tolerances, delete_tolerance, find_tolerance, check_tolerance,
+    add_tolerance, list_tolerances, delete_tolerance, find_tolerance, check_tolerance, get_tolerance,
     add_output_record, list_output_records,
-    get_department, update_department,
-    submit_change, list_pending, approve_change, reject_change, update_tolerance,
+    get_department,
+    submit_change, list_pending, approve_change, reject_change,
     seed_libraries, _new_id,
 )
 from app.session import create_session, get_session, SessionCorrectionFactors
@@ -37,7 +36,7 @@ from app.auth import (
     PERM_APPROVE, PERM_USER_MANAGE, PERM_DEPT_EDIT, PERM_HISTORY_VIEW, PERM_ADMIN_PANEL,
 )
 
-app = FastAPI(title="DOSE pro", version="1.2.0")
+app = FastAPI(title="DOSE pro", version="1.3.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 seed_libraries()
@@ -45,10 +44,8 @@ seed_users()
 
 COOKIE = "dosepro_session"
 
-
 def _user(request: Request):
     return get_user_by_token(request.cookies.get(COOKIE))
-
 
 def _require(request: Request, perm: Optional[str] = None):
     user = _user(request)
@@ -58,12 +55,9 @@ def _require(request: Request, perm: Optional[str] = None):
         raise HTTPException(403, "Insufficient permissions")
     return user
 
-
 def _login_redirect():
     return RedirectResponse("/login", status_code=303)
 
-
-# -------------------- Auth --------------------
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
@@ -71,10 +65,8 @@ async def login_page(request: Request):
         return RedirectResponse("/", 303)
     return templates.TemplateResponse(request=request, name="login.html", context={"error": None})
 
-
 @app.post("/login", response_class=HTMLResponse)
-async def login_post(request: Request, response: Response,
-                     username: str = Form(...), password: str = Form(...)):
+async def login_post(request: Request, username: str = Form(...), password: str = Form(...)):
     user = authenticate(username, password)
     if not user:
         return templates.TemplateResponse(request=request, name="login.html",
@@ -83,7 +75,6 @@ async def login_post(request: Request, response: Response,
     resp = RedirectResponse("/", status_code=303)
     resp.set_cookie(COOKIE, token, httponly=True, samesite="lax", max_age=86400 * 7)
     return resp
-
 
 @app.get("/logout")
 async def logout(request: Request):
@@ -94,19 +85,15 @@ async def logout(request: Request):
     resp.delete_cookie(COOKIE)
     return resp
 
-
-# -------------------- Home --------------------
-
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     user = _user(request)
     if not user:
         return _login_redirect()
-    return templates.TemplateResponse(request=request, name="index.html",
-                                      context={"current_user": user})
+    return templates.TemplateResponse(request=request, name="index.html", context={"current_user": user})
 
 
-# -------------------- User Directory (admin/developer only) --------------------
+# ---- Users ----
 
 @app.get("/users", response_class=HTMLResponse)
 async def users_page(request: Request):
@@ -116,8 +103,31 @@ async def users_page(request: Request):
     all_perms = sorted({p for perms in DEFAULT_PERMISSIONS.values() for p in perms})
     return templates.TemplateResponse(request=request, name="users.html", context={
         "current_user": user, "users": list_users(), "roles": ROLES, "all_perms": all_perms,
+        "pw_message": None, "pw_error": None,
     })
 
+@app.post("/users/change-password", response_class=HTMLResponse)
+async def change_my_password(request: Request, current_password: str = Form(...),
+                             new_password: str = Form(...), confirm_password: str = Form(...)):
+    user = _require(request, PERM_ADMIN_PANEL)
+    if not user:
+        return _login_redirect()
+    all_perms = sorted({p for perms in DEFAULT_PERMISSIONS.values() for p in perms})
+    ctx = {"current_user": user, "users": list_users(), "roles": ROLES, "all_perms": all_perms,
+           "pw_message": None, "pw_error": None}
+    if new_password != confirm_password:
+        ctx["pw_error"] = "New passwords do not match"
+        return templates.TemplateResponse(request=request, name="users.html", context=ctx)
+    if len(new_password) < 6:
+        ctx["pw_error"] = "Password must be at least 6 characters"
+        return templates.TemplateResponse(request=request, name="users.html", context=ctx)
+    if not user.check_password(current_password):
+        ctx["pw_error"] = "Current password is incorrect"
+        return templates.TemplateResponse(request=request, name="users.html", context=ctx)
+    update_user(user.id, password=new_password)
+    ctx["pw_message"] = "Password updated successfully"
+    ctx["current_user"] = get_user(user.id)
+    return templates.TemplateResponse(request=request, name="users.html", context=ctx)
 
 @app.post("/users/add")
 async def users_add(request: Request, username: str = Form(...), password: str = Form(...),
@@ -130,7 +140,6 @@ async def users_add(request: Request, username: str = Form(...), password: str =
     except ValueError as e:
         raise HTTPException(400, str(e))
     return RedirectResponse("/users", 303)
-
 
 @app.post("/users/{uid}/edit")
 async def users_edit(request: Request, uid: str, full_name: str = Form(...),
@@ -147,7 +156,6 @@ async def users_edit(request: Request, uid: str, full_name: str = Form(...),
     update_user(uid, **kwargs)
     return RedirectResponse("/users", 303)
 
-
 @app.post("/users/{uid}/delete")
 async def users_del(request: Request, uid: str):
     user = _require(request, PERM_USER_MANAGE)
@@ -160,7 +168,7 @@ async def users_del(request: Request, uid: str):
     return RedirectResponse("/users", 303)
 
 
-# -------------------- Linac workflow --------------------
+# ---- Linac workflow ----
 
 @app.get("/linac", response_class=HTMLResponse)
 async def linac_select(request: Request):
@@ -200,7 +208,7 @@ async def start_electron(request: Request, linac_id: str):
     return RedirectResponse(f"/session/{sess.id}/corrections", 303)
 
 
-# -------------------- Session --------------------
+# ---- Session: corrections then energies (TPR per photon beam) ----
 
 @app.get("/session/{sid}/corrections", response_class=HTMLResponse)
 async def corr_form(request: Request, sid: str):
@@ -231,33 +239,8 @@ async def corr_calc(request: Request, sid: str, temperature_C: float = Form(...)
         temperature_C=temperature_C, pressure_hPa=pressure_hPa, calculated=True)
     if detector_id:
         sess.detector_id = detector_id
-    if sess.modality == "photon":
-        return RedirectResponse(f"/session/{sid}/quality", 303)
+    # Photons: go to energy list; TPR is per beam
     return RedirectResponse(f"/session/{sid}/energies", 303)
-
-@app.get("/session/{sid}/quality", response_class=HTMLResponse)
-async def qi_form(request: Request, sid: str):
-    user = _require(request, PERM_CALCULATE)
-    if not user:
-        return _login_redirect()
-    sess = get_session(sid)
-    if not sess:
-        raise HTTPException(404)
-    return templates.TemplateResponse(request=request, name="session_quality.html",
-                                      context={"session": sess, "qi": None, "current_user": user})
-
-@app.post("/session/{sid}/quality", response_class=HTMLResponse)
-async def qi_calc(request: Request, sid: str, dose_10: float = Form(...), dose_20: float = Form(...)):
-    user = _require(request, PERM_CALCULATE)
-    if not user:
-        return _login_redirect()
-    sess = get_session(sid)
-    if not sess:
-        raise HTTPException(404)
-    qi = calculate_tpr20_10(dose_20, dose_10)
-    sess.quality_index = qi.tpr20_10
-    return templates.TemplateResponse(request=request, name="session_quality.html",
-                                      context={"session": sess, "qi": qi, "current_user": user})
 
 @app.get("/session/{sid}/energies", response_class=HTMLResponse)
 async def energies(request: Request, sid: str):
@@ -267,10 +250,41 @@ async def energies(request: Request, sid: str):
     sess = get_session(sid)
     if not sess:
         raise HTTPException(404)
+    detector = get_detector(sess.detector_id) if sess.detector_id else None
     return templates.TemplateResponse(request=request, name="session_energies.html",
         context={"session": sess, "linac": get_linac(sess.linac_id),
                  "beams": list_beams(linac_id=sess.linac_id, modality=sess.modality),
-                 "current_user": user})
+                 "detector": detector, "current_user": user})
+
+# Per-beam TPR20,10
+@app.get("/session/{sid}/beam/{bid}/quality", response_class=HTMLResponse)
+async def beam_qi_form(request: Request, sid: str, bid: str):
+    user = _require(request, PERM_CALCULATE)
+    if not user:
+        return _login_redirect()
+    sess, beam = get_session(sid), get_beam(bid)
+    if not sess or not beam:
+        raise HTTPException(404)
+    existing = sess.beam_quality_index.get(bid)
+    return templates.TemplateResponse(request=request, name="session_beam_qi.html",
+        context={"session": sess, "beam": beam, "qi": None, "existing_qi": existing, "current_user": user})
+
+@app.post("/session/{sid}/beam/{bid}/quality", response_class=HTMLResponse)
+async def beam_qi_calc(request: Request, sid: str, bid: str,
+                       dose_10: float = Form(...), dose_20: float = Form(...)):
+    user = _require(request, PERM_CALCULATE)
+    if not user:
+        return _login_redirect()
+    sess, beam = get_session(sid), get_beam(bid)
+    if not sess or not beam:
+        raise HTTPException(404)
+    qi = calculate_tpr20_10(dose_20, dose_10)
+    sess.beam_quality_index[bid] = qi.tpr20_10
+    # Optionally store on beam library
+    from app.models import update_beam
+    update_beam(bid, quality_index=qi.tpr20_10)
+    return templates.TemplateResponse(request=request, name="session_beam_qi.html",
+        context={"session": sess, "beam": beam, "qi": qi, "existing_qi": qi.tpr20_10, "current_user": user})
 
 @app.get("/session/{sid}/energy/{bid}", response_class=HTMLResponse)
 async def energy_form(request: Request, sid: str, bid: str):
@@ -280,9 +294,11 @@ async def energy_form(request: Request, sid: str, bid: str):
     sess, beam = get_session(sid), get_beam(bid)
     if not sess or not beam:
         raise HTTPException(404)
+    detector = get_detector(sess.detector_id) if sess.detector_id else None
+    beam_qi = sess.beam_quality_index.get(bid) or beam.quality_index
     return templates.TemplateResponse(request=request, name="session_energy_calc.html",
         context={"session": sess, "beam": beam, "linac": get_linac(sess.linac_id),
-                 "detector": get_detector(sess.detector_id) if sess.detector_id else None,
+                 "detector": detector, "beam_qi": beam_qi,
                  "result": None, "status": None, "current_user": user})
 
 @dataclass
@@ -303,6 +319,10 @@ async def energy_calc(request: Request, sid: str, bid: str,
     sess, beam = get_session(sid), get_beam(bid)
     if not sess or not beam:
         raise HTTPException(404)
+    detector = get_detector(sess.detector_id) if sess.detector_id else None
+    # Prefer N_Dw from detector library when detector is selected
+    if detector:
+        N_Dw = detector.calibration_factor
     corr = sess.corrections
     inp = PhotonMeasurementInput(
         raw_charge_nC=raw_charge_nC, N_Dw=N_Dw, k_Q=k_Q,
@@ -314,9 +334,10 @@ async def energy_calc(request: Request, sid: str, bid: str,
                           output_cGy_MU=out, mu=mu)
     tol = find_tolerance(sess.modality, beam.nominal_energy, sess.linac_id)
     status = check_tolerance(out, nominal_output, tol)
+    beam_qi = sess.beam_quality_index.get(bid) or beam.quality_index
     return templates.TemplateResponse(request=request, name="session_energy_calc.html",
         context={"session": sess, "beam": beam, "linac": get_linac(sess.linac_id),
-                 "detector": get_detector(sess.detector_id) if sess.detector_id else None,
+                 "detector": detector, "beam_qi": beam_qi,
                  "result": result, "status": status, "tolerance": tol,
                  "nominal_output": nominal_output, "current_user": user})
 
@@ -329,7 +350,6 @@ async def energy_tune(request: Request, sid: str, bid: str,
     user = _require(request, PERM_CALCULATE)
     if not user:
         return _login_redirect()
-    # Interns cannot tune
     can_tune = user.has(PERM_TUNE)
     sess, beam = get_session(sid), get_beam(bid)
     if not sess or not beam:
@@ -362,12 +382,10 @@ async def switch_mod(request: Request, sid: str):
     ns = create_session(sess.linac_id, new_mod)
     ns.corrections = sess.corrections
     ns.detector_id = sess.detector_id
-    if new_mod == "photon":
-        return RedirectResponse(f"/session/{ns.id}/quality", 303)
     return RedirectResponse(f"/session/{ns.id}/energies", 303)
 
 
-# -------------------- Brachy --------------------
+# ---- Brachy ----
 
 @app.get("/brachy", response_class=HTMLResponse)
 async def brachy_form(request: Request):
@@ -389,6 +407,7 @@ async def brachy_calc(request: Request, raw_reading: float = Form(...), N_SK: fl
     user = _require(request, PERM_CALCULATE)
     if not user:
         return _login_redirect()
+    # Prefer well chamber N_SK from detector library if matching
     inp = BrachyWellInput(raw_reading=raw_reading, N_SK=N_SK,
         electrometer_calibration_factor=electrometer_calibration_factor,
         temperature_C=temperature_C, pressure_hPa=pressure_hPa, k_ion=k_ion, k_other=k_other,
@@ -399,7 +418,7 @@ async def brachy_calc(request: Request, raw_reading: float = Form(...), N_SK: fl
         context={"result": result, "inputs": inp, "detectors": list_detectors(), "current_user": user})
 
 
-# -------------------- Libraries (view / edit with approval) --------------------
+# ---- Libraries ----
 
 @app.get("/detectors", response_class=HTMLResponse)
 async def detectors_page(request: Request):
@@ -458,7 +477,8 @@ async def linacs_page(request: Request):
     if not user:
         return _login_redirect()
     return templates.TemplateResponse(request=request, name="linacs.html",
-        context={"linacs": list_linacs(), "beams": list_beams(), "current_user": user})
+        context={"linacs": list_linacs(), "beams": list_beams(),
+                 "tolerances": list_tolerances(), "current_user": user})
 
 @app.post("/linacs/add")
 async def linac_add(request: Request, name: str = Form(...), manufacturer: str = Form(""),
@@ -514,8 +534,6 @@ async def beam_del(request: Request, bid: str):
     return RedirectResponse("/linacs", 303)
 
 
-# ---- Tolerances ----
-
 @app.get("/tolerances", response_class=HTMLResponse)
 async def tol_page(request: Request):
     user = _require(request, PERM_LIBRARY_VIEW)
@@ -546,7 +564,6 @@ async def tol_edit(request: Request, tid: str, name: str = Form(...), modality: 
     user = _require(request, PERM_LIBRARY_EDIT)
     if not user:
         return _login_redirect()
-    from app.models import get_tolerance
     tol = get_tolerance(tid)
     if not tol:
         raise HTTPException(404)
@@ -563,8 +580,6 @@ async def tol_del(request: Request, tid: str):
     delete_tolerance(tid)
     return RedirectResponse("/tolerances", 303)
 
-
-# ---- Department / Approvals / History ----
 
 @app.get("/department", response_class=HTMLResponse)
 async def dept_page(request: Request):
@@ -588,7 +603,6 @@ async def dept_edit(request: Request, name: str = Form(""), hospital: str = Form
     submit_change("department", "dept", "update", proposed, get_department().__dict__,
                   requested_by or user.full_name)
     return RedirectResponse("/approvals", 303)
-
 
 @app.get("/approvals", response_class=HTMLResponse)
 async def approvals_page(request: Request):
@@ -614,7 +628,6 @@ async def do_reject(request: Request, pid: str, reviewed_by: str = Form("")):
     reject_change(pid, reviewed_by or user.full_name)
     return RedirectResponse("/approvals", 303)
 
-
 @app.get("/output-history", response_class=HTMLResponse)
 async def out_hist(request: Request):
     user = _require(request, PERM_HISTORY_VIEW)
@@ -623,7 +636,6 @@ async def out_hist(request: Request):
     return templates.TemplateResponse(request=request, name="output_history.html",
                                       context={"records": list_output_records(), "current_user": user})
 
-
 @app.get("/health")
 async def health():
-    return {"status": "ok", "app": "DOSE pro", "version": "1.2.0"}
+    return {"status": "ok", "app": "DOSE pro", "version": "1.3.0"}
