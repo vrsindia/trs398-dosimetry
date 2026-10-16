@@ -17,7 +17,6 @@
             <a href="/logout">Logout</a>
         </div>
     </header>
-
     <main>
         <div class="card">
             <h1>Absolute Dosimetry</h1>
@@ -31,7 +30,6 @@
             <p style="color:var(--text-muted); margin-top:1rem;">Your role ({{ current_user.role }}) has view-only access.</p>
             {% endif %}
         </div>
-
         <div class="card">
             <h2>Libraries &amp; Records</h2>
             <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
@@ -39,9 +37,11 @@
                 <a class="btn btn-outline btn-block" href="/detectors">Detectors</a>
                 <a class="btn btn-outline btn-block" href="/linacs">Linacs &amp; Beams</a>
                 <a class="btn btn-outline btn-block" href="/tolerances">Tolerances</a>
+                <a class="btn btn-outline btn-block" href="/calc-profiles">Calc Profiles</a>
                 {% endif %}
                 {% if current_user.has('history_view') %}
                 <a class="btn btn-outline btn-block" href="/output-history">Output History</a>
+                <a class="btn btn-outline btn-block" href="/reports">Reports</a>
                 {% endif %}
                 {% if current_user.has('approve') %}
                 <a class="btn btn-outline btn-block" href="/approvals">Approvals</a>
