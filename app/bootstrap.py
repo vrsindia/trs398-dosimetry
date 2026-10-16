@@ -1,4 +1,10 @@
 """Application entrypoint for Render."""
+try:
+    from app.garuda_logo_data import ensure_garuda_logo
+    ensure_garuda_logo()
+except Exception as e:
+    print("garuda_logo:", e)
+
 from app.main import app, templates
 
 try:
