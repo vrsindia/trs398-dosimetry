@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Garuda">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f6ad55"/>
+      <stop offset="50%" stop-color="#ed8936"/>
+      <stop offset="100%" stop-color="#c05621"/>
+    </linearGradient>
+  </defs>
+  <!-- Stylized Garuda: wings + body + head (symbolic, not religious iconography) -->
+  <ellipse cx="32" cy="38" rx="10" ry="14" fill="url(#g)"/>
+  <path d="M32 24 L28 12 L32 16 L36 12 Z" fill="#f6e05e"/>
+  <circle cx="32" cy="22" r="7" fill="url(#g)"/>
+  <circle cx="30" cy="21" r="1.2" fill="#1a202c"/>
+  <circle cx="34" cy="21" r="1.2" fill="#1a202c"/>
+  <path d="M32 24 L38 26 L32 28 Z" fill="#c05621"/>
+  <!-- Wings -->
+  <path d="M22 32 Q8 28 4 36 Q12 34 20 40 Q22 36 22 32Z" fill="url(#g)" opacity="0.95"/>
+  <path d="M42 32 Q56 28 60 36 Q52 34 44 40 Q42 36 42 32Z" fill="url(#g)" opacity="0.95"/>
+  <!-- Tail -->
+  <path d="M28 50 L32 58 L36 50 Q32 52 28 50Z" fill="#ed8936"/>
+</svg>

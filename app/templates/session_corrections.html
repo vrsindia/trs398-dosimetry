@@ -1,21 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Correction Factors</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
 </head>
 <body>
     <header>
-        <strong>{{ linac.name }} · {{ modality|capitalize }}</strong>
-        <a href="/linac/{{ linac.id }}">← Back</a>
+        <div class="header-nav">
+            <a class="nav-btn" href="javascript:history.back()">← Back</a>
+            <a class="nav-btn" href="/">Home</a>
+            <img src="/static/garuda.svg" alt="Garuda" width="28" height="28">
+            <strong>{{ linac.name }} · {{ modality|capitalize }}</strong>
+        </div>
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
+        </div>
     </header>
     <main>
         <div class="card">
             <div class="step">Step 3 – Shared Correction Factors</div>
-            <h1>Calculate k<sub>TP</sub>, k<sub>pol</sub>, k<sub>s</sub></h1>
-            <p style="color:var(--text-muted);">Reused for all energies in this session.</p>
+            <h1>Calculate correction factors</h1>
+            <p style="color:var(--text-muted);">k<sub>TP</sub>, k<sub>pol</sub>, k<sub>s</sub>{% if is_mr %} and magnetic field factor k<sub>B</sub>{% endif %} — reused for energies in this session.</p>
             <form method="post" action="/session/{{ session.id }}/corrections">
                 <div class="grid grid-2">
                     <div><label>Temperature (°C)</label><input type="number" step="any" name="temperature_C" value="20.0" required></div>
@@ -33,6 +41,16 @@
                     <div><label>V1 (V)</label><input type="number" step="any" name="V1" value="300" required></div>
                     <div><label>V2 (V)</label><input type="number" step="any" name="V2" value="100" required></div>
                 </div>
+                {% if is_mr %}
+                <div class="card" style="background:var(--bg-input); margin:1rem 0;">
+                    <h3 style="font-size:1rem;">MR magnetic field correction</h3>
+                    <p class="note">Enter chamber-specific magnetic correction factor k<sub>B</sub> (or k<sub>Q,B</sub>) for 7 MV FFF in magnetic field. Not a PDD correction.</p>
+                    <label>k<sub>B</sub> (magnetic correction)</label>
+                    <input type="number" step="any" name="k_B" value="1.000" required>
+                </div>
+                {% else %}
+                <input type="hidden" name="k_B" value="1.0">
+                {% endif %}
                 <label>Detector</label>
                 <select name="detector_id">
                     <option value="">— Select —</option>
@@ -44,5 +62,6 @@
             </form>
         </div>
     </main>
+    <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
 </body>
 </html>

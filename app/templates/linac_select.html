@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Select Machine – DOSE pro</title>
+    <title>Select Linac – DOSE pro</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="/static/theme.js"></script>
 </head>
@@ -12,24 +12,27 @@
         <div class="header-nav">
             <a class="nav-btn" href="javascript:history.back()">← Back</a>
             <a class="nav-btn" href="/">Home</a>
-            <strong>Select Machine</strong>
+            <img src="/static/garuda.svg" alt="Garuda" width="28" height="28">
+            <strong>Linac Absolute Dosimetry</strong>
         </div>
         <div class="header-actions">
             <button type="button" id="theme-toggle">Light theme</button>
         </div>
     </header>
     <main>
+        <p class="note">Brachytherapy machines are listed only under Brachytherapy on the home page.</p>
         {% set cats = [
             ('ct_linac', 'CT Linac', 'badge-ct'),
-            ('mr_linac', 'MR Linac', 'badge-mr'),
-            ('brachy', 'Brachytherapy', 'badge-brachy')
+            ('mr_linac', 'MR Linac', 'badge-mr')
         ] %}
         {% for cat_id, cat_label, badge in cats %}
-        {% set group = linacs | selectattr('category', 'equalto', cat_id) | list %}
-        {% if not group and cat_id == 'ct_linac' %}
-          {# fallback: machines without category field #}
-          {% set group = linacs | selectattr('category', 'undefined') | list %}
-        {% endif %}
+        {% set group = [] %}
+        {% for l in linacs %}
+          {% set c = l.category if l.category is defined else 'ct_linac' %}
+          {% if c == cat_id %}
+            {% set _ = group.append(l) %}
+          {% endif %}
+        {% endfor %}
         <div class="card">
             <h2><span class="badge {{ badge }}">{{ cat_label }}</span></h2>
             {% if group %}
@@ -42,19 +45,11 @@
                 {% endfor %}
             </div>
             {% else %}
-            <p class="note">No machines in this category. Add them under Machine Directory.</p>
+            <p class="note">No machines in this category.</p>
             {% endif %}
         </div>
         {% endfor %}
-
-        {# Machines with missing/unknown category #}
-        {% set known = ['ct_linac','mr_linac','brachy'] %}
-        {% set other = [] %}
-        {% for l in linacs %}
-          {% set c = l.category if l.category is defined else 'ct_linac' %}
-          {% if c not in known %}
-          {% endif %}
-        {% endfor %}
     </main>
+    <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
 </body>
 </html>

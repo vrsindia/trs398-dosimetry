@@ -1,20 +1,41 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Department Details</title>
+    <title>Department – DOSE pro</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
 </head>
 <body>
     <header>
-        <strong>Department Details</strong>
-        <a href="/">← Home</a>
+        <div class="header-nav">
+            <a class="nav-btn" href="javascript:history.back()">← Back</a>
+            <a class="nav-btn" href="/">Home</a>
+            <img src="/static/garuda.svg" alt="Garuda" width="28" height="28" style="vertical-align:middle;">
+            <strong>Department</strong>
+        </div>
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
+        </div>
     </header>
     <main>
         <div class="card">
             <h1>Department Information</h1>
-            <p style="color:var(--text-muted);">These details appear on reports. Edits go through approval.</p>
+            <p style="color:var(--text-muted);">Hospital logo and details appear on reports. Logo max 512 KB (PNG/JPG/SVG).</p>
+
+            {% if dept.logo_url %}
+            <div style="margin-bottom:1rem;">
+                <p class="note">Current logo:</p>
+                <img src="{{ dept.logo_url }}" alt="Department logo" style="max-height:80px; max-width:220px; object-fit:contain; border:1px solid var(--border); border-radius:6px; padding:4px; background:var(--bg-input);">
+            </div>
+            {% endif %}
+
+            <form method="post" action="/department/logo" enctype="multipart/form-data" style="margin-bottom:1.5rem;">
+                <label>Upload logo (max 512 KB)</label>
+                <input type="file" name="logo" accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp" required>
+                <button type="submit" class="btn-sm" style="margin-top:0.5rem;">Upload logo</button>
+            </form>
 
             <form method="post" action="/department/edit">
                 <div class="grid grid-2">
@@ -37,5 +58,6 @@
             </form>
         </div>
     </main>
+    <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
 </body>
 </html>

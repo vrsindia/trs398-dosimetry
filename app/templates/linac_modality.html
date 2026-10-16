@@ -1,23 +1,41 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ linac.name }} – Modality</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
 </head>
 <body>
     <header>
-        <strong>{{ linac.name }}</strong>
-        <a href="/linac">← Change Linac</a>
+        <div class="header-nav">
+            <a class="nav-btn" href="javascript:history.back()">← Back</a>
+            <a class="nav-btn" href="/">Home</a>
+            <img src="/static/garuda.svg" alt="Garuda" width="28" height="28">
+            <strong>{{ linac.name }}</strong>
+        </div>
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
+        </div>
     </header>
     <main>
         <div class="card">
             <div class="step">Step 2</div>
+            {% set cat = linac.category if linac.category is defined else 'ct_linac' %}
+            {% if cat == 'mr_linac' %}
+            <h1>MR Linac – Photon only</h1>
+            <p style="color:var(--text-muted);">MR-linac uses a single photon beam (e.g. 7 MV FFF). No electron energies. Magnetic field correction k<sub>B</sub> is applied with other factors. Not PDD-based.</p>
+            <a class="btn btn-block" href="/linac/{{ linac.id }}/photon" style="padding:1.2rem; margin-top:1rem;">Continue – Photon (7 MV FFF)</a>
+            {% else %}
             <h1>Select Modality</h1>
-            <a class="btn btn-block" href="/linac/{{ linac.id }}/photon" style="padding:1.2rem; margin-bottom:0.8rem;">Photon Absolute Dosimetry</a>
-            <a class="btn btn-block btn-success" href="/linac/{{ linac.id }}/electron" style="padding:1.2rem;">Electron Absolute Dosimetry</a>
+            <div class="grid grid-2" style="margin-top:1.2rem;">
+                <a class="btn btn-block" href="/linac/{{ linac.id }}/photon" style="padding:1.2rem;">Photon</a>
+                <a class="btn btn-block btn-success" href="/linac/{{ linac.id }}/electron" style="padding:1.2rem;">Electron</a>
+            </div>
+            {% endif %}
         </div>
     </main>
+    <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
 </body>
 </html>
