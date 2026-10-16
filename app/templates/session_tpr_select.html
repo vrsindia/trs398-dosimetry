@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select energy for TPR20,10 – DOSE pro</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <strong>{{ linac.name }} · Beam quality index</strong>
+        <a href="/session/{{ session.id }}/energies">← Energies</a>
+    </header>
+    <main>
+        <div class="card">
+            <div class="step">TPR<sub>20,10</sub> — choose photon energy</div>
+            <h1>Which photon energy?</h1>
+            <p style="color:var(--text-muted);">TPR<sub>20,10</sub> is measured separately for each photon beam. Select the energy you are setting up now.</p>
+
+            {% if photon_beams %}
+            {% for b in photon_beams %}
+            <a class="machine-card" href="/session/{{ session.id }}/beam/{{ b.id }}/quality">
+                {{ b.nominal_energy }}
+                <div class="meta">
+                    Depth {{ b.measurement_depth_cm }} cm · k<sub>Q</sub> {{ "%.4f"|format(b.k_Q) }}
+                    {% if b.id in session.beam_quality_index %}
+                    · TPR already: {{ "%.4f"|format(session.beam_quality_index[b.id]) }}
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+            {% else %}
+            <p style="color:var(--text-muted);">No photon beams on this linac. <a href="/linacs">Add beams</a>.</p>
+            {% endif %}
+
+            <div style="margin-top:1.5rem;">
+                <a href="/session/{{ session.id }}/energies">Skip to energy output list →</a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

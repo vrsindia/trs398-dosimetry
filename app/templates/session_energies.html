@@ -23,26 +23,32 @@
                 · Detector: {{ detector.name }} (N<sub>D,w</sub>={{ "%.5f"|format(detector.calibration_factor) }})
                 {% endif %}
             </p>
+
+            {% if session.modality == 'photon' %}
+            <p style="margin:0.8rem 0;">
+                <a class="btn btn-sm" href="/session/{{ session.id }}/tpr-select">Calculate TPR<sub>20,10</sub> (select energy first)</a>
+            </p>
+            {% endif %}
+
             {% if beams %}
             <table>
                 <tr>
-                    <th>Energy</th><th>Depth</th><th>PDD</th><th>k_Q</th>
+                    <th>Energy</th><th>Depth</th><th>PDD</th><th>k_Q</th><th>Nominal</th>
                     {% if session.modality == 'photon' %}<th>TPR<sub>20,10</sub></th>{% endif %}
                     <th>Status</th><th></th>
                 </tr>
                 {% for b in beams %}
                 <tr>
-                    <td>{{ b.nominal_energy }}</td>
+                    <td><strong>{{ b.nominal_energy }}</strong></td>
                     <td>{{ b.measurement_depth_cm }} cm</td>
                     <td>{{ "%.3f"|format(b.pdd) }}</td>
                     <td>{{ "%.4f"|format(b.k_Q) }}</td>
+                    <td>{{ "%.3f"|format(b.nominal_output_cGy_MU) }}</td>
                     {% if session.modality == 'photon' %}
                     <td>
                         {% if b.id in session.beam_quality_index %}
                         {{ "%.4f"|format(session.beam_quality_index[b.id]) }}
-                        {% else %}
-                        <span style="color:var(--text-muted);">—</span>
-                        {% endif %}
+                        {% else %}<span style="color:var(--text-muted);">—</span>{% endif %}
                     </td>
                     {% endif %}
                     <td>{% if b.nominal_energy in session.completed_energies %}<span class="status-pass">Done</span>{% else %}Pending{% endif %}</td>
@@ -50,19 +56,19 @@
                         {% if session.modality == 'photon' %}
                         <a class="btn btn-sm btn-outline" href="/session/{{ session.id }}/beam/{{ b.id }}/quality">TPR</a>
                         {% endif %}
-                        <a class="btn btn-sm" href="/session/{{ session.id }}/energy/{{ b.id }}">Measure</a>
+                        <a class="btn btn-sm" href="/session/{{ session.id }}/energy/{{ b.id }}">Measure {{ b.nominal_energy }}</a>
                     </td>
                 </tr>
                 {% endfor %}
             </table>
-            {% if session.modality == 'photon' %}
-            <p class="note">Calculate TPR<sub>20,10</sub> for each photon energy before or with output measurement.</p>
-            {% endif %}
             {% else %}
             <p style="color:var(--text-muted);">No beams. <a href="/linacs">Add beams</a>.</p>
             {% endif %}
+
             <div style="margin-top:1.5rem; padding:1rem; border:1px solid var(--border); border-radius:8px;">
-                <a href="/session/{{ session.id }}/switch-modality">Use same correction factors for the other modality →</a>
+                <a href="/session/{{ session.id }}/switch-modality">
+                    {% if session.modality == 'photon' %}Use same correction factors → Electron dosimetry{% else %}Use same correction factors → Photon dosimetry{% endif %}
+                </a>
             </div>
         </div>
     </main>

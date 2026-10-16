@@ -3,62 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ beam.nominal_energy }} Output</title>
+    <title>{{ beam.nominal_energy }} Output – DOSE pro</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
-        <strong>{{ beam.nominal_energy }} · {{ linac.name }}</strong>
+        <strong>{{ linac.name }} · Output measurement</strong>
         <a href="/session/{{ session.id }}/energies">← Energies</a>
     </header>
     <main>
         <div class="card">
-            <h1>Output Measurement</h1>
-            <p style="color:var(--text-muted);">
-                Depth {{ beam.measurement_depth_cm }} cm · PDD {{ "%.3f"|format(beam.pdd) }} · k<sub>Q</sub> {{ "%.4f"|format(beam.k_Q) }}
+            <div class="step">Beam energy under calculation</div>
+            <h1 style="margin-bottom:0.3rem;">{{ beam.nominal_energy }}</h1>
+            <p style="color:var(--text-muted); margin-top:0;">
+                {{ beam.modality|capitalize }} · Depth {{ beam.measurement_depth_cm }} cm ·
+                PDD {{ "%.3f"|format(beam.pdd) }} · k<sub>Q</sub> {{ "%.4f"|format(beam.k_Q) }}
                 · Nominal {{ "%.3f"|format(beam.nominal_output_cGy_MU) }} cGy/MU
                 {% if beam_qi %} · TPR<sub>20,10</sub> {{ "%.4f"|format(beam_qi) }}{% endif %}
             </p>
+
+            <form method="post" action="/session/{{ session.id }}/energy/{{ beam.id }}/set-detector" style="margin-top:1rem;">
+                <label>Detector (N<sub>D,w</sub> from library — not editable)</label>
+                <div class="grid grid-2" style="align-items:end;">
+                    <select name="detector_id" required>
+                        <option value="">— Select detector —</option>
+                        {% for d in detectors %}
+                        <option value="{{ d.id }}" {% if detector and detector.id == d.id %}selected{% endif %}>
+                            {{ d.name }} · N<sub>D,w</sub> = {{ "%.5f"|format(d.calibration_factor) }} {{ d.unit }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn-outline">Use this detector</button>
+                </div>
+            </form>
+
             {% if detector %}
-            <p style="color:var(--success); font-size:0.9rem;">N<sub>D,w</sub> from detector: <strong>{{ detector.name }}</strong> → {{ "%.5f"|format(detector.calibration_factor) }}</p>
+            <p style="color:var(--success); font-size:0.9rem; margin-top:0.8rem;">
+                Active: <strong>{{ detector.name }}</strong> → N<sub>D,w</sub> = {{ "%.5f"|format(detector.calibration_factor) }} {{ detector.unit }}
+            </p>
+            {% else %}
+            <p style="color:var(--warning); font-size:0.9rem;">Select a detector above before calculating.</p>
             {% endif %}
+
             {% if profile %}
-            <p class="note">Profile: {{ profile.name }} (k_TP {{ "on" if profile.use_k_TP else "off" }}, k_pol {{ "on" if profile.use_k_pol else "off" }}, k_s {{ "on" if profile.use_k_s else "off" }})</p>
+            <p class="note">Profile: {{ profile.name }}</p>
             {% endif %}
 
             {% if prior_readings %}
-            <p style="color:var(--primary); font-size:0.9rem;">Saved meter readings: {{ prior_readings | join(", ") }} nC (will be averaged with new reading)</p>
+            <p style="color:var(--primary); font-size:0.9rem;">Saved meter readings: {{ prior_readings | join(", ") }} nC (averaged with new reading)</p>
             {% endif %}
 
-            <form method="post" action="/session/{{ session.id }}/energy/{{ beam.id }}">
+            <form method="post" action="/session/{{ session.id }}/energy/{{ beam.id }}" style="margin-top:1rem;">
                 <div class="grid grid-2">
                     <div>
                         <label>Meter reading (nC) — editable</label>
                         <input type="number" step="any" name="raw_charge_nC" required value="{{ last_reading or 20.0 }}">
                     </div>
-                    <div><label>MU delivered</label><input type="number" step="any" name="mu" required value="{{ last_mu or 100 }}"></div>
-                </div>
-                <div class="grid grid-2">
                     <div>
-                        <label>N<sub>D,w</sub> (Gy/nC)</label>
-                        <input type="number" step="any" name="N_Dw" required
-                               value="{{ detector.calibration_factor if detector else '0.045' }}"
-                               {% if detector %}readonly style="opacity:0.9;"{% endif %}>
+                        <label>MU delivered</label>
+                        <input type="number" step="any" name="mu" required value="{{ last_mu or 100 }}">
                     </div>
-                    <div><label>k<sub>Q</sub></label><input type="number" step="any" name="k_Q" required value="{{ beam.k_Q }}"></div>
                 </div>
-                <label>Nominal output (cGy/MU) — from beam library</label>
-                <input type="number" step="any" name="nominal_output" value="{{ beam.nominal_output_cGy_MU }}">
+                {# N_Dw and k_Q hidden — from detector / beam library only #}
+                <input type="hidden" name="N_Dw" value="{{ detector.calibration_factor if detector else 0.045 }}">
+                <input type="hidden" name="k_Q" value="{{ beam.k_Q }}">
+                <input type="hidden" name="nominal_output" value="{{ beam.nominal_output_cGy_MU }}">
                 <input type="hidden" name="append_reading" value="0">
-                <p class="note">Session: k<sub>TP</sub>={{ "%.4f"|format(session.corrections.k_TP) }}, k<sub>pol</sub>={{ "%.4f"|format(session.corrections.k_pol) }}, k<sub>s</sub>={{ "%.4f"|format(session.corrections.k_s) }}</p>
-                <button type="submit" style="margin-top:1rem; width:100%;">Calculate Output</button>
+                <p class="note">
+                    Session factors: k<sub>TP</sub>={{ "%.4f"|format(session.corrections.k_TP) }},
+                    k<sub>pol</sub>={{ "%.4f"|format(session.corrections.k_pol) }},
+                    k<sub>s</sub>={{ "%.4f"|format(session.corrections.k_s) }}
+                </p>
+                <button type="submit" style="margin-top:1rem; width:100%;" {% if not detector %}disabled{% endif %}>
+                    Calculate Output for {{ beam.nominal_energy }}
+                </button>
             </form>
         </div>
 
         {% if result %}
         <div class="card result-box result-{{ status or 'unknown' }}">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
-                <h2 style="margin:0;">Result</h2>
+                <h2 style="margin:0;">Result · {{ beam.nominal_energy }}</h2>
                 {% if status == 'pass' %}<span class="badge-pass">WITHIN TOLERANCE</span>
                 {% elif status == 'warning' %}<span class="badge-warning">BORDERLINE</span>
                 {% elif status == 'fail' %}<span class="badge-fail">OUT OF TOLERANCE</span>
@@ -66,10 +91,7 @@
             </div>
             <div class="dose" style="margin-top:0.6rem;">{{ "%.3f"|format(result.output_cGy_MU) }} cGy/MU</div>
             {% if result.n_readings > 1 %}
-            <p class="note">Averaged from {{ result.n_readings }} meter readings · Mean charge {{ "%.4f"|format(result.avg_charge) }} nC</p>
-            {% endif %}
-            {% if tpr_status %}
-            <p class="note">TPR<sub>20,10</sub> vs baseline: <span class="status-{{ tpr_status }}">{{ tpr_status|upper }}</span></p>
+            <p class="note">Averaged from {{ result.n_readings }} readings · Mean {{ "%.4f"|format(result.avg_charge) }} nC</p>
             {% endif %}
 
             <div class="grid grid-2" style="margin-top:1.2rem;">
@@ -81,8 +103,8 @@
                     <input type="hidden" name="nominal_output" value="{{ nominal_output }}">
                     <input type="hidden" name="append_reading" value="1">
                     <label>Repeat measurement — new meter reading (nC)</label>
-                    <input type="number" step="any" name="repeat_charge_nC" required placeholder="Enter new reading">
-                    <button type="submit" class="btn-outline" style="margin-top:0.6rem; width:100%;">Repeat measurement (average)</button>
+                    <input type="number" step="any" name="repeat_charge_nC" required placeholder="New reading">
+                    <button type="submit" class="btn-outline" style="margin-top:0.6rem; width:100%;">Repeat (average)</button>
                 </form>
                 <form method="post" action="/session/{{ session.id }}/energy/{{ beam.id }}/save">
                     <input type="hidden" name="measured_output" value="{{ result.output_cGy_MU }}">
@@ -98,6 +120,16 @@
                     <label>Notes</label><input type="text" name="notes">
                     <button type="submit" style="margin-top:0.6rem; width:100%;">Save measurement for report</button>
                 </form>
+            </div>
+
+            <div style="margin-top:1.5rem; padding:1rem; border:1px solid var(--border); border-radius:8px;">
+                <strong>Next step</strong>
+                <div class="grid grid-2" style="margin-top:0.8rem;">
+                    <a class="btn btn-block" href="/session/{{ session.id }}/energies">Other energy (same modality)</a>
+                    <a class="btn btn-block btn-success" href="/session/{{ session.id }}/switch-modality">
+                        {% if session.modality == 'photon' %}Go to electron dosimetry{% else %}Go to photon dosimetry{% endif %}
+                    </a>
+                </div>
             </div>
         </div>
         {% endif %}
