@@ -19,6 +19,8 @@ from app.auth import (
     get_user_by_token, PERM_CALCULATE, PERM_LIBRARY_VIEW, PERM_LIBRARY_EDIT,
     PERM_HISTORY_VIEW, PERM_TUNE,
 )
+from app.db import use_db
+from app import repo
 
 COOKIE = "dosepro_session"
 
@@ -221,7 +223,10 @@ def register_extra_routes(app, templates):
         rep = get_report(rid)
         if not rep:
             raise HTTPException(404)
-        records = list_output_records(linac_id=rep.linac_id, report_date=rep.report_date)
+        if use_db():
+            records = repo.list_outputs(machine_id=rep.linac_id, report_date=rep.report_date)
+        else:
+            records = list_output_records(linac_id=rep.linac_id, report_date=rep.report_date)
         try:
             pdf_bytes = build_report_pdf(rep, records)
         except Exception as e:
@@ -266,7 +271,7 @@ def register_extra_routes(app, templates):
         tpr = None
         if hasattr(sess, "beam_quality_index"):
             tpr = sess.beam_quality_index.get(bid)
-        add_output_record(OutputRecord(
+        rec = OutputRecord(
             id=_new_id(), linac_id=sess.linac_id, beam_id=bid, modality=sess.modality,
             energy=beam.nominal_energy, date_time=datetime.utcnow().isoformat(),
             measured_output_cGy_MU=measured_output,
@@ -277,7 +282,9 @@ def register_extra_routes(app, templates):
             nominal_output_cGy_MU=nom, status=status,
             raw_readings=readings, average_reading_nC=avg_charge or None,
             tpr20_10=tpr, saved_for_report=True,
-        ))
+        )
+        # Persist: Supabase if configured, else memory
+        repo.save_output(rec)
         if beam.nominal_energy not in sess.completed_energies:
             sess.completed_energies.append(beam.nominal_energy)
         return RedirectResponse(f"/session/{sid}/energies", 303)
