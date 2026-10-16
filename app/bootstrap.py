@@ -48,3 +48,15 @@ try:
 except Exception as e:
     print("utility_routes FAILED:", e)
     traceback.print_exc()
+
+# Patch /health to report utility routes
+try:
+    from app.health_info import health_payload
+
+    @app.get("/health")
+    async def health_with_utils():
+        return health_payload(app)
+    print("health patched OK")
+except Exception as e:
+    print("health patch:", e)
+    traceback.print_exc()
