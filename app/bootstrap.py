@@ -55,8 +55,23 @@ try:
 except Exception as e:
     print("mr_energy_patch:", e)
 
+# Utilities last so they override any prior /activity routes
+try:
+    from app.utility_routes import register_utility_routes
+    register_utility_routes(app, templates)
+except Exception as e:
+    print("utility_routes:", e)
+
 try:
     from app.activity_routes import register_activity_routes
+    # Keep department admin routes from activity_routes; utility owns /activity
     register_activity_routes(app, templates)
 except Exception as e:
     print("activity_routes:", e)
+
+# Re-apply utility activity routes after activity_routes (so /activity stays hardened)
+try:
+    from app.utility_routes import register_utility_routes
+    register_utility_routes(app, templates)
+except Exception as e:
+    print("utility_routes_2:", e)

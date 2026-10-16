@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BED / EQD2 – DOSE pro</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="/logo.jpg" type="image/jpeg">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-nav">
+            <a class="nav-btn" href="javascript:history.back()">← Back</a>
+            <a class="nav-btn" href="/">Home</a>
+            <strong>BED / EQD2</strong>
+        </div>
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
+        </div>
+    </header>
+    <main>
+        <div class="card">
+            <h1>BED &amp; EQD2 calculator</h1>
+            <p style="color:var(--text-muted);">
+                BED = n·d·(1 + d/(α/β)) &nbsp;·&nbsp;
+                EQD2 = n·d·(d + α/β)/(2 + α/β)
+            </p>
+            <form method="post" action="/bed">
+                <div class="grid grid-2">
+                    <div>
+                        <label>Total dose (Gy) *</label>
+                        <input type="number" step="any" name="total_dose" value="{{ inputs.total_dose }}" required>
+                    </div>
+                    <div>
+                        <label>Number of fractions (n) *</label>
+                        <input type="number" step="any" name="n_fractions" value="{{ inputs.n_fractions }}" required>
+                    </div>
+                </div>
+                <label>α/β preset</label>
+                <select name="preset" id="preset" onchange="applyPreset()">
+                    {% for name, val in presets.items() %}
+                    <option value="{{ name }}" data-ab="{{ val if val is not none else '' }}"
+                        {% if inputs.preset == name %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <label>α/β (Gy) *</label>
+                <input type="number" step="any" name="alpha_beta" id="alpha_beta" value="{{ inputs.alpha_beta }}" required>
+                <button type="submit" style="margin-top:1.2rem; width:100%;">Calculate BED &amp; EQD2</button>
+            </form>
+        </div>
+
+        {% if error %}
+        <div class="card result-fail"><p><strong>Error:</strong> {{ error }}</p></div>
+        {% endif %}
+
+        {% if result %}
+        <div class="card result-pass">
+            <h2>Result — {{ result.tissue_label }}</h2>
+            <table>
+                <tr><th>Dose / fraction (d)</th><td>{{ "%.4g"|format(result.d) }} Gy</td></tr>
+                <tr><th>Fractions (n)</th><td>{{ "%.4g"|format(result.n) }}</td></tr>
+                <tr><th>Total dose</th><td>{{ "%.4g"|format(result.total_dose) }} Gy</td></tr>
+                <tr><th>α/β</th><td>{{ "%.4g"|format(result.alpha_beta) }} Gy</td></tr>
+                <tr><th>BED</th><td><strong>{{ "%.3f"|format(result.bed) }} Gy</strong></td></tr>
+                <tr><th>EQD2</th><td><strong>{{ "%.3f"|format(result.eqd2) }} Gy</strong></td></tr>
+            </table>
+            <p class="note" style="margin-top:0.8rem;">Verify α/β choice against local protocol. Values are physical LQ estimates only.</p>
+        </div>
+        {% endif %}
+    </main>
+    <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
+    <script>
+    function applyPreset() {
+        var sel = document.getElementById('preset');
+        var opt = sel.options[sel.selectedIndex];
+        var ab = opt.getAttribute('data-ab');
+        if (ab !== null && ab !== '') {
+            document.getElementById('alpha_beta').value = ab;
+        }
+    }
+    </script>
+</body>
+</html>

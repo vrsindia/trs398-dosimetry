@@ -42,7 +42,11 @@
         {% if current_user.has('calculate') %}
         <div class="card">
             <h2>Utilities</h2>
-            <a class="btn btn-outline btn-block" href="/activity" style="padding:1.15rem; font-size:1.05rem;">Source Activity Calculator</a>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:0.75rem;">
+                <a class="btn btn-outline btn-block" href="/activity" style="padding:1rem;">Source Activity Calculator</a>
+                <a class="btn btn-outline btn-block" href="/bed" style="padding:1rem;">BED / EQD2 Calculator</a>
+                <a class="btn btn-outline btn-block" href="/bed-combined" style="padding:1rem;">EBRT + Brachy BED</a>
+            </div>
         </div>
         {% endif %}
 

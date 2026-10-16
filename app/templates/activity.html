@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Source Activity – DOSE pro</title>
     <link rel="stylesheet" href="/static/style.css">
-    <link rel="icon" href="/static/garuda.jpg" type="image/jpeg">
+    <link rel="icon" href="/logo.jpg" type="image/jpeg">
     <script src="/static/theme.js"></script>
 </head>
 <body>
@@ -13,7 +13,6 @@
         <div class="header-nav">
             <a class="nav-btn" href="javascript:history.back()">← Back</a>
             <a class="nav-btn" href="/">Home</a>
-            <img src="/static/garuda.jpg" alt="Garuda" width="32" height="32" style="border-radius:6px;object-fit:contain;background:#fff;padding:1px;" onerror="this.style.display='none'">
             <strong>Source Activity</strong>
         </div>
         <div class="header-actions">
@@ -23,8 +22,9 @@
     <main>
         <div class="card">
             <h1>Source activity calculator</h1>
-            <p style="color:var(--text-muted);">A(t) = A₀ · e<sup>−λt</sup> · λ = ln(2)/T<sub>½</sub>. Calculate by <strong>number of days</strong> or by <strong>two dates</strong>.</p>
-
+            <p style="color:var(--text-muted);">
+                A(t) = A₀ · e<sup>−λt</sup>, λ = ln(2)/T<sub>½</sub>. By days or by two dates.
+            </p>
             <form method="post" action="/activity">
                 <div class="grid grid-2">
                     <div>
@@ -58,21 +58,19 @@
                         </select>
                     </div>
                 </div>
-
                 <label>Calculation mode *</label>
                 <select name="mode" id="mode" onchange="toggleMode()">
                     <option value="days" {% if not inputs or inputs.mode == 'days' %}selected{% endif %}>By number of days</option>
                     <option value="dates" {% if inputs and inputs.mode == 'dates' %}selected{% endif %}>By reference date &amp; calculation date</option>
                 </select>
-
                 <div id="days-block">
                     <label>Days since reference (elapsed) *</label>
-                    <input type="number" step="any" name="days" value="{{ inputs.days if inputs and inputs.days is defined else '30' }}">
+                    <input type="number" step="any" name="days" value="{{ inputs.days if inputs else '30' }}">
                 </div>
                 <div id="dates-block" style="display:none;">
                     <div class="grid grid-2">
                         <div>
-                            <label>Reference date (calibration / assay) *</label>
+                            <label>Reference date *</label>
                             <input type="date" name="reference_date" value="{{ inputs.reference_date if inputs else '' }}">
                         </div>
                         <div>
@@ -81,15 +79,12 @@
                         </div>
                     </div>
                 </div>
-
                 <button type="submit" style="margin-top:1.2rem; width:100%;">Calculate activity</button>
             </form>
         </div>
 
         {% if error %}
-        <div class="card result-fail">
-            <p><strong>Error:</strong> {{ error }}</p>
-        </div>
+        <div class="card result-fail"><p><strong>Error:</strong> {{ error }}</p></div>
         {% endif %}
 
         {% if result %}
@@ -104,14 +99,9 @@
                 <tr><th>Also in Ci</th><td>{{ "%.6g"|format(result.current_activity_ci) }} Ci</td></tr>
                 <tr><th>Also in Bq</th><td>{{ "%.6g"|format(result.current_activity_bq_out) }} Bq</td></tr>
             </table>
-            <p class="note" style="margin-top:0.8rem;">1 Ci = 3.7×10¹⁰ Bq. Values for clinical planning must be verified against the source certificate.</p>
+            <p class="note" style="margin-top:0.8rem;">1 Ci = 3.7×10¹⁰ Bq. Confirm against source certificate for clinical use.</p>
         </div>
         {% endif %}
-
-        <div class="card">
-            <h2>Available sources</h2>
-            <p class="note">Co-60, Ir-192, Ra-226, I-125 (incl. I-121 alias), Ru-106, Cs-137, Au-198, Pd-103, Sr-90, Y-90, F-18, Tc-99m, Am-241, Cf-252, P-32, Sm-153, Lu-177, Ra-223, Ac-225.</p>
-        </div>
     </main>
     <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
     <script>
