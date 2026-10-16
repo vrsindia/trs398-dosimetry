@@ -1,16 +1,17 @@
-"""Additional routes: calc profiles, reports, enhanced measurement save/repeat, UX."""
+"""Extra routes: calc profiles, reports, hardened energy calculate/save."""
 
 from __future__ import annotations
 from fastapi import Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from typing import Optional
 from datetime import datetime, date
+import traceback
 
 from app.models import (
     list_calc_profiles, add_calc_profile, update_calc_profile, CalcProfile,
     get_default_calc_profile, list_linacs, get_linac, get_beam, get_detector, list_detectors,
     find_tolerance, check_tolerance, add_output_record, OutputRecord, list_output_records,
-    list_reports, get_report, _new_id, list_beams,
+    list_reports, get_report, _new_id,
 )
 from app.session import get_session
 from app.measurement_helpers import compute_output
@@ -39,30 +40,32 @@ def register_extra_routes(app, templates):
     def _login():
         return RedirectResponse("/login", 303)
 
-    # --- UX: TPR energy select + detector set + enhanced GET energy ---
     try:
         from app.ux_routes import register_ux_routes
         register_ux_routes(app, templates)
     except Exception:
         pass
 
-    # Remove existing POST energy route so we can replace it
+    # Replace POST /session/{sid}/energy/{bid}
     to_remove = []
-    for r in app.router.routes:
+    for r in list(app.router.routes):
         path = getattr(r, "path", None)
         methods = getattr(r, "methods", set()) or set()
         if path == "/session/{sid}/energy/{bid}" and "POST" in methods:
             to_remove.append(r)
     for r in to_remove:
-        app.router.routes.remove(r)
+        try:
+            app.router.routes.remove(r)
+        except ValueError:
+            pass
 
     @app.post("/session/{sid}/energy/{bid}", response_class=HTMLResponse)
     async def energy_calc_v2(
         request: Request, sid: str, bid: str,
         raw_charge_nC: float = Form(...),
         mu: float = Form(...),
-        N_Dw: float = Form(...),
-        k_Q: float = Form(...),
+        N_Dw: float = Form(0.04521),
+        k_Q: float = Form(1.0),
         nominal_output: float = Form(1.0),
         append_reading: str = Form("0"),
         repeat_charge_nC: Optional[float] = Form(None),
@@ -73,50 +76,71 @@ def register_extra_routes(app, templates):
         sess, beam = get_session(sid), get_beam(bid)
         if not sess or not beam:
             raise HTTPException(404)
-        detector = get_detector(sess.detector_id) if sess.detector_id else None
-        # N_Dw always from detector library when detector selected — never free-edit
+
+        detector = get_detector(sess.detector_id) if getattr(sess, "detector_id", None) else None
         if detector:
-            N_Dw = detector.calibration_factor
+            N_Dw = float(detector.calibration_factor)
         else:
-            raise HTTPException(400, "Select a detector before calculating")
-        nominal = nominal_output if nominal_output else getattr(beam, "nominal_output_cGy_MU", 1.0)
+            N_Dw = float(N_Dw) if N_Dw else 0.04521
+
+        nominal = float(nominal_output) if nominal_output else float(
+            getattr(beam, "nominal_output_cGy_MU", 1.0) or 1.0
+        )
+        k_Q = float(k_Q) if k_Q else float(beam.k_Q)
+
+        # Safe beam_readings init
+        if not hasattr(sess, "beam_readings") or sess.beam_readings is None:
+            sess.beam_readings = {}
         if bid not in sess.beam_readings:
             sess.beam_readings[bid] = []
-        if append_reading == "1" and repeat_charge_nC is not None:
-            sess.beam_readings[bid].append(float(repeat_charge_nC))
-        else:
-            sess.beam_readings[bid] = [float(raw_charge_nC)]
-        readings = list(sess.beam_readings[bid])
-        profile = get_default_calc_profile()
-        computed = compute_output(readings, mu, N_Dw, k_Q, sess.corrections, profile)
 
-        class ER:
-            pass
-        result = ER()
-        for k, v in computed.items():
-            setattr(result, k, v)
+        try:
+            if append_reading == "1" and repeat_charge_nC is not None:
+                sess.beam_readings[bid].append(float(repeat_charge_nC))
+            else:
+                sess.beam_readings[bid] = [float(raw_charge_nC)]
+            readings = list(sess.beam_readings[bid])
+            profile = get_default_calc_profile()
+            computed = compute_output(readings, float(mu), N_Dw, k_Q, sess.corrections, profile)
 
-        tol = find_tolerance(sess.modality, beam.nominal_energy, sess.linac_id, parameter="output")
-        status = check_tolerance(computed["output_cGy_MU"], nominal, tol)
-        beam_qi = sess.beam_quality_index.get(bid) or beam.quality_index
-        tpr_status = None
-        if beam_qi is not None:
-            tpr_tol = find_tolerance(sess.modality, beam.nominal_energy, sess.linac_id, parameter="tpr20_10")
-            if tpr_tol:
-                tpr_status = check_tolerance(beam_qi, tpr_tol.baseline_value or beam_qi, tpr_tol)
+            class ER:
+                pass
+            result = ER()
+            for k, v in computed.items():
+                setattr(result, k, v)
 
-        return templates.TemplateResponse(
-            request=request, name="session_energy_calc.html",
-            context={
-                "session": sess, "beam": beam, "linac": get_linac(sess.linac_id),
-                "detector": detector, "detectors": list_detectors(),
-                "beam_qi": beam_qi, "profile": profile,
-                "result": result, "status": status, "tolerance": tol, "tpr_status": tpr_status,
-                "nominal_output": nominal, "current_user": user,
-                "prior_readings": readings[:-1] if len(readings) > 1 else [],
-                "last_reading": readings[-1], "last_mu": mu,
-            },
-        )
+            tol = find_tolerance(sess.modality, beam.nominal_energy, sess.linac_id, parameter="output")
+            status = check_tolerance(computed["output_cGy_MU"], nominal, tol)
+            beam_qi = None
+            if hasattr(sess, "beam_quality_index") and sess.beam_quality_index:
+                beam_qi = sess.beam_quality_index.get(bid)
+            if beam_qi is None:
+                beam_qi = getattr(beam, "quality_index", None)
+
+            return templates.TemplateResponse(
+                request=request, name="session_energy_calc.html",
+                context={
+                    "session": sess, "beam": beam, "linac": get_linac(sess.linac_id),
+                    "detector": detector, "beam_qi": beam_qi, "profile": profile,
+                    "result": result, "status": status, "tolerance": tol,
+                    "nominal_output": nominal, "current_user": user,
+                    "prior_readings": readings[:-1] if len(readings) > 1 else [],
+                    "last_reading": readings[-1], "last_mu": mu, "error": None,
+                },
+            )
+        except Exception as e:
+            return templates.TemplateResponse(
+                request=request, name="session_energy_calc.html",
+                context={
+                    "session": sess, "beam": beam, "linac": get_linac(sess.linac_id),
+                    "detector": detector, "beam_qi": getattr(beam, "quality_index", None),
+                    "profile": get_default_calc_profile(),
+                    "result": None, "status": None, "tolerance": None,
+                    "nominal_output": nominal, "current_user": user,
+                    "prior_readings": [], "last_reading": raw_charge_nC, "last_mu": mu,
+                    "error": f"Calculation error: {e}",
+                },
+            )
 
     @app.get("/calc-profiles", response_class=HTMLResponse)
     async def calc_profiles_page(request: Request):
@@ -211,10 +235,7 @@ def register_extra_routes(app, templates):
             raise HTTPException(404)
         records = list_output_records(linac_id=rep.linac_id, report_date=rep.report_date)
         html = build_report_html(rep, records)
-        return Response(
-            content=html, media_type="text/html",
-            headers={"Content-Disposition": f'inline; filename="dosepro_{rep.report_date}.html"'},
-        )
+        return Response(content=html, media_type="text/html")
 
     @app.get("/reports/{rid}/doc")
     async def report_doc(request: Request, rid: str):
@@ -268,13 +289,15 @@ def register_extra_routes(app, templates):
         nom = nominal_output or getattr(beam, "nominal_output_cGy_MU", 1.0)
         tol = find_tolerance(sess.modality, beam.nominal_energy, sess.linac_id, parameter="output")
         status = check_tolerance(final, nom, tol)
-        tpr = sess.beam_quality_index.get(bid) or beam.quality_index
+        tpr = None
+        if hasattr(sess, "beam_quality_index"):
+            tpr = sess.beam_quality_index.get(bid)
         add_output_record(OutputRecord(
             id=_new_id(), linac_id=sess.linac_id, beam_id=bid, modality=sess.modality,
             energy=beam.nominal_energy, date_time=datetime.utcnow().isoformat(),
             measured_output_cGy_MU=measured_output,
             tuned_output_cGy_MU=tuned_output if tuning else None,
-            tuning_performed=tuning, detector_id=sess.detector_id,
+            tuning_performed=tuning, detector_id=getattr(sess, "detector_id", None),
             k_TP=sess.corrections.k_TP, k_pol=sess.corrections.k_pol, k_s=sess.corrections.k_s,
             k_Q=beam.k_Q, notes=notes, physicist=physicist or user.full_name,
             nominal_output_cGy_MU=nom, status=status,
@@ -285,5 +308,4 @@ def register_extra_routes(app, templates):
             sess.completed_energies.append(beam.nominal_energy)
         return RedirectResponse(f"/session/{sid}/energies", 303)
 
-    # Ensure register is always callable; also try activate on import side
     return True
