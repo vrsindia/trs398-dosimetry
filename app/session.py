@@ -1,7 +1,4 @@
-"""
-Guided absolute dosimetry session store.
-Shared correction factors + per-beam TPR20,10 for photons.
-"""
+"""Guided session store with per-beam readings for repeat/average."""
 
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -26,9 +23,11 @@ class DosimetrySession:
     linac_id: str
     modality: str
     detector_id: Optional[str] = None
+    calc_profile_id: Optional[str] = None
     corrections: SessionCorrectionFactors = field(default_factory=SessionCorrectionFactors)
-    # beam_id -> TPR20,10 (photon only, per energy)
     beam_quality_index: Dict[str, float] = field(default_factory=dict)
+    # beam_id -> list of meter readings (nC) for averaging
+    beam_readings: Dict[str, List[float]] = field(default_factory=dict)
     completed_energies: List[str] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
 
