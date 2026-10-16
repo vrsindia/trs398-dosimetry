@@ -9,7 +9,10 @@
 <body>
     <header>
         <strong>{{ linac.name }} · {{ session.modality|capitalize }}</strong>
-        <a href="/">Home</a>
+        <div>
+            <a href="/session/{{ session.id }}/corrections">← Back</a>
+            &nbsp; <a href="/">Home</a>
+        </div>
     </header>
     <main>
         <div class="card">
@@ -23,12 +26,6 @@
                 · Detector: {{ detector.name }} (N<sub>D,w</sub>={{ "%.5f"|format(detector.calibration_factor) }})
                 {% endif %}
             </p>
-
-            {% if session.modality == 'photon' %}
-            <p style="margin:0.8rem 0;">
-                <a class="btn btn-sm" href="/session/{{ session.id }}/tpr-select">Calculate TPR<sub>20,10</sub> (select energy first)</a>
-            </p>
-            {% endif %}
 
             {% if beams %}
             <table>
@@ -56,7 +53,7 @@
                         {% if session.modality == 'photon' %}
                         <a class="btn btn-sm btn-outline" href="/session/{{ session.id }}/beam/{{ b.id }}/quality">TPR</a>
                         {% endif %}
-                        <a class="btn btn-sm" href="/session/{{ session.id }}/energy/{{ b.id }}">Measure {{ b.nominal_energy }}</a>
+                        <a class="btn btn-sm" href="/session/{{ session.id }}/energy/{{ b.id }}">Measure</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -64,12 +61,6 @@
             {% else %}
             <p style="color:var(--text-muted);">No beams. <a href="/linacs">Add beams</a>.</p>
             {% endif %}
-
-            <div style="margin-top:1.5rem; padding:1rem; border:1px solid var(--border); border-radius:8px;">
-                <a href="/session/{{ session.id }}/switch-modality">
-                    {% if session.modality == 'photon' %}Use same correction factors → Electron dosimetry{% else %}Use same correction factors → Photon dosimetry{% endif %}
-                </a>
-            </div>
         </div>
     </main>
 </body>

@@ -9,16 +9,16 @@
 <body>
     <header>
         <strong>TPR<sub>20,10</sub> · {{ beam.nominal_energy }}</strong>
-        <a href="/session/{{ session.id }}/tpr-select">← Change energy</a>
+        <a href="/session/{{ session.id }}/energies">← Back</a>
     </header>
     <main>
         <div class="card">
             <div class="step">Photon beam quality index</div>
             <h1>{{ beam.nominal_energy }} — TPR<sub>20,10</sub></h1>
-            <p style="color:var(--text-muted);">Enter readings at 10 cm and 20 cm (same MU, same geometry) for <strong>{{ beam.nominal_energy }}</strong> only.</p>
+            <p style="color:var(--text-muted);">Enter readings at 10 cm and 20 cm for <strong>{{ beam.nominal_energy }}</strong>.</p>
 
             {% if existing_qi %}
-            <p style="color:var(--success);">Current TPR<sub>20,10</sub> for this energy: <strong>{{ "%.4f"|format(existing_qi) }}</strong></p>
+            <p style="color:var(--success);">Current TPR<sub>20,10</sub>: <strong>{{ "%.4f"|format(existing_qi) }}</strong></p>
             {% endif %}
 
             <form method="post" action="/session/{{ session.id }}/beam/{{ beam.id }}/quality">
@@ -26,25 +26,18 @@
                     <div><label>Reading / Dose at 10 cm</label><input type="number" step="any" name="dose_10" required></div>
                     <div><label>Reading / Dose at 20 cm</label><input type="number" step="any" name="dose_20" required></div>
                 </div>
-                <button type="submit" style="margin-top:1.2rem; width:100%;">Calculate TPR<sub>20,10</sub> for {{ beam.nominal_energy }}</button>
+                <button type="submit" style="margin-top:1.2rem; width:100%;">Calculate TPR<sub>20,10</sub></button>
             </form>
+
+            <p style="margin-top:1.2rem;">
+                <a class="btn btn-outline btn-block" href="/session/{{ session.id }}/energy/{{ beam.id }}">Skip TPR<sub>20,10</sub> → go to output measurement</a>
+            </p>
 
             {% if qi %}
             <div class="result-box result-pass" style="margin-top:1.2rem;">
-                <div>{{ beam.nominal_energy }} · TPR<sub>20,10</sub> = <strong style="font-size:1.5rem;">{{ "%.4f"|format(qi.tpr20_10) }}</strong></div>
-                <p class="note">Saved for this energy.</p>
-
-                <div style="margin-top:1.2rem; padding-top:1rem; border-top:1px solid var(--border);">
-                    <strong>Next step</strong>
-                    <div class="grid grid-2" style="margin-top:0.8rem;">
-                        <a class="btn btn-block" href="/session/{{ session.id }}/tpr-select">TPR for another photon energy</a>
-                        <a class="btn btn-block" href="/session/{{ session.id }}/energy/{{ beam.id }}">Output measurement · {{ beam.nominal_energy }}</a>
-                    </div>
-                    <div class="grid grid-2" style="margin-top:0.6rem;">
-                        <a class="btn btn-block btn-outline" href="/session/{{ session.id }}/energies">All energies list</a>
-                        <a class="btn btn-block btn-success" href="/session/{{ session.id }}/switch-modality">Move to electron dosimetry</a>
-                    </div>
-                </div>
+                <div>TPR<sub>20,10</sub> = <strong style="font-size:1.5rem;">{{ "%.4f"|format(qi.tpr20_10) }}</strong></div>
+                <a href="/session/{{ session.id }}/energy/{{ beam.id }}" class="btn" style="margin-top:0.8rem;">Continue to output →</a>
+                <a href="/session/{{ session.id }}/energies" class="btn btn-outline" style="margin-top:0.5rem;">← Back to energies</a>
             </div>
             {% endif %}
         </div>
