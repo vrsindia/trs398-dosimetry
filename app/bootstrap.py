@@ -20,8 +20,6 @@ for _label, _mod, _fn in [
     ("branding_routes", "app.branding_routes", "register_branding_routes"),
     ("mr_energy_patch", "app.mr_energy_patch", "register_mr_energy_patch"),
     ("activity_routes", "app.activity_routes", "register_activity_routes"),
-    # Department last so edit/save/logo always win over core main routes
-    ("department_routes", "app.department_routes", "register_department_routes"),
 ]:
     try:
         mod = __import__(_mod, fromlist=[_fn])
@@ -40,12 +38,23 @@ except Exception as e:
     print("FORCE_UTILS 2:", e)
     traceback.print_exc()
 
-# Re-register department once more after force_utils in case any utility
-# accidentally shadowed /department
+# Department routes LAST — must win over core main.py /department handlers
 try:
     from app.department_routes import register_department_routes
     register_department_routes(app, templates)
-    print("department_routes re-OK")
+    print("department_routes OK")
 except Exception as e:
-    print("department_routes 2:", e)
+    print("department_routes:", e)
     traceback.print_exc()
+
+
+@app.on_event("startup")
+def _rebind_department():
+    """Re-bind department after full startup so no earlier route can shadow it."""
+    try:
+        from app.department_routes import register_department_routes
+        register_department_routes(app, templates)
+        print("department_routes startup rebind OK")
+    except Exception as e:
+        print("department startup rebind failed:", e)
+        traceback.print_exc()

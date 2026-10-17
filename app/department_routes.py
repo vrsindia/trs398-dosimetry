@@ -15,15 +15,14 @@ MAX_LOGO_BYTES = 512 * 1024
 
 
 def _strip_routes(app, paths):
-    """Remove every route whose path is in paths (GET/POST/any)."""
+    """Remove every route whose path is in paths."""
     paths = set(paths)
-    kept = []
-    for r in list(app.router.routes):
-        p = getattr(r, "path", None)
-        if p in paths:
-            continue
-        kept.append(r)
+    before = len(app.router.routes)
+    kept = [r for r in app.router.routes if getattr(r, "path", None) not in paths]
     app.router.routes[:] = kept
+    removed = before - len(kept)
+    if removed:
+        print(f"department_routes: stripped {removed} old route(s) for {paths}")
 
 
 def register_department_routes(app, templates):
@@ -62,7 +61,6 @@ def register_department_routes(app, templates):
             pass
         update_department(**data)
 
-    # Always strip first so our handlers are the only ones
     _strip_routes(app, ("/department", "/department/edit", "/department/logo"))
 
     @app.get("/department", response_class=HTMLResponse)
@@ -73,7 +71,6 @@ def register_department_routes(app, templates):
         can_edit = _can_edit(user)
         saved = request.query_params.get("saved") == "1"
         logo_ok = request.query_params.get("logo") == "1"
-        # ?view=1 forces read-only; otherwise editors see the form immediately
         force_view = request.query_params.get("view") == "1"
         show_form = can_edit and not force_view
         return templates.TemplateResponse(
@@ -140,5 +137,11 @@ def register_department_routes(app, templates):
         _save_dept(logo_url=data_url)
         return RedirectResponse("/department?logo=1", 303)
 
-    print("department routes registered (edit/save/logo)")
+    # Verify
+    dept_paths = [
+        getattr(r, "path", None)
+        for r in app.router.routes
+        if getattr(r, "path", None) in ("/department", "/department/edit", "/department/logo")
+    ]
+    print("department routes active:", dept_paths)
     return True
