@@ -34,7 +34,6 @@ try:
     print("department_routes OK")
 except Exception as e:
     print("department_routes:", e)
-    traceback.print_exc()
 
 try:
     from app.fix_utils import register_fix_utils
@@ -51,23 +50,26 @@ try:
 except Exception as e:
     print("fix_fractionation:", e)
 
+try:
+    from app.fix_oar import register_fix_oar
+    register_fix_oar(app, templates)
+    print("fix_oar OK")
+except Exception as e:
+    print("fix_oar:", e)
+    traceback.print_exc()
+
 
 @app.on_event("startup")
 def _startup_rebind():
-    try:
-        from app.department_routes import register_department_routes
-        register_department_routes(app, templates)
-    except Exception as e:
-        print("department startup:", e)
-    try:
-        from app.fix_utils import register_fix_utils
-        register_fix_utils(app, templates)
-        print("fix_utils startup OK")
-    except Exception as e:
-        print("fix_utils startup:", e)
-    try:
-        from app.fix_fractionation import register_fix_fractionation
-        register_fix_fractionation(app, templates)
-        print("fix_fractionation startup OK")
-    except Exception as e:
-        print("fix_fractionation startup:", e)
+    for label, mod_name, fn_name in [
+        ("department", "app.department_routes", "register_department_routes"),
+        ("fix_utils", "app.fix_utils", "register_fix_utils"),
+        ("fix_fractionation", "app.fix_fractionation", "register_fix_fractionation"),
+        ("fix_oar", "app.fix_oar", "register_fix_oar"),
+    ]:
+        try:
+            mod = __import__(mod_name, fromlist=[fn_name])
+            getattr(mod, fn_name)(app, templates)
+            print(label, "startup OK")
+        except Exception as e:
+            print(label, "startup:", e)

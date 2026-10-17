@@ -1,1 +1,1 @@
-# Imported at end of main if needed
+# Deprecated stub.

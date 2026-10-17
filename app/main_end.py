@@ -1,1 +1,1 @@
-# snippet applied in main
+# Deprecated stub.

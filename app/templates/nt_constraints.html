@@ -1,12 +1,14 @@
 {% extends "base.html" %}
-{% block title %}OAR EQD2 constraints — DOSE pro{% endblock %}
+{% block title %}OAR constraints — DOSE pro{% endblock %}
 {% block content %}
 <div class="page-header">
-  <h1>OAR EQD2 constraints</h1>
+  <h1>OAR constraints</h1>
   <p class="muted">
-    Organ-at-risk dose constraints for radiotherapy planning (EQD2 reference limits).
-    This is a constraint library — not a calculator.
-    {% if can_edit %}<strong>Developer / admin:</strong> you can add, edit and delete constraints.{% endif %}
+    Organ-at-risk dose limits for radiotherapy planning.
+    Values are listed for <strong>conventional</strong> fractionation and for
+    <strong>1, 2, 3 and 5 fraction</strong> schedules (Gy).
+    Reference library only — verify against local protocol (e.g. TG-101 / QUANTEC).
+    {% if can_edit %}<br><strong>Developer / admin:</strong> add, edit or delete rows below.{% endif %}
   </p>
 </div>
 
@@ -26,8 +28,12 @@
       <tr>
         <th>Organ</th>
         <th>Endpoint</th>
-        <th>EQD2 limit (Gy)</th>
-        <th>α/β</th>
+        <th>Metric</th>
+        <th>Conventional</th>
+        <th>1 fx</th>
+        <th>2 fx</th>
+        <th>3 fx</th>
+        <th>5 fx</th>
         <th>Notes</th>
         {% if can_edit %}<th>Actions</th>{% endif %}
       </tr>
@@ -37,15 +43,17 @@
       <tr>
         <td><strong>{{ c.organ }}</strong></td>
         <td>{{ c.endpoint }}</td>
-        <td>{{ "%.1f"|format(c.eqd2_gy) }}</td>
-        <td>{{ c.ab }}</td>
+        <td>{{ c.metric }}</td>
+        <td>{% if c.conventional_gy is not none %}{{ "%.1f"|format(c.conventional_gy) }}{% else %}—{% endif %}</td>
+        <td>{% if c.fx1_gy is not none %}{{ "%.1f"|format(c.fx1_gy) }}{% else %}—{% endif %}</td>
+        <td>{% if c.fx2_gy is not none %}{{ "%.1f"|format(c.fx2_gy) }}{% else %}—{% endif %}</td>
+        <td>{% if c.fx3_gy is not none %}{{ "%.1f"|format(c.fx3_gy) }}{% else %}—{% endif %}</td>
+        <td>{% if c.fx5_gy is not none %}{{ "%.1f"|format(c.fx5_gy) }}{% else %}—{% endif %}</td>
         <td class="muted small">{{ c.notes }}</td>
         {% if can_edit %}
         <td style="white-space:nowrap">
           <button type="button" class="btn btn-secondary btn-sm"
-                  onclick="startEdit({{ loop.index0 }}, {{ c.organ|tojson }}, {{ c.endpoint|tojson }}, {{ c.eqd2_gy }}, {{ c.ab }}, {{ c.notes|tojson }})">
-            Edit
-          </button>
+            onclick='startEdit({{ loop.index0 }}, {{ c|tojson }})'>Edit</button>
           <form method="post" action="/nt-constraints/delete" style="display:inline"
                 onsubmit="return confirm('Delete this constraint?');">
             <input type="hidden" name="index" value="{{ loop.index0 }}">
@@ -61,6 +69,7 @@
   {% else %}
   <p class="muted">No constraints defined yet.</p>
   {% endif %}
+  <p class="muted small" style="margin-top:0.75rem">All dose values in Gy. Empty cells (—) mean not specified for that scheme.</p>
 </div>
 
 {% if can_edit %}
@@ -77,16 +86,35 @@
       </label>
     </div>
     <div class="grid-2">
-      <label>EQD2 limit (Gy)
-        <input type="number" step="0.1" name="eqd2_gy" id="f-eqd2" required placeholder="45">
+      <label>Metric
+        <input name="metric" id="f-metric" value="Dmax" placeholder="Dmax / Mean / Volume">
       </label>
-      <label>α/β (Gy)
-        <input type="number" step="0.1" name="ab" id="f-ab" value="3">
+      <label>Notes
+        <input name="notes" id="f-notes" placeholder="Source or caveat">
       </label>
     </div>
-    <label>Notes
-      <input name="notes" id="f-notes" placeholder="e.g. Dmax conventional fractionation">
-    </label>
+    <fieldset>
+      <legend>Dose limits (Gy)</legend>
+      <div class="grid-3">
+        <label>Conventional
+          <input type="number" step="0.1" name="conventional_gy" id="f-conv" placeholder="e.g. 45">
+        </label>
+        <label>1 fraction
+          <input type="number" step="0.1" name="fx1_gy" id="f-fx1" placeholder="e.g. 14">
+        </label>
+        <label>2 fractions
+          <input type="number" step="0.1" name="fx2_gy" id="f-fx2" placeholder="e.g. 18">
+        </label>
+      </div>
+      <div class="grid-2" style="margin-top:0.5rem">
+        <label>3 fractions
+          <input type="number" step="0.1" name="fx3_gy" id="f-fx3" placeholder="e.g. 21.9">
+        </label>
+        <label>5 fractions
+          <input type="number" step="0.1" name="fx5_gy" id="f-fx5" placeholder="e.g. 30">
+        </label>
+      </div>
+    </fieldset>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary" id="form-submit">Add constraint</button>
       <button type="button" class="btn btn-secondary" id="form-cancel" style="display:none" onclick="cancelEdit()">Cancel edit</button>
@@ -95,15 +123,20 @@
 </div>
 
 <script>
-function startEdit(index, organ, endpoint, eqd2, ab, notes) {
+function val(v) { return (v === null || v === undefined) ? '' : v; }
+function startEdit(index, c) {
   document.getElementById('form-title').textContent = 'Edit constraint';
   document.getElementById('constraint-form').action = '/nt-constraints/edit';
   document.getElementById('f-index').value = index;
-  document.getElementById('f-organ').value = organ || '';
-  document.getElementById('f-endpoint').value = endpoint || '';
-  document.getElementById('f-eqd2').value = eqd2;
-  document.getElementById('f-ab').value = ab;
-  document.getElementById('f-notes').value = notes || '';
+  document.getElementById('f-organ').value = c.organ || '';
+  document.getElementById('f-endpoint').value = c.endpoint || '';
+  document.getElementById('f-metric').value = c.metric || 'Dmax';
+  document.getElementById('f-notes').value = c.notes || '';
+  document.getElementById('f-conv').value = val(c.conventional_gy);
+  document.getElementById('f-fx1').value = val(c.fx1_gy);
+  document.getElementById('f-fx2').value = val(c.fx2_gy);
+  document.getElementById('f-fx3').value = val(c.fx3_gy);
+  document.getElementById('f-fx5').value = val(c.fx5_gy);
   document.getElementById('form-submit').textContent = 'Save changes';
   document.getElementById('form-cancel').style.display = '';
   document.getElementById('edit-card').scrollIntoView({ behavior: 'smooth' });
@@ -112,11 +145,10 @@ function cancelEdit() {
   document.getElementById('form-title').textContent = 'Add constraint';
   document.getElementById('constraint-form').action = '/nt-constraints/add';
   document.getElementById('f-index').value = '';
-  document.getElementById('f-organ').value = '';
-  document.getElementById('f-endpoint').value = '';
-  document.getElementById('f-eqd2').value = '';
-  document.getElementById('f-ab').value = '3';
-  document.getElementById('f-notes').value = '';
+  ['f-organ','f-endpoint','f-notes','f-conv','f-fx1','f-fx2','f-fx3','f-fx5'].forEach(function(id){
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('f-metric').value = 'Dmax';
   document.getElementById('form-submit').textContent = 'Add constraint';
   document.getElementById('form-cancel').style.display = 'none';
 }
