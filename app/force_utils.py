@@ -1,4 +1,4 @@
-"""Register utility routes: activity, BED/EQD2, EBRT+Brachy BED. No logo."""
+"""Utility routes: activity, bed/eqd2, ebrt+brachy (multi-fx), gap correction."""
 from __future__ import annotations
 from datetime import date
 
@@ -16,10 +16,14 @@ def register_force_utils(app, templates):
         return True
     _DONE = True
 
-    from app.auth import get_user_by_token, PERM_CALCULATE
+    from app.auth import (
+        get_user_by_token, PERM_CALCULATE,
+        SEC_ACTIVITY, SEC_BED, SEC_BED_COMBINED, SEC_GAP,
+    )
     from app.calculations.activity import calculate_activity, list_sources
     from app.calculations.bed import (
-        calculate_bed_eqd2, calculate_ebrt_brachy_bed, ALPHA_BETA_PRESETS,
+        calculate_bed_eqd2, calculate_ebrt_brachy_bed,
+        calculate_gap_correction, ALPHA_BETA_PRESETS,
     )
 
     def _user(request: Request):
@@ -28,25 +32,34 @@ def register_force_utils(app, templates):
     def _login():
         return RedirectResponse("/login", 303)
 
-    def _need(request: Request):
+    def _need(request: Request, section: str = None):
         u = _user(request)
         if not u:
             return None
-        if not u.has(PERM_CALCULATE):
+        if not u.has(PERM_CALCULATE) and section not in (SEC_BED, SEC_BED_COMBINED, SEC_GAP):
+            # doctors may use bed tools without full calculate
+            if section and u.has(section):
+                return u
             raise HTTPException(403, "Insufficient permissions")
+        if section and not u.has(section):
+            # allow if they have calculate (legacy users without section keys)
+            if not u.has(PERM_CALCULATE):
+                raise HTTPException(403, "This section is not enabled for your account")
         return u
 
     @app.get("/utils-ping")
     async def force_ping():
         paths = sorted({
             getattr(r, "path", "") for r in app.router.routes
-            if getattr(r, "path", "") in ("/activity", "/bed", "/bed-combined", "/utils-ping")
+            if getattr(r, "path", "") in
+            ("/activity", "/bed", "/bed-combined", "/gap", "/utils-ping")
         })
-        return {"ok": True, "paths": paths, "version": "1.7.0"}
+        return {"ok": True, "paths": paths, "version": "1.8.0"}
 
+    # ---- Activity ----
     @app.get("/activity", response_class=HTMLResponse)
     async def force_activity_get(request: Request):
-        user = _need(request)
+        user = _need(request, SEC_ACTIVITY)
         if not user:
             return _login()
         return templates.TemplateResponse(
@@ -65,7 +78,7 @@ def register_force_utils(app, templates):
 
     @app.post("/activity", response_class=HTMLResponse)
     async def force_activity_post(request: Request):
-        user = _need(request)
+        user = _need(request, SEC_ACTIVITY)
         if not user:
             return _login()
         form = await request.form()
@@ -110,9 +123,10 @@ def register_force_utils(app, templates):
             },
         )
 
+    # ---- BED / EQD2 ----
     @app.get("/bed", response_class=HTMLResponse)
     async def force_bed_get(request: Request):
-        user = _need(request)
+        user = _need(request, SEC_BED)
         if not user:
             return _login()
         return templates.TemplateResponse(
@@ -121,7 +135,7 @@ def register_force_utils(app, templates):
                 "result": None, "error": None, "presets": ALPHA_BETA_PRESETS,
                 "inputs": {
                     "total_dose": "50", "n_fractions": "25",
-                    "alpha_beta": "10", "preset": "Tumour (early, a/b=10)",
+                    "alpha_beta": "10", "preset": "Early responding tissue (a/b=10)",
                 },
                 "current_user": user,
             },
@@ -129,7 +143,7 @@ def register_force_utils(app, templates):
 
     @app.post("/bed", response_class=HTMLResponse)
     async def force_bed_post(request: Request):
-        user = _need(request)
+        user = _need(request, SEC_BED)
         if not user:
             return _login()
         form = await request.form()
@@ -157,9 +171,10 @@ def register_force_utils(app, templates):
             },
         )
 
+    # ---- EBRT + Brachy (multi-fraction brachy) ----
     @app.get("/bed-combined", response_class=HTMLResponse)
     async def force_bed_c_get(request: Request):
-        user = _need(request)
+        user = _need(request, SEC_BED_COMBINED)
         if not user:
             return _login()
         return templates.TemplateResponse(
@@ -168,8 +183,8 @@ def register_force_utils(app, templates):
                 "result": None, "error": None,
                 "inputs": {
                     "ebrt_total": "45", "ebrt_n": "25", "ebrt_ab": "10",
-                    "brachy_dose": "7", "brachy_ab": "10", "brachy_g": "1",
-                    "use_oar": "0", "ebrt_ab_oar": "3", "brachy_ab_oar": "3",
+                    "brachy_ab": "10", "brachy_g": "1",
+                    "brachy_doses": ["7"],
                 },
                 "current_user": user,
             },
@@ -177,35 +192,51 @@ def register_force_utils(app, templates):
 
     @app.post("/bed-combined", response_class=HTMLResponse)
     async def force_bed_c_post(request: Request):
-        user = _need(request)
+        user = _need(request, SEC_BED_COMBINED)
         if not user:
             return _login()
         form = await request.form()
+        # Collect all brachy_dose fields (brachy_dose, brachy_dose_1, ... or list)
+        doses = []
+        for key in form.keys():
+            if key == "brachy_dose" or key.startswith("brachy_dose_"):
+                raw = str(form.get(key) or "").strip()
+                if raw:
+                    try:
+                        doses.append(float(raw))
+                    except ValueError:
+                        pass
+        # Also accept comma-separated brachy_doses
+        multi = str(form.get("brachy_doses") or "").strip()
+        if multi:
+            for part in multi.replace(";", ",").split(","):
+                part = part.strip()
+                if part:
+                    try:
+                        doses.append(float(part))
+                    except ValueError:
+                        pass
+
         inputs = {
             "ebrt_total": str(form.get("ebrt_total") or "").strip(),
             "ebrt_n": str(form.get("ebrt_n") or "").strip(),
             "ebrt_ab": str(form.get("ebrt_ab") or "").strip(),
-            "brachy_dose": str(form.get("brachy_dose") or "").strip(),
             "brachy_ab": str(form.get("brachy_ab") or "").strip(),
             "brachy_g": str(form.get("brachy_g") or "1").strip(),
-            "use_oar": str(form.get("use_oar") or "0").strip(),
-            "ebrt_ab_oar": str(form.get("ebrt_ab_oar") or "3").strip(),
-            "brachy_ab_oar": str(form.get("brachy_ab_oar") or "3").strip(),
+            "brachy_doses": [str(d) for d in doses] if doses else ["7"],
         }
         error = result = None
         try:
-            kwargs = dict(
+            if not doses:
+                raise ValueError("Add at least one brachytherapy fraction dose")
+            result = calculate_ebrt_brachy_bed(
                 ebrt_total_dose=float(inputs["ebrt_total"]),
                 ebrt_n=float(inputs["ebrt_n"]),
                 ebrt_alpha_beta=float(inputs["ebrt_ab"]),
-                brachy_dose=float(inputs["brachy_dose"]),
+                brachy_doses=doses,
                 brachy_alpha_beta=float(inputs["brachy_ab"]),
                 brachy_g=float(inputs["brachy_g"] or 1),
             )
-            if inputs["use_oar"] == "1":
-                kwargs["ebrt_alpha_beta_oar"] = float(inputs["ebrt_ab_oar"])
-                kwargs["brachy_alpha_beta_oar"] = float(inputs["brachy_ab_oar"])
-            result = calculate_ebrt_brachy_bed(**kwargs)
         except Exception as e:
             error = f"{type(e).__name__}: {e}"
         return templates.TemplateResponse(
@@ -213,5 +244,54 @@ def register_force_utils(app, templates):
             context={"result": result, "error": error, "inputs": inputs, "current_user": user},
         )
 
-    print("force_utils: /activity /bed /bed-combined /utils-ping registered")
+    # ---- Gap correction ----
+    @app.get("/gap", response_class=HTMLResponse)
+    async def force_gap_get(request: Request):
+        user = _need(request, SEC_GAP)
+        if not user:
+            return _login()
+        return templates.TemplateResponse(
+            request=request, name="gap.html",
+            context={
+                "result": None, "error": None,
+                "inputs": {
+                    "planned_total": "66", "planned_n": "33", "alpha_beta": "10",
+                    "delivered_n": "20", "gap_days": "7", "k_gy_per_day": "0.6",
+                },
+                "current_user": user,
+            },
+        )
+
+    @app.post("/gap", response_class=HTMLResponse)
+    async def force_gap_post(request: Request):
+        user = _need(request, SEC_GAP)
+        if not user:
+            return _login()
+        form = await request.form()
+        inputs = {
+            "planned_total": str(form.get("planned_total") or "").strip(),
+            "planned_n": str(form.get("planned_n") or "").strip(),
+            "alpha_beta": str(form.get("alpha_beta") or "").strip(),
+            "delivered_n": str(form.get("delivered_n") or "").strip(),
+            "gap_days": str(form.get("gap_days") or "").strip(),
+            "k_gy_per_day": str(form.get("k_gy_per_day") or "0.6").strip(),
+        }
+        error = result = None
+        try:
+            result = calculate_gap_correction(
+                planned_total_dose=float(inputs["planned_total"]),
+                planned_n=float(inputs["planned_n"]),
+                alpha_beta=float(inputs["alpha_beta"]),
+                delivered_n=float(inputs["delivered_n"]),
+                gap_days=float(inputs["gap_days"]),
+                k_gy_per_day=float(inputs["k_gy_per_day"] or 0.6),
+            )
+        except Exception as e:
+            error = f"{type(e).__name__}: {e}"
+        return templates.TemplateResponse(
+            request=request, name="gap.html",
+            context={"result": result, "error": error, "inputs": inputs, "current_user": user},
+        )
+
+    print("force_utils: /activity /bed /bed-combined /gap /utils-ping registered")
     return True
