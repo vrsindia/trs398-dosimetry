@@ -1,4 +1,4 @@
-"""User directory — section access + task rights as tick boxes."""
+"""User directory — collapsible cards with section + task tick boxes."""
 from __future__ import annotations
 from fastapi import Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -12,6 +12,7 @@ from app.auth import (
 )
 
 COOKIE = "dosepro_session"
+TEMPLATE = "users_dir.html"
 
 SYSTEM_PERMS = [
     PERM_CALCULATE, PERM_TUNE, PERM_LIBRARY_VIEW, PERM_LIBRARY_EDIT,
@@ -23,34 +24,44 @@ SECTION_PERMS = list(ALL_SECTION_PERMS)
 
 
 def register_users_routes(app, templates):
-    # Force-remove any other /users handlers so this one wins
-    app.router.routes[:] = [
-        r for r in app.router.routes
-        if getattr(r, "path", None) not in ("/users", "/users/add")
-        and not str(getattr(r, "path", "")).startswith("/users/{")
-    ]
+    # Remove every existing /users route so this handler always wins
+    kept = []
+    for r in app.router.routes:
+        path = getattr(r, "path", None)
+        if path in ("/users", "/users/add") or (
+            isinstance(path, str) and path.startswith("/users/")
+        ):
+            continue
+        kept.append(r)
+    app.router.routes[:] = kept
 
     def _user(request: Request):
-        return get_user_by_token(request.cookies.get(COOKIE))
+        try:
+            return get_user_by_token(request.cookies.get(COOKIE))
+        except Exception:
+            return None
 
     def _require_admin(request: Request):
         user = _user(request)
         if not user:
             return None
-        role = (user.role or "").lower()
+        role = (getattr(user, "role", "") or "").lower()
         if role in ("developer", "admin"):
             return user
-        if hasattr(user, "has") and user.has(PERM_USER_MANAGE):
-            return user
+        try:
+            if user.has(PERM_USER_MANAGE):
+                return user
+        except Exception:
+            pass
         return None
 
     def _ctx(request, user, message="", error=""):
-        # Ensure every user has a set of permissions for template "in" checks
         users = list_users()
         for u in users:
-            if not isinstance(getattr(u, "permissions", None), set):
+            perms = getattr(u, "permissions", None)
+            if not isinstance(perms, set):
                 try:
-                    u.permissions = set(u.permissions or [])
+                    u.permissions = set(perms or [])
                 except Exception:
                     u.permissions = set()
         return {
@@ -60,7 +71,7 @@ def register_users_routes(app, templates):
             "roles": list(ROLES),
             "section_perms": SECTION_PERMS,
             "section_labels": dict(SECTION_LABELS),
-            "system_perms": SYSTEM_PERMS,
+            "system_perms": list(SYSTEM_PERMS),
             "perm_labels": dict(PERM_LABELS),
             "message": message,
             "error": error,
@@ -69,11 +80,11 @@ def register_users_routes(app, templates):
     def _tpl(request, **ctx):
         try:
             return templates.TemplateResponse(
-                request=request, name="users.html", context=ctx,
+                request=request, name=TEMPLATE, context=ctx,
             )
         except TypeError:
             ctx["request"] = request
-            return templates.TemplateResponse("users.html", ctx)
+            return templates.TemplateResponse(TEMPLATE, ctx)
 
     @app.get("/users", response_class=HTMLResponse)
     async def users_page(request: Request):
@@ -140,5 +151,5 @@ def register_users_routes(app, templates):
         except Exception as e:
             return _tpl(request, **_ctx(request, user, error=str(e)))
 
-    print("users_routes: tick-box section access + task rights registered")
+    print("users_routes: collapsible users_dir.html registered")
     return True
