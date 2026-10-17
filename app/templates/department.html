@@ -3,20 +3,29 @@
 {% block content %}
 <div class="page-header">
   <h1>Department</h1>
-  <p class="muted">Department details and hospital logo. Only developer and admin can edit.</p>
+  <p class="muted">Department details and hospital logo. Developer and admin can edit and save directly.</p>
 </div>
+
+{% if saved %}
+<div class="alert alert-ok">Department details saved successfully.</div>
+{% endif %}
+{% if logo_ok %}
+<div class="alert alert-ok">Hospital logo uploaded successfully.</div>
+{% endif %}
 
 {% if dept.logo_url %}
 <div class="card" style="margin-bottom:1rem">
-  <p class="muted small">Current hospital logo</p>
+  <p class="muted small" style="margin-top:0">Current hospital logo</p>
   <img src="{{ dept.logo_url }}" alt="Department logo"
        style="max-height:80px;max-width:220px;object-fit:contain;border:1px solid var(--border);border-radius:6px;padding:4px;background:var(--surface-2)">
 </div>
 {% endif %}
 
+{% if show_form %}
+{# ---------- EDIT MODE ---------- #}
 {% if can_edit %}
 <div class="card form-card" style="margin-bottom:1.25rem">
-  <h2>Upload hospital logo</h2>
+  <h2 style="margin-top:0">Upload hospital logo</h2>
   <form method="post" action="/department/logo" enctype="multipart/form-data">
     <label>Logo file (PNG, JPG, SVG or WebP — max 512 KB)
       <input type="file" name="logo" accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp" required>
@@ -26,46 +35,75 @@
     </div>
   </form>
 </div>
+{% endif %}
 
 <form method="post" action="/department/edit" class="card form-card">
   <fieldset>
-    <legend>Department details</legend>
+    <legend>Edit department details</legend>
     <div class="grid-2">
-      <label>Department name <input name="name" value="{{ dept.name }}"></label>
-      <label>Hospital / centre <input name="hospital" value="{{ dept.hospital }}"></label>
+      <label>Department name
+        <input name="name" value="{{ dept.name or '' }}" required>
+      </label>
+      <label>Hospital / centre
+        <input name="hospital" value="{{ dept.hospital or '' }}">
+      </label>
     </div>
-    <label>Address <input name="address" value="{{ dept.address }}"></label>
+    <label>Address
+      <input name="address" value="{{ dept.address or '' }}">
+    </label>
     <div class="grid-2">
-      <label>City <input name="city" value="{{ dept.city }}"></label>
-      <label>Country <input name="country" value="{{ dept.country }}"></label>
+      <label>City
+        <input name="city" value="{{ dept.city or '' }}">
+      </label>
+      <label>Country
+        <input name="country" value="{{ dept.country or '' }}">
+      </label>
     </div>
     <div class="grid-2">
-      <label>Phone <input name="phone" value="{{ dept.phone }}"></label>
-      <label>Email <input name="email" value="{{ dept.email }}"></label>
+      <label>Phone
+        <input name="phone" value="{{ dept.phone or '' }}">
+      </label>
+      <label>Email
+        <input type="email" name="email" value="{{ dept.email or '' }}">
+      </label>
     </div>
-    <label>Head of medical physics <input name="head_physicist" value="{{ dept.head_physicist }}"></label>
-    <label>Notes <input name="notes" value="{{ dept.notes }}"></label>
+    <label>Head of medical physics
+      <input name="head_physicist" value="{{ dept.head_physicist or '' }}">
+    </label>
+    <label>Notes
+      <input name="notes" value="{{ dept.notes or '' }}">
+    </label>
   </fieldset>
   <div class="form-actions">
-    <button type="submit" class="btn btn-primary">Save department details</button>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a href="/department" class="btn btn-secondary">Cancel</a>
     <a href="/" class="btn btn-ghost">Back to home</a>
   </div>
 </form>
+
 {% else %}
+{# ---------- VIEW MODE ---------- #}
 <div class="card result-card">
   <table class="result-table wide">
-    <tr><th>Department</th><td>{{ dept.name }}</td></tr>
-    <tr><th>Hospital</th><td>{{ dept.hospital }}</td></tr>
-    <tr><th>Address</th><td>{{ dept.address }}</td></tr>
-    <tr><th>City</th><td>{{ dept.city }}</td></tr>
-    <tr><th>Country</th><td>{{ dept.country }}</td></tr>
-    <tr><th>Phone</th><td>{{ dept.phone }}</td></tr>
-    <tr><th>Email</th><td>{{ dept.email }}</td></tr>
-    <tr><th>Head of physics</th><td>{{ dept.head_physicist }}</td></tr>
-    <tr><th>Notes</th><td>{{ dept.notes }}</td></tr>
+    <tr><th>Department</th><td>{{ dept.name or '—' }}</td></tr>
+    <tr><th>Hospital</th><td>{{ dept.hospital or '—' }}</td></tr>
+    <tr><th>Address</th><td>{{ dept.address or '—' }}</td></tr>
+    <tr><th>City</th><td>{{ dept.city or '—' }}</td></tr>
+    <tr><th>Country</th><td>{{ dept.country or '—' }}</td></tr>
+    <tr><th>Phone</th><td>{{ dept.phone or '—' }}</td></tr>
+    <tr><th>Email</th><td>{{ dept.email or '—' }}</td></tr>
+    <tr><th>Head of physics</th><td>{{ dept.head_physicist or '—' }}</td></tr>
+    <tr><th>Notes</th><td>{{ dept.notes or '—' }}</td></tr>
   </table>
-  <p class="muted small" style="margin-top:1rem">View only. Contact developer or admin to change these details.</p>
-  <a href="/" class="btn btn-ghost">Back to home</a>
+
+  <div class="form-actions" style="margin-top:1.25rem">
+    {% if can_edit %}
+    <a href="/department?edit=1" class="btn btn-primary">Edit</a>
+    {% else %}
+    <p class="muted small" style="margin:0 0 0.5rem">View only. Contact a developer or admin to change these details.</p>
+    {% endif %}
+    <a href="/" class="btn btn-ghost">Back to home</a>
+  </div>
 </div>
 {% endif %}
 {% endblock %}
