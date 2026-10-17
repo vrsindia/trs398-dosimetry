@@ -80,12 +80,22 @@ except Exception as e:
     print("fix_calc FAILED:", e)
     traceback.print_exc()
 
+# QA must register
 try:
     from app.qa_routes import register_qa_routes
     register_qa_routes(app, templates)
     print("qa_routes OK")
 except Exception as e:
     print("qa_routes FAILED:", e)
+    traceback.print_exc()
+
+# Users section access grid
+try:
+    from app.users_routes import register_users_routes
+    register_users_routes(app, templates)
+    print("users_routes OK")
+except Exception as e:
+    print("users_routes FAILED:", e)
     traceback.print_exc()
 
 
@@ -99,6 +109,7 @@ def _startup_rebind():
         ("fix_oar", "app.fix_oar", "register_fix_oar"),
         ("fix_calc", "app.fix_calc", "register_fix_calc"),
         ("qa_routes", "app.qa_routes", "register_qa_routes"),
+        ("users_routes", "app.users_routes", "register_users_routes"),
     ]:
         try:
             mod = __import__(mod_name, fromlist=[fn_name])
