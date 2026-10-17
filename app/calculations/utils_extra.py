@@ -4,10 +4,9 @@ Extra utility calculators:
 - MU (photon / electron) simple estimates
 - Units converter
 - Isotope half-lives
-- Normal-tissue EQD2 constraints (editable store for developer)
+- OAR constraints library (conventional + 1/2/3/5 fraction)
 """
 from __future__ import annotations
-from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 import json
@@ -136,44 +135,89 @@ UNIT_OPTIONS = {
 _DATA = Path(__file__).resolve().parent.parent / "data"
 _CONSTRAINTS_FILE = _DATA / "nt_constraints.json"
 
-DEFAULT_CONSTRAINTS: List[dict] = [
-    {"organ": "Spinal cord", "endpoint": "Myelopathy", "eqd2_gy": 45.0, "ab": 3.0, "notes": "Dmax conventional"},
-    {"organ": "Brainstem", "endpoint": "Necrosis", "eqd2_gy": 54.0, "ab": 3.0, "notes": "Dmax"},
-    {"organ": "Optic nerve / chiasm", "endpoint": "Neuropathy", "eqd2_gy": 55.0, "ab": 3.0, "notes": "Dmax"},
-    {"organ": "Retina", "endpoint": "Blindness", "eqd2_gy": 45.0, "ab": 3.0, "notes": "Dmax"},
-    {"organ": "Parotid (mean)", "endpoint": "Xerostomia", "eqd2_gy": 26.0, "ab": 3.0, "notes": "Mean dose"},
-    {"organ": "Lung (mean)", "endpoint": "Pneumonitis", "eqd2_gy": 20.0, "ab": 3.0, "notes": "Mean bilateral"},
-    {"organ": "Heart (mean)", "endpoint": "Pericarditis", "eqd2_gy": 26.0, "ab": 3.0, "notes": "Mean"},
-    {"organ": "Esophagus (mean)", "endpoint": "Esophagitis", "eqd2_gy": 34.0, "ab": 3.0, "notes": "Mean"},
-    {"organ": "Rectum (Dmax)", "endpoint": "Bleeding", "eqd2_gy": 75.0, "ab": 3.0, "notes": "V75 etc also used"},
-    {"organ": "Bladder (Dmax)", "endpoint": "Cystitis", "eqd2_gy": 80.0, "ab": 3.0, "notes": "Approximate"},
-    {"organ": "Femoral head", "endpoint": "Necrosis", "eqd2_gy": 52.0, "ab": 3.0, "notes": "Dmax"},
-    {"organ": "Small bowel", "endpoint": "Obstruction", "eqd2_gy": 50.0, "ab": 3.0, "notes": "Volume dependent"},
-]
+# Fractionation scheme keys used in the OAR library
+FX_SCHEMES = (
+    ("conventional_gy", "Conventional"),
+    ("fx1_gy", "1 fraction"),
+    ("fx2_gy", "2 fractions"),
+    ("fx3_gy", "3 fractions"),
+    ("fx5_gy", "5 fractions"),
+)
+
+
+def _normalize_row(c: dict) -> dict:
+    """Migrate old {eqd2_gy} rows and ensure all fx keys exist."""
+    out = {
+        "organ": c.get("organ") or "",
+        "endpoint": c.get("endpoint") or "",
+        "metric": c.get("metric") or "Dmax",
+        "conventional_gy": c.get("conventional_gy"),
+        "fx1_gy": c.get("fx1_gy"),
+        "fx2_gy": c.get("fx2_gy"),
+        "fx3_gy": c.get("fx3_gy"),
+        "fx5_gy": c.get("fx5_gy"),
+        "notes": c.get("notes") or "",
+    }
+    # Legacy single EQD2 field → conventional
+    if out["conventional_gy"] is None and c.get("eqd2_gy") is not None:
+        try:
+            out["conventional_gy"] = float(c["eqd2_gy"])
+        except (TypeError, ValueError):
+            pass
+    return out
 
 
 def load_constraints() -> List[dict]:
     _DATA.mkdir(parents=True, exist_ok=True)
     if not _CONSTRAINTS_FILE.exists():
-        save_constraints(DEFAULT_CONSTRAINTS)
-        return list(DEFAULT_CONSTRAINTS)
+        # Seed from packaged defaults if present; else empty
+        try:
+            raw = _CONSTRAINTS_FILE.read_text() if _CONSTRAINTS_FILE.exists() else ""
+        except Exception:
+            raw = ""
+        if not raw:
+            return []
     try:
-        return json.loads(_CONSTRAINTS_FILE.read_text())
+        data = json.loads(_CONSTRAINTS_FILE.read_text())
+        return [_normalize_row(c) for c in data]
     except Exception:
-        return list(DEFAULT_CONSTRAINTS)
+        return []
 
 
 def save_constraints(rows: List[dict]) -> None:
     _DATA.mkdir(parents=True, exist_ok=True)
-    _CONSTRAINTS_FILE.write_text(json.dumps(rows, indent=2))
+    cleaned = [_normalize_row(c) for c in rows]
+    _CONSTRAINTS_FILE.write_text(json.dumps(cleaned, indent=2))
 
 
-def check_eqd2_against_constraints(eqd2: float, organ_filter: str = "") -> List[dict]:
-    out = []
-    for c in load_constraints():
-        if organ_filter and organ_filter.lower() not in c.get("organ", "").lower():
-            continue
-        limit = float(c.get("eqd2_gy") or 0)
-        status = "exceed" if eqd2 > limit and limit > 0 else "ok"
-        out.append({**c, "status": status, "input_eqd2": eqd2})
-    return out
+def _opt_float(v) -> Optional[float]:
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def constraint_from_form(
+    organ: str,
+    endpoint: str = "",
+    metric: str = "Dmax",
+    conventional_gy=None,
+    fx1_gy=None,
+    fx2_gy=None,
+    fx3_gy=None,
+    fx5_gy=None,
+    notes: str = "",
+) -> dict:
+    return _normalize_row({
+        "organ": organ,
+        "endpoint": endpoint,
+        "metric": metric,
+        "conventional_gy": _opt_float(conventional_gy),
+        "fx1_gy": _opt_float(fx1_gy),
+        "fx2_gy": _opt_float(fx2_gy),
+        "fx3_gy": _opt_float(fx3_gy),
+        "fx5_gy": _opt_float(fx5_gy),
+        "notes": notes,
+    })

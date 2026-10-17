@@ -2,85 +2,276 @@
   {
     "organ": "Spinal cord",
     "endpoint": "Myelopathy",
-    "eqd2_gy": 45.0,
-    "ab": 3.0,
-    "notes": "Dmax conventional"
+    "metric": "Dmax",
+    "conventional_gy": 45,
+    "fx1_gy": 14,
+    "fx2_gy": 18,
+    "fx3_gy": 21.9,
+    "fx5_gy": 30,
+    "notes": "TG-101 / QUANTEC-style reference"
+  },
+  {
+    "organ": "Spinal cord (partial)",
+    "endpoint": "Myelopathy",
+    "metric": "Dmax",
+    "conventional_gy": 50,
+    "fx1_gy": 16,
+    "fx2_gy": 20,
+    "fx3_gy": 24,
+    "fx5_gy": 32,
+    "notes": "Partial cord irradiation"
   },
   {
     "organ": "Brainstem",
-    "endpoint": "Necrosis",
-    "eqd2_gy": 54.0,
-    "ab": 3.0,
-    "notes": "Dmax"
+    "endpoint": "Necrosis / neuropathy",
+    "metric": "Dmax",
+    "conventional_gy": 54,
+    "fx1_gy": 15,
+    "fx2_gy": 20,
+    "fx3_gy": 23,
+    "fx5_gy": 31,
+    "notes": "Point max"
   },
   {
     "organ": "Optic nerve / chiasm",
     "endpoint": "Neuropathy",
-    "eqd2_gy": 55.0,
-    "ab": 3.0,
-    "notes": "Dmax"
+    "metric": "Dmax",
+    "conventional_gy": 55,
+    "fx1_gy": 10,
+    "fx2_gy": 14,
+    "fx3_gy": 17.4,
+    "fx5_gy": 25,
+    "notes": "TG-101"
   },
   {
-    "organ": "Retina",
-    "endpoint": "Blindness",
-    "eqd2_gy": 45.0,
-    "ab": 3.0,
-    "notes": "Dmax"
-  },
-  {
-    "organ": "Parotid (mean)",
-    "endpoint": "Xerostomia",
-    "eqd2_gy": 26.0,
-    "ab": 3.0,
+    "organ": "Cochlea",
+    "endpoint": "Hearing loss",
+    "metric": "Mean",
+    "conventional_gy": 45,
+    "fx1_gy": 9,
+    "fx2_gy": 12,
+    "fx3_gy": 14.4,
+    "fx5_gy": 22,
     "notes": "Mean dose"
   },
   {
-    "organ": "Lung (mean)",
+    "organ": "Brain (normal)",
+    "endpoint": "Necrosis",
+    "metric": "V12 / Dmax",
+    "conventional_gy": 60,
+    "fx1_gy": 15,
+    "fx2_gy": 20,
+    "fx3_gy": 24,
+    "fx5_gy": 30,
+    "notes": "Volume-dependent; V12 often used for SRS"
+  },
+  {
+    "organ": "Lung (bilateral)",
     "endpoint": "Pneumonitis",
-    "eqd2_gy": 20.0,
-    "ab": 3.0,
-    "notes": "Mean bilateral"
+    "metric": "Mean",
+    "conventional_gy": 20,
+    "fx1_gy": 7,
+    "fx2_gy": 9,
+    "fx3_gy": 10.8,
+    "fx5_gy": 13.5,
+    "notes": "Mean lung dose; volume metrics preferred"
   },
   {
-    "organ": "Heart (mean)",
-    "endpoint": "Pericarditis",
-    "eqd2_gy": 26.0,
-    "ab": 3.0,
-    "notes": "Mean"
+    "organ": "Heart",
+    "endpoint": "Pericarditis / cardiac",
+    "metric": "Mean / Dmax",
+    "conventional_gy": 26,
+    "fx1_gy": 16,
+    "fx2_gy": 20,
+    "fx3_gy": 24,
+    "fx5_gy": 32,
+    "notes": "Mean preferred for conventional"
   },
   {
-    "organ": "Esophagus (mean)",
-    "endpoint": "Esophagitis",
-    "eqd2_gy": 34.0,
-    "ab": 3.0,
-    "notes": "Mean"
+    "organ": "Esophagus",
+    "endpoint": "Esophagitis / stenosis",
+    "metric": "Mean / Dmax",
+    "conventional_gy": 34,
+    "fx1_gy": 15.4,
+    "fx2_gy": 20,
+    "fx3_gy": 25.2,
+    "fx5_gy": 35,
+    "notes": "TG-101 Dmax for SBRT"
   },
   {
-    "organ": "Rectum (Dmax)",
-    "endpoint": "Bleeding",
-    "eqd2_gy": 75.0,
-    "ab": 3.0,
-    "notes": "V75 etc also used"
+    "organ": "Stomach",
+    "endpoint": "Ulceration",
+    "metric": "Dmax",
+    "conventional_gy": 45,
+    "fx1_gy": 12.4,
+    "fx2_gy": 16,
+    "fx3_gy": 22.2,
+    "fx5_gy": 32,
+    "notes": "TG-101"
   },
   {
-    "organ": "Bladder (Dmax)",
+    "organ": "Duodenum",
+    "endpoint": "Ulceration",
+    "metric": "Dmax",
+    "conventional_gy": 45,
+    "fx1_gy": 12.4,
+    "fx2_gy": 16,
+    "fx3_gy": 22.2,
+    "fx5_gy": 32,
+    "notes": "TG-101"
+  },
+  {
+    "organ": "Small bowel",
+    "endpoint": "Obstruction / fistula",
+    "metric": "Dmax",
+    "conventional_gy": 45,
+    "fx1_gy": 15.4,
+    "fx2_gy": 20,
+    "fx3_gy": 25.2,
+    "fx5_gy": 35,
+    "notes": "Volume constraints also critical"
+  },
+  {
+    "organ": "Colon",
+    "endpoint": "Colitis / fistula",
+    "metric": "Dmax",
+    "conventional_gy": 45,
+    "fx1_gy": 18.4,
+    "fx2_gy": 24,
+    "fx3_gy": 28.2,
+    "fx5_gy": 38,
+    "notes": "TG-101"
+  },
+  {
+    "organ": "Rectum",
+    "endpoint": "Bleeding / proctitis",
+    "metric": "Dmax / volume",
+    "conventional_gy": 75,
+    "fx1_gy": 18.4,
+    "fx2_gy": 24,
+    "fx3_gy": 28.2,
+    "fx5_gy": 38,
+    "notes": "Prostate protocols use V70/V75"
+  },
+  {
+    "organ": "Bladder",
     "endpoint": "Cystitis",
-    "eqd2_gy": 80.0,
-    "ab": 3.0,
-    "notes": "Approximate"
+    "metric": "Dmax / volume",
+    "conventional_gy": 65,
+    "fx1_gy": 18.4,
+    "fx2_gy": 24,
+    "fx3_gy": 28.2,
+    "fx5_gy": 38,
+    "notes": "Protocol-specific volume limits"
   },
   {
     "organ": "Femoral head",
     "endpoint": "Necrosis",
-    "eqd2_gy": 52.0,
-    "ab": 3.0,
-    "notes": "Dmax"
+    "metric": "Dmax",
+    "conventional_gy": 52,
+    "fx1_gy": 14,
+    "fx2_gy": 18,
+    "fx3_gy": 22,
+    "fx5_gy": 30,
+    "notes": "Approximate"
   },
   {
-    "organ": "Small bowel",
-    "endpoint": "Obstruction",
-    "eqd2_gy": 50.0,
-    "ab": 3.0,
-    "notes": "Volume dependent"
+    "organ": "Kidney (bilateral)",
+    "endpoint": "Renal function",
+    "metric": "Mean",
+    "conventional_gy": 18,
+    "fx1_gy": 8,
+    "fx2_gy": 10,
+    "fx3_gy": 12,
+    "fx5_gy": 16,
+    "notes": "Mean dose; avoid if possible"
+  },
+  {
+    "organ": "Liver",
+    "endpoint": "Liver dysfunction",
+    "metric": "Mean / critical volume",
+    "conventional_gy": 30,
+    "fx1_gy": 15,
+    "fx2_gy": 18,
+    "fx3_gy": 21,
+    "fx5_gy": 27,
+    "notes": "Critical volume sparing for SBRT"
+  },
+  {
+    "organ": "Rib / chest wall",
+    "endpoint": "Fracture / pain",
+    "metric": "Dmax",
+    "conventional_gy": 50,
+    "fx1_gy": 22,
+    "fx2_gy": 28,
+    "fx3_gy": 36.9,
+    "fx5_gy": 43,
+    "notes": "TG-101"
+  },
+  {
+    "organ": "Skin",
+    "endpoint": "Ulceration",
+    "metric": "Dmax",
+    "conventional_gy": 55,
+    "fx1_gy": 26,
+    "fx2_gy": 32,
+    "fx3_gy": 33,
+    "fx5_gy": 39.5,
+    "notes": "TG-101"
+  },
+  {
+    "organ": "Great vessels",
+    "endpoint": "Aneurysm / stenosis",
+    "metric": "Dmax",
+    "conventional_gy": 60,
+    "fx1_gy": 37,
+    "fx2_gy": 42,
+    "fx3_gy": 45,
+    "fx5_gy": 53,
+    "notes": "TG-101"
+  },
+  {
+    "organ": "Trachea / large bronchus",
+    "endpoint": "Stenosis",
+    "metric": "Dmax",
+    "conventional_gy": 60,
+    "fx1_gy": 20.2,
+    "fx2_gy": 26,
+    "fx3_gy": 30,
+    "fx5_gy": 40,
+    "notes": "TG-101"
+  },
+  {
+    "organ": "Parotid (bilateral mean)",
+    "endpoint": "Xerostomia",
+    "metric": "Mean",
+    "conventional_gy": 26,
+    "fx1_gy": null,
+    "fx2_gy": null,
+    "fx3_gy": null,
+    "fx5_gy": null,
+    "notes": "Mainly conventional H&N; SBRT rarely applies"
+  },
+  {
+    "organ": "Mandible",
+    "endpoint": "Osteoradionecrosis",
+    "metric": "Dmax",
+    "conventional_gy": 70,
+    "fx1_gy": null,
+    "fx2_gy": null,
+    "fx3_gy": null,
+    "fx5_gy": null,
+    "notes": "Conventional H&N"
+  },
+  {
+    "organ": "Lens",
+    "endpoint": "Cataract",
+    "metric": "Dmax",
+    "conventional_gy": 10,
+    "fx1_gy": 3,
+    "fx2_gy": 4,
+    "fx3_gy": 5,
+    "fx5_gy": 7,
+    "notes": "Very radiosensitive"
   }
 ]
