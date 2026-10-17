@@ -1,5 +1,6 @@
 """Department view / edit / save and logo upload.
-Admin and developer can edit and save directly (no approval queue).
+Admin and developer edit and save directly (no approval queue).
+Routes are force-replaced so they always win over core main.py.
 """
 from __future__ import annotations
 import base64
@@ -13,16 +14,27 @@ COOKIE = "dosepro_session"
 MAX_LOGO_BYTES = 512 * 1024
 
 
-def register_department_routes(app, templates):
-    """Register (or re-register) department routes so they always win."""
+def _strip_routes(app, paths):
+    """Remove every route whose path is in paths (GET/POST/any)."""
+    paths = set(paths)
+    kept = []
+    for r in list(app.router.routes):
+        p = getattr(r, "path", None)
+        if p in paths:
+            continue
+        kept.append(r)
+    app.router.routes[:] = kept
 
+
+def register_department_routes(app, templates):
     def _user(request: Request):
         return get_user_by_token(request.cookies.get(COOKIE))
 
     def _can_edit(user) -> bool:
         if not user:
             return False
-        if getattr(user, "role", "") in ("developer", "admin"):
+        role = (getattr(user, "role", "") or "").strip().lower()
+        if role in ("developer", "admin"):
             return True
         try:
             return bool(user.has(PERM_DEPT_EDIT))
@@ -30,7 +42,6 @@ def register_department_routes(app, templates):
             return False
 
     def _dept_object():
-        """Prefer DB department when available, else in-memory."""
         try:
             from app.db import use_db
             from app import repo
@@ -51,26 +62,20 @@ def register_department_routes(app, templates):
             pass
         update_department(**data)
 
-    # Remove any previous department routes so ours are the only ones
-    for path in ("/department", "/department/edit", "/department/logo"):
-        for r in list(app.router.routes):
-            if getattr(r, "path", None) == path:
-                try:
-                    app.router.routes.remove(r)
-                except ValueError:
-                    pass
+    # Always strip first so our handlers are the only ones
+    _strip_routes(app, ("/department", "/department/edit", "/department/logo"))
 
     @app.get("/department", response_class=HTMLResponse)
     async def dept_page(request: Request):
         user = _user(request)
         if not user:
             return RedirectResponse("/login", 303)
+        can_edit = _can_edit(user)
         saved = request.query_params.get("saved") == "1"
         logo_ok = request.query_params.get("logo") == "1"
-        edit = request.query_params.get("edit") == "1"
-        can_edit = _can_edit(user)
-        # Open in edit mode only when allowed and ?edit=1
-        show_form = can_edit and edit
+        # ?view=1 forces read-only; otherwise editors see the form immediately
+        force_view = request.query_params.get("view") == "1"
+        show_form = can_edit and not force_view
         return templates.TemplateResponse(
             request=request,
             name="department.html",
@@ -135,4 +140,5 @@ def register_department_routes(app, templates):
         _save_dept(logo_url=data_url)
         return RedirectResponse("/department?logo=1", 303)
 
+    print("department routes registered (edit/save/logo)")
     return True

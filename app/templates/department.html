@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Department — DOSE pro{% endblock %}
 {% block content %}
+{% set role = (current_user.role if current_user else '')|lower %}
+{% set editor = can_edit if can_edit is defined else (role in ['developer', 'admin']) %}
+{% set form_open = show_form if show_form is defined else editor %}
+
 <div class="page-header">
   <h1>Department</h1>
   <p class="muted">Department details and hospital logo. Developer and admin can edit and save directly.</p>
@@ -21,11 +25,9 @@
 </div>
 {% endif %}
 
-{% if show_form %}
-{# ---------- EDIT MODE ---------- #}
-{% if can_edit %}
+{% if form_open and editor %}
 <div class="card form-card" style="margin-bottom:1.25rem">
-  <h2 style="margin-top:0">Upload hospital logo</h2>
+  <h2 style="margin-top:0;font-size:1.05rem">Upload hospital logo</h2>
   <form method="post" action="/department/logo" enctype="multipart/form-data">
     <label>Logo file (PNG, JPG, SVG or WebP — max 512 KB)
       <input type="file" name="logo" accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp" required>
@@ -35,7 +37,6 @@
     </div>
   </form>
 </div>
-{% endif %}
 
 <form method="post" action="/department/edit" class="card form-card">
   <fieldset>
@@ -76,13 +77,12 @@
   </fieldset>
   <div class="form-actions">
     <button type="submit" class="btn btn-primary">Save</button>
-    <a href="/department" class="btn btn-secondary">Cancel</a>
+    <a href="/department?view=1" class="btn btn-secondary">View only</a>
     <a href="/" class="btn btn-ghost">Back to home</a>
   </div>
 </form>
 
 {% else %}
-{# ---------- VIEW MODE ---------- #}
 <div class="card result-card">
   <table class="result-table wide">
     <tr><th>Department</th><td>{{ dept.name or '—' }}</td></tr>
@@ -95,10 +95,9 @@
     <tr><th>Head of physics</th><td>{{ dept.head_physicist or '—' }}</td></tr>
     <tr><th>Notes</th><td>{{ dept.notes or '—' }}</td></tr>
   </table>
-
   <div class="form-actions" style="margin-top:1.25rem">
-    {% if can_edit %}
-    <a href="/department?edit=1" class="btn btn-primary">Edit</a>
+    {% if editor %}
+    <a href="/department" class="btn btn-primary">Edit</a>
     {% else %}
     <p class="muted small" style="margin:0 0 0.5rem">View only. Contact a developer or admin to change these details.</p>
     {% endif %}
