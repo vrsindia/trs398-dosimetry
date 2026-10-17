@@ -3,102 +3,134 @@
 {% block content %}
 <div class="page-header">
   <h1>Users</h1>
-  <p class="muted">Admin and developer can set role, password, and which sections each user may open on the home page.</p>
+  <p class="muted">Set role, password, <strong>section access</strong> (home page cards) and <strong>task rights</strong> for each user.</p>
 </div>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
 
+{# Fallbacks if route forgot to pass lists #}
+{% set sec_list = section_perms if section_perms is defined and section_perms else [
+  'sec_linac','sec_brachy','sec_activity','sec_bed','sec_bed_combined','sec_gap',
+  'sec_fractionation','sec_eqsquare','sec_mu','sec_units','sec_nt_constraints',
+  'sec_libraries','sec_history','sec_reports','sec_approvals','sec_department'
+] %}
+{% set sec_names = section_labels if section_labels is defined and section_labels else {
+  'sec_linac': 'Linac absolute dosimetry',
+  'sec_brachy': 'Brachytherapy',
+  'sec_activity': 'Source activity',
+  'sec_bed': 'BED / EQD2',
+  'sec_bed_combined': 'EBRT + brachy BED',
+  'sec_gap': 'Gap correction',
+  'sec_fractionation': 'Fractionation pattern',
+  'sec_eqsquare': 'Equivalent square',
+  'sec_mu': 'MU calculator',
+  'sec_units': 'Units converter',
+  'sec_nt_constraints': 'OAR constraints',
+  'sec_libraries': 'Libraries',
+  'sec_history': 'Output history',
+  'sec_reports': 'Reports',
+  'sec_approvals': 'Approvals',
+  'sec_department': 'Department'
+} %}
+{% set task_list = system_perms if system_perms is defined and system_perms else [
+  'calculate','tune','library_view','library_edit','approve','user_manage','dept_edit','history_view','admin_panel'
+] %}
+{% set task_names = perm_labels if perm_labels is defined and perm_labels else {
+  'calculate': 'Run calculations',
+  'tune': 'Tune output',
+  'library_view': 'View libraries',
+  'library_edit': 'Edit libraries',
+  'approve': 'Approve changes',
+  'user_manage': 'Manage users',
+  'dept_edit': 'Edit department',
+  'history_view': 'View history',
+  'admin_panel': 'User directory'
+} %}
+
 <div class="card result-card">
   <h2 style="margin-top:0">User directory</h2>
   {% if users %}
-  <div style="overflow-x:auto">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>Username</th>
-        <th>Full name</th>
-        <th>Role</th>
-        <th>Active</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for u in users %}
-      <tr>
-        <td><strong>{{ u.username }}</strong></td>
-        <td>{{ u.full_name }}</td>
-        <td><span class="badge">{{ u.role }}</span></td>
-        <td>{% if u.active %}<span style="color:var(--success)">Yes</span>{% else %}<span style="color:var(--danger)">No</span>{% endif %}</td>
-        <td>
-          <details class="user-edit">
-            <summary class="btn btn-secondary btn-sm" style="display:inline-block;cursor:pointer;list-style:none">Edit / permissions</summary>
-            <form method="post" action="/users/{{ u.id }}/edit" class="card form-card" style="margin-top:0.75rem;box-shadow:none">
-              <div class="grid-2">
-                <label>Full name
-                  <input name="full_name" value="{{ u.full_name }}">
-                </label>
-                <label>Role
-                  <select name="role">
-                    {% for r in roles %}
-                    <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
-                    {% endfor %}
-                  </select>
-                </label>
-              </div>
-              <label>New password <span class="muted small">(leave blank to keep current)</span>
-                <input type="password" name="password" autocomplete="new-password" placeholder="New password">
-              </label>
+  {% for u in users %}
+  <div class="card form-card" style="margin-bottom:1.25rem;border-left:4px solid var(--primary)">
+    <div style="display:flex;flex-wrap:wrap;gap:0.75rem 1.5rem;align-items:center;margin-bottom:1rem">
+      <div>
+        <strong style="font-size:1.05rem">{{ u.full_name }}</strong>
+        <span class="muted small">@{{ u.username }}</span>
+      </div>
+      <span class="badge">{{ u.role }}</span>
+      {% if u.active %}
+      <span style="color:var(--success);font-weight:600">Active</span>
+      {% else %}
+      <span style="color:var(--danger);font-weight:600">Inactive</span>
+      {% endif %}
+    </div>
 
-              <fieldset class="perm-fieldset">
-                <legend>Home page sections</legend>
-                <p class="muted small">Tick the sections this user can open from the home page.</p>
-                <div class="perm-grid">
-                  {% for p in section_perms %}
-                  <label class="check-label perm-item">
-                    <input type="checkbox" name="permissions" value="{{ p }}"
-                           {% if p in u.permissions %}checked{% endif %}>
-                    <span class="perm-name">{{ section_labels.get(p, p) }}</span>
-                  </label>
-                  {% endfor %}
-                </div>
-              </fieldset>
+    <form method="post" action="/users/{{ u.id }}/edit">
+      <div class="grid-2">
+        <label>Full name
+          <input name="full_name" value="{{ u.full_name }}">
+        </label>
+        <label>Role
+          <select name="role">
+            {% for r in roles %}
+            <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <label>New password <span class="muted small">(leave blank to keep current)</span>
+        <input type="password" name="password" autocomplete="new-password" placeholder="New password">
+      </label>
 
-              <fieldset class="perm-fieldset">
-                <legend>System permissions</legend>
-                <div class="perm-grid">
-                  {% for p in system_perms %}
-                  <label class="check-label perm-item">
-                    <input type="checkbox" name="permissions" value="{{ p }}"
-                           {% if p in u.permissions %}checked{% endif %}>
-                    <span class="perm-name">{{ perm_labels.get(p, p) }}</span>
-                  </label>
-                  {% endfor %}
-                </div>
-              </fieldset>
+      <fieldset class="perm-fieldset">
+        <legend>Section access (home page)</legend>
+        <p class="muted small">Tick each section this user is allowed to open.</p>
+        <div class="perm-grid">
+          {% for p in sec_list %}
+          <label class="check-label perm-item">
+            <input type="checkbox" name="permissions" value="{{ p }}"
+                   {% if p in u.permissions %}checked{% endif %}>
+            <span class="perm-name">{{ sec_names.get(p, p) }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </fieldset>
 
-              <label class="check-label" style="margin-top:0.75rem">
-                <input type="checkbox" name="active" value="1" {% if u.active %}checked{% endif %}>
-                <span>Active account</span>
-              </label>
+      <fieldset class="perm-fieldset">
+        <legend>Task rights</legend>
+        <p class="muted small">Tick the actions this user is allowed to perform.</p>
+        <div class="perm-grid">
+          {% for p in task_list %}
+          <label class="check-label perm-item">
+            <input type="checkbox" name="permissions" value="{{ p }}"
+                   {% if p in u.permissions %}checked{% endif %}>
+            <span class="perm-name">{{ task_names.get(p, p) }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </fieldset>
 
-              <div class="form-actions">
-                <button type="submit" class="btn btn-primary btn-sm">Save user</button>
-              </div>
-            </form>
-            {% if u.role != 'developer' or users|selectattr('role','equalto','developer')|list|length > 1 %}
-            <form method="post" action="/users/{{ u.id }}/delete" style="margin-top:0.5rem"
-                  onsubmit="return confirm('Delete user {{ u.username }}?');">
-              <button type="submit" class="btn btn-danger btn-sm">Delete user</button>
-            </form>
-            {% endif %}
-          </details>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      <label class="check-label" style="margin-top:0.85rem">
+        <input type="checkbox" name="active" value="1" {% if u.active %}checked{% endif %}>
+        <span class="perm-name">Active account</span>
+      </label>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save user</button>
+        {% if u.role != 'developer' or users|selectattr('role','equalto','developer')|list|length > 1 %}
+        </div>
+      </form>
+      <form method="post" action="/users/{{ u.id }}/delete" style="display:inline"
+            onsubmit="return confirm('Delete user {{ u.username }}?');">
+        <button type="submit" class="btn btn-danger btn-sm" style="margin-left:0.5rem">Delete</button>
+      </form>
+        {% else %}
+      </div>
+    </form>
+        {% endif %}
   </div>
+  {% endfor %}
   {% else %}
   <p class="muted">No users found.</p>
   {% endif %}
@@ -127,6 +159,7 @@
         </select>
       </label>
     </div>
+    <p class="muted small">After creating a user, open their card above to set section access and task rights.</p>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">Create user</button>
     </div>

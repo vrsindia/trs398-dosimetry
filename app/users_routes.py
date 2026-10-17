@@ -1,4 +1,4 @@
-"""User directory with clear section labels and grid permissions."""
+"""User directory — section access + task rights as tick boxes."""
 from __future__ import annotations
 from fastapi import Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -19,8 +19,11 @@ SYSTEM_PERMS = [
     PERM_ADMIN_PANEL,
 ]
 
+SECTION_PERMS = list(ALL_SECTION_PERMS)
+
 
 def register_users_routes(app, templates):
+    # Force-remove any other /users handlers so this one wins
     app.router.routes[:] = [
         r for r in app.router.routes
         if getattr(r, "path", None) not in ("/users", "/users/add")
@@ -35,19 +38,29 @@ def register_users_routes(app, templates):
         if not user:
             return None
         role = (user.role or "").lower()
-        if role not in ("developer", "admin") and not user.has(PERM_USER_MANAGE):
-            return None
-        return user
+        if role in ("developer", "admin"):
+            return user
+        if hasattr(user, "has") and user.has(PERM_USER_MANAGE):
+            return user
+        return None
 
     def _ctx(request, user, message="", error=""):
+        # Ensure every user has a set of permissions for template "in" checks
+        users = list_users()
+        for u in users:
+            if not isinstance(getattr(u, "permissions", None), set):
+                try:
+                    u.permissions = set(u.permissions or [])
+                except Exception:
+                    u.permissions = set()
         return {
             "request": request,
             "current_user": user,
-            "users": list_users(),
+            "users": users,
             "roles": list(ROLES),
-            "section_perms": list(ALL_SECTION_PERMS),
+            "section_perms": SECTION_PERMS,
             "section_labels": dict(SECTION_LABELS),
-            "system_perms": list(SYSTEM_PERMS),
+            "system_perms": SYSTEM_PERMS,
             "perm_labels": dict(PERM_LABELS),
             "message": message,
             "error": error,
@@ -97,12 +110,16 @@ def register_users_routes(app, templates):
         role = str(form.get("role") or "physicist")
         password = str(form.get("password") or "")
         active = form.get("active") == "1"
-        perms = form.getlist("permissions") if hasattr(form, "getlist") else []
+        if hasattr(form, "getlist"):
+            perms = form.getlist("permissions")
+        else:
+            raw = form.get("permissions")
+            perms = raw if isinstance(raw, list) else ([raw] if raw else [])
         kwargs = {
             "full_name": full_name,
             "role": role,
             "active": active,
-            "permissions": set(perms),
+            "permissions": set(str(p) for p in perms if p),
         }
         if password.strip():
             kwargs["password"] = password.strip()
@@ -123,5 +140,5 @@ def register_users_routes(app, templates):
         except Exception as e:
             return _tpl(request, **_ctx(request, user, error=str(e)))
 
-    print("users_routes: section grid registered")
+    print("users_routes: tick-box section access + task rights registered")
     return True
