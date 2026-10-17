@@ -16,7 +16,6 @@ ROLES = (
     "developer", "admin", "physicist", "doctor", "technologist", "intern", "observer",
 )
 
-# Permission keys
 PERM_CALCULATE = "calculate"
 PERM_TUNE = "tune"
 PERM_LIBRARY_VIEW = "library_view"
@@ -27,13 +26,17 @@ PERM_DEPT_EDIT = "dept_edit"
 PERM_HISTORY_VIEW = "history_view"
 PERM_ADMIN_PANEL = "admin_panel"
 
-# Section visibility (admin/developer assign per user)
 SEC_LINAC = "sec_linac"
 SEC_BRACHY = "sec_brachy"
 SEC_ACTIVITY = "sec_activity"
 SEC_BED = "sec_bed"
 SEC_BED_COMBINED = "sec_bed_combined"
 SEC_GAP = "sec_gap"
+SEC_FRACTIONATION = "sec_fractionation"
+SEC_EQSQUARE = "sec_eqsquare"
+SEC_MU = "sec_mu"
+SEC_UNITS = "sec_units"
+SEC_NT = "sec_nt_constraints"
 SEC_LIBRARIES = "sec_libraries"
 SEC_HISTORY = "sec_history"
 SEC_REPORTS = "sec_reports"
@@ -43,11 +46,16 @@ SEC_DEPARTMENT = "sec_department"
 SECTION_LABELS = {
     SEC_LINAC: "Linac absolute dosimetry",
     SEC_BRACHY: "Brachytherapy",
-    SEC_ACTIVITY: "Source activity calculator",
-    SEC_BED: "Bed / eqd2 calculator",
-    SEC_BED_COMBINED: "Ebrt + brachy bed",
+    SEC_ACTIVITY: "Source activity",
+    SEC_BED: "BED / EQD2",
+    SEC_BED_COMBINED: "EBRT + brachy BED",
     SEC_GAP: "Gap correction",
-    SEC_LIBRARIES: "Libraries (detectors, machines, tolerances)",
+    SEC_FRACTIONATION: "Fractionation pattern",
+    SEC_EQSQUARE: "Equivalent square",
+    SEC_MU: "MU calculator",
+    SEC_UNITS: "Units converter",
+    SEC_NT: "Normal-tissue EQD2",
+    SEC_LIBRARIES: "Libraries",
     SEC_HISTORY: "Output history",
     SEC_REPORTS: "Reports",
     SEC_APPROVALS: "Approvals",
@@ -71,25 +79,28 @@ DEFAULT_PERMISSIONS: Dict[str, Set[str]] = {
     },
     "physicist": {
         PERM_CALCULATE, PERM_TUNE, PERM_LIBRARY_VIEW, PERM_LIBRARY_EDIT,
-        PERM_APPROVE, PERM_DEPT_EDIT, PERM_HISTORY_VIEW,
+        PERM_APPROVE, PERM_HISTORY_VIEW,
         *ALL_SECTION_PERMS,
     },
     "doctor": {
-        PERM_LIBRARY_VIEW, PERM_HISTORY_VIEW,
-        SEC_BED, SEC_BED_COMBINED, SEC_GAP, SEC_REPORTS, SEC_DEPARTMENT,
+        PERM_CALCULATE, PERM_LIBRARY_VIEW, PERM_HISTORY_VIEW,
+        SEC_BED, SEC_BED_COMBINED, SEC_GAP, SEC_FRACTIONATION, SEC_NT,
+        SEC_ACTIVITY, SEC_REPORTS, SEC_UNITS,
     },
     "technologist": {
         PERM_CALCULATE, PERM_LIBRARY_VIEW, PERM_HISTORY_VIEW,
-        SEC_LINAC, SEC_BRACHY, SEC_ACTIVITY, SEC_LIBRARIES, SEC_HISTORY, SEC_DEPARTMENT,
+        SEC_LINAC, SEC_BRACHY, SEC_ACTIVITY, SEC_BED, SEC_BED_COMBINED,
+        SEC_GAP, SEC_FRACTIONATION, SEC_EQSQUARE, SEC_MU, SEC_UNITS, SEC_HISTORY,
     },
     "intern": {
         PERM_CALCULATE, PERM_LIBRARY_VIEW, PERM_HISTORY_VIEW,
-        SEC_LINAC, SEC_BRACHY, SEC_ACTIVITY, SEC_BED, SEC_BED_COMBINED, SEC_GAP,
-        SEC_LIBRARIES, SEC_HISTORY, SEC_DEPARTMENT,
+        SEC_LINAC, SEC_BRACHY, SEC_ACTIVITY, SEC_BED, SEC_BED_COMBINED,
+        SEC_GAP, SEC_FRACTIONATION, SEC_EQSQUARE, SEC_MU, SEC_UNITS, SEC_NT,
+        SEC_LIBRARIES, SEC_HISTORY,
     },
     "observer": {
         PERM_LIBRARY_VIEW, PERM_HISTORY_VIEW,
-        SEC_LIBRARIES, SEC_HISTORY, SEC_REPORTS, SEC_DEPARTMENT,
+        SEC_HISTORY, SEC_REPORTS, SEC_LIBRARIES,
     },
 }
 
@@ -132,6 +143,10 @@ class User:
     created_by: str = ""
 
     def has(self, perm: str) -> bool:
+        if not self.active:
+            return False
+        if self.role in ("developer", "admin"):
+            return True
         return perm in self.permissions
 
     def check_password(self, password: str) -> bool:
