@@ -1,58 +1,40 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Select Linac – DOSE pro</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/theme.js"></script>
-</head>
-<body>
-    <header>
-        <div class="header-nav">
-            <a class="nav-btn" href="javascript:history.back()">← Back</a>
-            <a class="nav-btn" href="/">Home</a>
-            <img src="/static/garuda.svg" alt="Garuda" width="28" height="28">
-            <strong>Linac Absolute Dosimetry</strong>
-        </div>
-        <div class="header-actions">
-            <button type="button" id="theme-toggle">Light theme</button>
-        </div>
-    </header>
-    <main>
-        <p class="note">Only CT Linac and MR Linac. Brachytherapy is under the separate Brachytherapy menu.</p>
+{% extends "base.html" %}
+{% block title %}Linac absolute dosimetry — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Linac absolute dosimetry</h1>
+  <p class="muted">Select a machine. Brachytherapy is under its own menu.</p>
+</div>
 
-        <div class="card">
-            <h2><span class="badge badge-ct">CT Linac</span></h2>
-            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top:1rem;">
-                {% for l in linacs %}
-                {% set c = l.category if l.category is defined else 'ct_linac' %}
-                {% if c == 'ct_linac' %}
-                <a class="btn btn-outline btn-block" href="/linac/{{ l.id }}" style="padding:1.1rem;">
-                    {{ l.name }}<br>
-                    <span style="font-size:0.8rem;font-weight:400;color:var(--text-muted);">{{ l.manufacturer }} {{ l.model }}</span>
-                </a>
-                {% endif %}
-                {% endfor %}
-            </div>
-        </div>
+<div class="card" style="margin-bottom:1rem">
+  <h2>Conventional linac</h2>
+  <p class="muted small">Photon and electron beams (TRS-398).</p>
+  <div class="home-grid" style="margin-top:0.75rem">
+    {% for l in linacs %}
+    {% set c = l.category if l.category is defined else 'ct_linac' %}
+    {% if c == 'ct_linac' %}
+    <a class="home-card card-blue" href="/linac/{{ l.id }}">
+      <h2>{{ l.name }}</h2>
+      <p>{{ l.manufacturer }} {{ l.model }}</p>
+    </a>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
 
-        <div class="card">
-            <h2><span class="badge badge-mr">MR Linac</span></h2>
-            <p class="note">Photon only (e.g. 7 MV FFF). Magnetic correction k<sub>B</sub>. No electrons. Not PDD-based.</p>
-            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top:1rem;">
-                {% for l in linacs %}
-                {% set c = l.category if l.category is defined else 'ct_linac' %}
-                {% if c == 'mr_linac' %}
-                <a class="btn btn-outline btn-block" href="/linac/{{ l.id }}" style="padding:1.1rem;">
-                    {{ l.name }}<br>
-                    <span style="font-size:0.8rem;font-weight:400;color:var(--text-muted);">{{ l.manufacturer }} {{ l.model }}</span>
-                </a>
-                {% endif %}
-                {% endfor %}
-            </div>
-        </div>
-    </main>
-    <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
-</body>
-</html>
+<div class="card">
+  <h2>MR-Linac</h2>
+  <p class="muted small">Photon only. Magnetic correction k<sub>B</sub>. No electron energies. Electron tolerance tables do not apply.</p>
+  <div class="home-grid" style="margin-top:0.75rem">
+    {% for l in linacs %}
+    {% set c = l.category if l.category is defined else 'ct_linac' %}
+    {% if c == 'mr_linac' %}
+    <a class="home-card card-teal" href="/linac/{{ l.id }}">
+      <h2>{{ l.name }}</h2>
+      <p>{{ l.manufacturer }} {{ l.model }}</p>
+    </a>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
