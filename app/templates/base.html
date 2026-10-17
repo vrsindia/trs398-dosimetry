@@ -36,12 +36,11 @@
         Signed in as <strong>{{ current_user.full_name }}</strong>
         ({{ current_user.role }})
         {% if current_user.username %} · @{{ current_user.username }}{% endif %}
-        {% else %}
-        Restricted clinical system
         {% endif %}
       </div>
-      <div class="footer-meta muted small">
-        TRS-398 · BED / EQD2 · Absolute dosimetry utilities
+      <div class="footer-meta muted small" style="width:100%;text-align:center;margin-top:0.5rem">
+        <strong>DOSE pro</strong> developed under project <strong>"GARUDA"</strong>
+        by <strong>VRS DOSIMETRY SOLUTIONS</strong>
       </div>
     </div>
   </footer>
@@ -51,11 +50,8 @@
       var back = document.getElementById("nav-back");
       if (back) {
         back.addEventListener("click", function () {
-          if (window.history.length > 1) {
-            window.history.back();
-          } else {
-            window.location.href = "/";
-          }
+          if (window.history.length > 1) window.history.back();
+          else window.location.href = "/";
         });
       }
     })();

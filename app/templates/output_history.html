@@ -1,56 +1,63 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Output History – DOSE pro</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <header>
-        <strong>Output History</strong>
-        <a href="/">← Home</a>
-    </header>
-    <main>
-        <div class="card">
-            <h1>Output records</h1>
-            {% if records %}
-            <table>
-                <tr>
-                    <th>Date/Time</th><th>Energy</th><th>Modality</th>
-                    <th>Measured</th><th>Tuned</th><th>Nominal</th><th>Status</th><th>Physicist</th>
-                    {% if current_user.role in ['developer', 'admin'] %}<th></th>{% endif %}
-                </tr>
-                {% for r in records %}
-                <tr>
-                    <td style="font-size:0.85rem;">{{ r.date_time[:16] }}</td>
-                    <td>{{ r.energy }}</td>
-                    <td>{{ r.modality }}</td>
-                    <td>{{ "%.3f"|format(r.measured_output_cGy_MU) }}</td>
-                    <td>{{ "%.3f"|format(r.tuned_output_cGy_MU) if r.tuned_output_cGy_MU else "—" }}</td>
-                    <td>{{ "%.3f"|format(r.nominal_output_cGy_MU) }}</td>
-                    <td>
-                        {% if r.status == 'pass' %}<span class="status-pass">PASS</span>
-                        {% elif r.status == 'warning' %}<span class="status-warning">BORDERLINE</span>
-                        {% elif r.status == 'fail' %}<span class="status-fail">FAIL</span>
-                        {% else %}—{% endif %}
-                    </td>
-                    <td>{{ r.physicist }}</td>
-                    {% if current_user.role in ['developer', 'admin'] %}
-                    <td>
-                        <form method="post" action="/output-history/{{ r.id }}/delete"
-                              onsubmit="return confirm('Delete this output record?');">
-                            <button type="submit" class="btn-sm btn-danger">Delete</button>
-                        </form>
-                    </td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-            </table>
-            {% else %}
-            <p style="color:var(--text-muted);">No output records yet.</p>
-            {% endif %}
-        </div>
-    </main>
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}Output history — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Output history</h1>
+  <p class="muted">Saved absolute dosimetry measurements by machine and energy.</p>
+</div>
+
+<div class="card result-card">
+  {% if records %}
+  <div style="overflow-x:auto">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Date / time</th>
+        <th>Machine</th>
+        <th>Energy</th>
+        <th>Modality</th>
+        <th>Measured</th>
+        <th>Tuned</th>
+        <th>Nominal</th>
+        <th>Status</th>
+        <th>Physicist</th>
+        {% if current_user and current_user.role in ['developer', 'admin'] %}
+        <th></th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in records %}
+      <tr>
+        <td class="small">{{ r.date_time[:16] if r.date_time else '—' }}</td>
+        <td><strong>{{ r.machine_name or r.linac_name or '—' }}</strong></td>
+        <td>{{ r.energy }}</td>
+        <td>{{ r.modality }}</td>
+        <td>{{ "%.3f"|format(r.measured_output_cGy_MU) }}</td>
+        <td>{{ "%.3f"|format(r.tuned_output_cGy_MU) if r.tuned_output_cGy_MU else "—" }}</td>
+        <td>{{ "%.3f"|format(r.nominal_output_cGy_MU) }}</td>
+        <td>
+          {% if r.status == 'pass' %}<span style="color:var(--success);font-weight:600">PASS</span>
+          {% elif r.status == 'warning' %}<span style="color:var(--highlight);font-weight:600">BORDERLINE</span>
+          {% elif r.status == 'fail' %}<span style="color:var(--danger);font-weight:600">FAIL</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ r.physicist or '—' }}</td>
+        {% if current_user and current_user.role in ['developer', 'admin'] %}
+        <td>
+          <form method="post" action="/output-history/{{ r.id }}/delete"
+                onsubmit="return confirm('Delete this output record?');">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">No output records yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

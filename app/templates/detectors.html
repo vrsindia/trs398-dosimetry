@@ -1,136 +1,108 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detector Library – TRS-398</title>
-    <style>
-        :root { --primary: #1a365d; --accent: #2b6cb0; --bg: #f7fafc; --card: #fff; --danger: #c53030; }
-        * { box-sizing: border-box; }
-        body { font-family: system-ui, sans-serif; background: var(--bg); color: #1a202c; margin: 0; line-height: 1.5; }
-        header { background: var(--primary); color: white; padding: 1.2rem 2rem; display: flex; justify-content: space-between; align-items: center; }
-        header a { color: #bee3f8; text-decoration: none; }
-        main { max-width: 1000px; margin: 1.5rem auto; padding: 0 1.5rem; }
-        .card { background: var(--card); border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-        h1, h2 { color: var(--primary); margin-top: 0; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-        th, td { text-align: left; padding: 0.55rem 0.6rem; border-bottom: 1px solid #e2e8f0; }
-        th { color: #4a5568; }
-        .overdue { color: var(--danger); font-weight: 600; }
-        label { display: block; font-weight: 600; margin-top: 0.8rem; font-size: 0.9rem; }
-        input, select { width: 100%; padding: 0.45rem 0.6rem; margin-top: 0.2rem; border: 1px solid #cbd5e0; border-radius: 6px; }
-        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-        button, .btn { background: var(--accent); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
-        button:hover { background: #2c5282; }
-        .btn-danger { background: var(--danger); }
-        .btn-sm { padding: 0.3rem 0.7rem; font-size: 0.85rem; }
-        details { margin-top: 0.5rem; }
-        summary { cursor: pointer; color: var(--accent); font-weight: 600; }
-    </style>
-</head>
-<body>
-    <header>
-        <strong>Detector Library</strong>
-        <a href="/">← Home</a>
-    </header>
+{% extends "base.html" %}
+{% block title %}Detector library — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Detector library</h1>
+  <p class="muted">Registered ionisation chambers and detectors for TRS-398 output calibration.</p>
+</div>
 
-    <main>
-        <div class="card">
-            <h1>Registered Detectors</h1>
-            {% if detectors %}
-            <table>
-                <tr>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Serial</th>
-                    <th>Cal. Factor</th>
-                    <th>Cal. Date</th>
-                    <th>Lab</th>
-                    <th>Next Due</th>
-                    <th>Actions</th>
-                </tr>
-                {% for d in detectors %}
-                <tr>
-                    <td>{{ d.name }}</td>
-                    <td>{{ d.detector_type }}</td>
-                    <td>{{ d.serial_number }}</td>
-                    <td>{{ "%.5f"|format(d.calibration_factor) }} {{ d.unit }}</td>
-                    <td>{{ d.calibration_date or "—" }}</td>
-                    <td>{{ d.calibration_lab or "—" }}</td>
-                    <td class="{% if d.is_overdue() %}overdue{% endif %}">
-                        {{ d.next_due_date or "—" }}
-                        {% if d.is_overdue() %} ⚠{% endif %}
-                    </td>
-                    <td>
-                        <details>
-                            <summary>Edit</summary>
-                            <form method="post" action="/detectors/{{ d.id }}/edit" style="margin-top:0.8rem;">
-                                <div class="row">
-                                    <div><label>Name</label><input name="name" value="{{ d.name }}" required></div>
-                                    <div><label>Type</label><input name="detector_type" value="{{ d.detector_type }}" required></div>
-                                </div>
-                                <div class="row">
-                                    <div><label>Serial</label><input name="serial_number" value="{{ d.serial_number }}" required></div>
-                                    <div><label>Cal. Factor</label><input type="number" step="any" name="calibration_factor" value="{{ d.calibration_factor }}" required></div>
-                                </div>
-                                <div class="row">
-                                    <div><label>Quality</label><input name="calibration_quality" value="{{ d.calibration_quality }}"></div>
-                                    <div><label>Unit</label><input name="unit" value="{{ d.unit }}"></div>
-                                </div>
-                                <div class="row">
-                                    <div><label>Cal. Date</label><input type="date" name="calibration_date" value="{{ d.calibration_date or '' }}"></div>
-                                    <div><label>Next Due</label><input type="date" name="next_due_date" value="{{ d.next_due_date or '' }}"></div>
-                                </div>
-                                <label>Lab</label><input name="calibration_lab" value="{{ d.calibration_lab or '' }}">
-                                <label>Notes</label><input name="notes" value="{{ d.notes }}">
-                                <button type="submit" class="btn-sm" style="margin-top:0.8rem;">Save</button>
-                            </form>
-                            <form method="post" action="/detectors/{{ d.id }}/delete" style="display:inline; margin-left:0.5rem;"
-                                  onsubmit="return confirm('Delete this detector?');">
-                                <button type="submit" class="btn-sm btn-danger">Delete</button>
-                            </form>
-                        </details>
-                    </td>
-                </tr>
-                {% endfor %}
-            </table>
-            {% else %}
-            <p>No detectors registered yet.</p>
-            {% endif %}
-        </div>
-
-        <div class="card">
-            <h2>Add New Detector</h2>
-            <form method="post" action="/detectors/add">
-                <div class="row">
-                    <div><label>Name *</label><input name="name" required placeholder="PTW Farmer 30013"></div>
-                    <div><label>Type *</label>
-                        <select name="detector_type" required>
-                            <option>Cylindrical (Farmer)</option>
-                            <option>Parallel-plate</option>
-                            <option>Well chamber</option>
-                            <option>Diode</option>
-                            <option>Other</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="row">
-                    <div><label>Serial Number *</label><input name="serial_number" required></div>
-                    <div><label>Calibration Factor *</label><input type="number" step="any" name="calibration_factor" required></div>
-                </div>
-                <div class="row">
-                    <div><label>Calibration Quality</label><input name="calibration_quality" value="Co-60"></div>
-                    <div><label>Unit</label><input name="unit" value="Gy/nC"></div>
-                </div>
-                <div class="row">
-                    <div><label>Calibration Date</label><input type="date" name="calibration_date"></div>
-                    <div><label>Next Due Date</label><input type="date" name="next_due_date"></div>
-                </div>
-                <label>Calibration Lab</label><input name="calibration_lab" placeholder="ADCL / SSDL name">
-                <label>Notes</label><input name="notes">
-                <button type="submit" style="margin-top:1.2rem; width:100%;">Add Detector</button>
+<div class="card result-card">
+  <h2 style="margin-top:0">Registered detectors</h2>
+  {% if detectors %}
+  <div style="overflow-x:auto">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Name</th><th>Type</th><th>Serial</th><th>Cal. factor</th>
+        <th>Cal. date</th><th>Lab</th><th>Next due</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in detectors %}
+      <tr>
+        <td><strong>{{ d.name }}</strong></td>
+        <td>{{ d.detector_type }}</td>
+        <td>{{ d.serial_number }}</td>
+        <td>{{ "%.5f"|format(d.calibration_factor) }} {{ d.unit }}</td>
+        <td>{{ d.calibration_date or "—" }}</td>
+        <td>{{ d.calibration_lab or "—" }}</td>
+        <td class="{% if d.is_overdue() %}status-fail{% endif %}">
+          {{ d.next_due_date or "—" }}{% if d.is_overdue() %} ⚠{% endif %}
+        </td>
+        <td>
+          <details>
+            <summary class="muted" style="cursor:pointer;color:var(--accent)">Edit</summary>
+            <form method="post" action="/detectors/{{ d.id }}/edit" style="margin-top:0.75rem">
+              <div class="grid-2">
+                <label>Name <input name="name" value="{{ d.name }}" required></label>
+                <label>Type <input name="detector_type" value="{{ d.detector_type }}" required></label>
+              </div>
+              <div class="grid-2">
+                <label>Serial <input name="serial_number" value="{{ d.serial_number }}" required></label>
+                <label>Cal. factor <input type="number" step="any" name="calibration_factor" value="{{ d.calibration_factor }}" required></label>
+              </div>
+              <div class="grid-2">
+                <label>Quality <input name="calibration_quality" value="{{ d.calibration_quality }}"></label>
+                <label>Unit <input name="unit" value="{{ d.unit }}"></label>
+              </div>
+              <div class="grid-2">
+                <label>Cal. date <input type="date" name="calibration_date" value="{{ d.calibration_date or '' }}"></label>
+                <label>Next due <input type="date" name="next_due_date" value="{{ d.next_due_date or '' }}"></label>
+              </div>
+              <label>Lab <input name="calibration_lab" value="{{ d.calibration_lab or '' }}"></label>
+              <label>Notes <input name="notes" value="{{ d.notes }}"></label>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+              </div>
             </form>
-        </div>
-    </main>
-</body>
-</html>
+            <form method="post" action="/detectors/{{ d.id }}/delete" style="margin-top:0.5rem"
+                  onsubmit="return confirm('Delete this detector?');">
+              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+          </details>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">No detectors registered yet.</p>
+  {% endif %}
+</div>
+
+<div class="card form-card">
+  <h2 style="margin-top:0">Add new detector</h2>
+  <form method="post" action="/detectors/add">
+    <div class="grid-2">
+      <label>Name * <input name="name" required placeholder="PTW Farmer 30013"></label>
+      <label>Type *
+        <select name="detector_type" required>
+          <option>Cylindrical (Farmer)</option>
+          <option>Parallel-plate</option>
+          <option>Well chamber</option>
+          <option>Diode</option>
+          <option>Other</option>
+        </select>
+      </label>
+    </div>
+    <div class="grid-2">
+      <label>Serial number * <input name="serial_number" required></label>
+      <label>Calibration factor * <input type="number" step="any" name="calibration_factor" required></label>
+    </div>
+    <div class="grid-2">
+      <label>Calibration quality <input name="calibration_quality" value="Co-60"></label>
+      <label>Unit <input name="unit" value="Gy/nC"></label>
+    </div>
+    <div class="grid-2">
+      <label>Calibration date <input type="date" name="calibration_date"></label>
+      <label>Next due date <input type="date" name="next_due_date"></label>
+    </div>
+    <label>Calibration lab <input name="calibration_lab" placeholder="ADCL / SSDL name"></label>
+    <label>Notes <input name="notes"></label>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Add detector</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
