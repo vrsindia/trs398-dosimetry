@@ -1,34 +1,37 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign in — DOSE pro</title>
   <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/theme.js"></script>
   <style>
     body.login-page {
       min-height: 100vh;
       margin: 0;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       background:
-        radial-gradient(ellipse 80% 60% at 50% -20%, rgba(59,130,246,0.22), transparent 55%),
-        radial-gradient(ellipse 60% 40% at 100% 100%, rgba(6,182,212,0.12), transparent 50%),
-        radial-gradient(ellipse 50% 40% at 0% 100%, rgba(139,92,246,0.10), transparent 50%),
-        var(--bg, #0f1419);
+        radial-gradient(ellipse 80% 60% at 50% -20%, rgba(59,130,246,0.18), transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, rgba(6,182,212,0.10), transparent 50%),
+        var(--bg);
       padding: 1.5rem;
     }
-    .login-shell {
-      width: 100%;
-      max-width: 420px;
+    .login-top {
+      position: fixed;
+      top: 0; right: 0; left: 0;
+      display: flex;
+      justify-content: flex-end;
+      padding: 0.75rem 1.25rem;
+      z-index: 10;
     }
-    .login-brand {
-      text-align: center;
-      margin-bottom: 1.75rem;
-    }
+    .login-shell { width: 100%; max-width: 420px; }
+    .login-brand { text-align: center; margin-bottom: 1.75rem; }
     .login-brand h1 {
-      font-size: 2.1rem;
+      font-size: 2.15rem;
       font-weight: 700;
       letter-spacing: -0.03em;
       margin: 0;
@@ -39,26 +42,26 @@
     }
     .login-brand p {
       margin: 0.45rem 0 0;
-      color: var(--muted, #8b9bb4);
+      color: var(--muted);
       font-size: 0.95rem;
     }
     .login-card {
-      background: var(--surface, #1a2332);
-      border: 1px solid var(--border, #2d3a4f);
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 14px;
       padding: 1.75rem 1.6rem 1.5rem;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(59,130,246,0.06);
+      box-shadow: var(--shadow);
     }
     .login-card h2 {
       margin: 0 0 1.15rem;
       font-size: 1.15rem;
       font-weight: 650;
-      color: var(--text, #e8eef7);
+      color: var(--text);
     }
     .login-card label {
       display: block;
       font-size: 0.85rem;
-      color: var(--muted, #8b9bb4);
+      color: var(--muted);
       margin-bottom: 0.9rem;
     }
     .login-card label input {
@@ -67,18 +70,17 @@
       margin-top: 0.35rem;
       padding: 0.7rem 0.85rem;
       border-radius: 8px;
-      border: 1px solid var(--border, #2d3a4f);
-      background: var(--surface-2, #243044);
-      color: var(--text, #e8eef7);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
       font-size: 0.95rem;
-      transition: border-color 0.15s, box-shadow 0.15s;
     }
     .login-card label input:focus {
       outline: none;
-      border-color: #3b82f6;
+      border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(59,130,246,0.28);
     }
-    .login-card .btn-login {
+    .btn-login {
       display: block;
       width: 100%;
       margin-top: 0.35rem;
@@ -90,20 +92,13 @@
       font-size: 0.95rem;
       font-weight: 650;
       cursor: pointer;
-      transition: transform 0.1s, box-shadow 0.15s, filter 0.15s;
       box-shadow: 0 4px 14px rgba(37,99,235,0.35);
     }
-    .login-card .btn-login:hover {
-      filter: brightness(1.08);
-      box-shadow: 0 6px 18px rgba(37,99,235,0.45);
-    }
-    .login-card .btn-login:active {
-      transform: translateY(1px);
-    }
+    .btn-login:hover { filter: brightness(1.08); }
     .login-error {
-      background: rgba(239,68,68,0.12);
+      background: var(--danger-bg);
       border: 1px solid rgba(239,68,68,0.35);
-      color: #fca5a5;
+      color: var(--danger);
       padding: 0.7rem 0.9rem;
       border-radius: 8px;
       margin-bottom: 1rem;
@@ -111,7 +106,7 @@
     }
     .login-foot {
       text-align: center;
-      color: var(--muted, #8b9bb4);
+      color: var(--muted);
       font-size: 0.8rem;
       margin-top: 1.5rem;
       line-height: 1.45;
@@ -119,6 +114,9 @@
   </style>
 </head>
 <body class="login-page">
+  <div class="login-top">
+    <button type="button" class="nav-btn nav-btn-ghost" id="theme-toggle">Light theme</button>
+  </div>
   <div class="login-shell">
     <div class="login-brand">
       <h1>DOSE pro</h1>
@@ -142,7 +140,8 @@
       </form>
     </div>
     <p class="login-foot">
-      Access is restricted. Contact your administrator for credentials.
+      Access is restricted. Contact your administrator for credentials.<br>
+      DOSE pro · TRS-398 clinical dosimetry
     </p>
   </div>
 </body>
