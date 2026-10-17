@@ -1,85 +1,136 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DOSE pro</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/theme.js"></script>
-</head>
-<body>
-    <header>
-        <div class="header-nav">
-            <div class="brand">
-                <span class="brand-title">DOSE pro</span>
-                <span class="brand-sub">Dosimetry solution</span>
-            </div>
-        </div>
-        <div class="header-actions">
-            <button type="button" id="theme-toggle">Light theme</button>
-            <span style="color:var(--text-muted); font-size:0.85rem;">{{ current_user.full_name }} · {{ current_user.role }}</span>
-            <a class="nav-btn" href="/logout">Logout</a>
-        </div>
-    </header>
-    <main>
-        <div class="card">
-            <h1>Absolute dosimetry</h1>
-            <p style="color:var(--text-muted); margin-top:0;">Guided clinical workflow by machine category</p>
-            <div class="grid grid-2" style="margin-top:1.25rem;">
-                {% if current_user.has('sec_linac') or current_user.has('calculate') %}
-                <a class="btn btn-block" href="/linac" style="padding:1.3rem; font-size:1.05rem;">Linac absolute dosimetry<br><span style="font-size:0.8rem;font-weight:400;opacity:0.85;">Ct linac · Mr linac</span></a>
-                {% endif %}
-                {% if current_user.has('sec_brachy') or current_user.has('calculate') %}
-                <a class="btn btn-block btn-success" href="/brachy" style="padding:1.3rem; font-size:1.05rem;">Brachytherapy<br><span style="font-size:0.8rem;font-weight:400;opacity:0.85;">Hdr source strength</span></a>
-                {% endif %}
-            </div>
-        </div>
+{% extends "base.html" %}
+{% block title %}Home — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header home-header">
+  <h1 class="brand-title">DOSE pro</h1>
+  <p class="brand-sub">Clinical dosimetry solution</p>
+</div>
 
-        <div class="card">
-            <h2>Utilities</h2>
-            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:0.75rem;">
-                {% if current_user.has('sec_activity') or current_user.has('calculate') %}
-                <a class="btn btn-outline btn-block" href="/activity" style="padding:1rem;">Source activity calculator</a>
-                {% endif %}
-                {% if current_user.has('sec_bed') or current_user.has('calculate') %}
-                <a class="btn btn-outline btn-block" href="/bed" style="padding:1rem;">Bed / eqd2 calculator</a>
-                {% endif %}
-                {% if current_user.has('sec_bed_combined') or current_user.has('calculate') %}
-                <a class="btn btn-outline btn-block" href="/bed-combined" style="padding:1rem;">Ebrt + brachy bed</a>
-                {% endif %}
-                {% if current_user.has('sec_gap') or current_user.has('calculate') %}
-                <a class="btn btn-outline btn-block" href="/gap" style="padding:1rem;">Gap correction</a>
-                {% endif %}
-            </div>
-        </div>
+{% set u = current_user %}
 
-        <div class="card">
-            <h2>Libraries &amp; records</h2>
-            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
-                {% if current_user.has('sec_libraries') or current_user.has('library_view') %}
-                <a class="btn btn-outline btn-block" href="/detectors">Detectors</a>
-                <a class="btn btn-outline btn-block" href="/linacs">Machine directory</a>
-                <a class="btn btn-outline btn-block" href="/tolerances">Tolerances</a>
-                <a class="btn btn-outline btn-block" href="/calc-profiles">Calc profiles</a>
-                {% endif %}
-                {% if current_user.has('sec_history') or current_user.has('history_view') %}
-                <a class="btn btn-outline btn-block" href="/output-history">Output history</a>
-                {% endif %}
-                {% if current_user.has('sec_reports') or current_user.has('history_view') %}
-                <a class="btn btn-outline btn-block" href="/reports">Reports</a>
-                {% endif %}
-                {% if current_user.has('sec_approvals') or current_user.has('approve') %}
-                <a class="btn btn-outline btn-block" href="/approvals">Approvals</a>
-                {% endif %}
-                {% if current_user.has('sec_department') or true %}
-                <a class="btn btn-outline btn-block" href="/department">Department</a>
-                {% endif %}
-                {% if current_user.has('admin_panel') %}
-                <a class="btn btn-outline btn-block" href="/users">User directory</a>
-                {% endif %}
-            </div>
-        </div>
-    </main>
-    <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
-</body>
-</html>
+<section class="home-section">
+  <h3 class="section-label">Dosimetry</h3>
+  <div class="home-grid">
+    {% if u and (u.has('sec_linac') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-blue" href="/output">
+      <h2>Linac absolute dosimetry</h2>
+      <p>TRS-398 photon and electron output calibration.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_brachy') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-teal" href="/brachy">
+      <h2>Brachytherapy</h2>
+      <p>Well-chamber air-kerma strength measurement.</p>
+    </a>
+    {% endif %}
+  </div>
+</section>
+
+<section class="home-section">
+  <h3 class="section-label">Utilities</h3>
+  <div class="home-grid">
+    {% if u and (u.has('sec_activity') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-cyan" href="/activity">
+      <h2>Source activity</h2>
+      <p>Decay-corrected activity with isotope library.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_bed') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-violet" href="/bed">
+      <h2>BED / EQD2</h2>
+      <p>Biologically effective dose calculator.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_bed_combined') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-indigo" href="/bed-combined">
+      <h2>EBRT + brachy BED</h2>
+      <p>Combined external beam and multi-fraction brachytherapy BED.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_gap') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-amber" href="/gap">
+      <h2>Gap correction</h2>
+      <p>GCF-based interruption dose adjustment.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_fractionation') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-rose" href="/fractionation">
+      <h2>Fractionation pattern</h2>
+      <p>Equivalent schedules for the same BED.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_nt_constraints') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-fuchsia" href="/nt-constraints">
+      <h2>Normal-tissue EQD2</h2>
+      <p>OAR constraint library and EQD2 check.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_eqsquare') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-sky" href="/eqsquare">
+      <h2>Equivalent square</h2>
+      <p>Sterling formula for rectangular and circular fields.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_mu') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-lime" href="/mu">
+      <h2>MU calculator</h2>
+      <p>Photon SSD/SAD and electron MU estimate.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_units') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-orange" href="/units">
+      <h2>Units converter</h2>
+      <p>Dose, activity, length and time units.</p>
+    </a>
+    {% endif %}
+  </div>
+</section>
+
+<section class="home-section">
+  <h3 class="section-label">Libraries</h3>
+  <div class="home-grid">
+    {% if u and (u.has('sec_libraries') or u.has('library_view') or u.role in ['developer','admin']) %}
+    <a class="home-card card-green" href="/detectors">
+      <h2>Libraries</h2>
+      <p>Detectors, machines and tolerances.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_department') or u.has('dept_edit') or u.role in ['developer','admin']) %}
+    <a class="home-card card-emerald" href="/department">
+      <h2>Department</h2>
+      <p>Department details and settings.</p>
+    </a>
+    {% endif %}
+  </div>
+</section>
+
+<section class="home-section">
+  <h3 class="section-label">Records</h3>
+  <div class="home-grid">
+    {% if u and (u.has('sec_history') or u.has('history_view') or u.role in ['developer','admin']) %}
+    <a class="home-card card-orange" href="/output-history">
+      <h2>Output history</h2>
+      <p>Past measurements and records.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_reports') or u.role in ['developer','admin']) %}
+    <a class="home-card card-sky" href="/reports">
+      <h2>Reports</h2>
+      <p>PDF and printable reports.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_approvals') or u.has('approve') or u.role in ['developer','admin']) %}
+    <a class="home-card card-lime" href="/approvals">
+      <h2>Approvals</h2>
+      <p>Pending library and department changes.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('user_manage') or u.role in ['developer','admin']) %}
+    <a class="home-card card-fuchsia" href="/users">
+      <h2>Users</h2>
+      <p>User directory, roles and section access.</p>
+    </a>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
