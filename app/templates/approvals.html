@@ -1,48 +1,38 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pending Approvals</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <header>
-        <strong>Pending Approvals</strong>
-        <a href="/">← Home</a>
-    </header>
-    <main>
-        <div class="card">
-            <h1>Library Change Approvals</h1>
-            <p style="color:var(--text-muted);">Edits to detectors, beams, tolerances and department require approval before taking effect.</p>
+{% extends "base.html" %}
+{% block title %}Approvals — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Approvals</h1>
+  <p class="muted">Pending library and department changes awaiting review.</p>
+</div>
 
-            {% if pending %}
-            {% for p in pending %}
-            <div class="card" style="border-color: var(--warning); margin-top:1rem;">
-                <div style="display:flex; justify-content:space-between;">
-                    <strong>{{ p.entity_type | capitalize }} · {{ p.action }}</strong>
-                    <span style="color:var(--text-muted); font-size:0.85rem;">{{ p.requested_at[:16] }}</span>
-                </div>
-                <p style="font-size:0.9rem; color:var(--text-muted); margin:0.4rem 0;">
-                    ID: {{ p.entity_id }} · Requested by: {{ p.requested_by or "—" }}
-                </p>
-                <pre style="background:var(--bg-input); padding:0.7rem; border-radius:6px; font-size:0.8rem; overflow:auto;">{{ p.proposed_data }}</pre>
-                <div style="margin-top:0.8rem; display:flex; gap:0.6rem;">
-                    <form method="post" action="/approvals/{{ p.id }}/approve">
-                        <input type="hidden" name="reviewed_by" value="Physicist">
-                        <button type="submit" class="btn-sm btn-success">Approve</button>
-                    </form>
-                    <form method="post" action="/approvals/{{ p.id }}/reject">
-                        <input type="hidden" name="reviewed_by" value="Physicist">
-                        <button type="submit" class="btn-sm btn-danger">Reject</button>
-                    </form>
-                </div>
-            </div>
-            {% endfor %}
-            {% else %}
-            <p style="color:var(--text-muted); margin-top:1rem;">No pending changes.</p>
-            {% endif %}
-        </div>
-    </main>
-</body>
-</html>
+<div class="card result-card">
+  {% if pending %}
+  <table class="data-table">
+    <thead>
+      <tr><th>Type</th><th>Description</th><th>Requested by</th><th>Date</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for p in pending %}
+      <tr>
+        <td>{{ p.type or p.kind or '—' }}</td>
+        <td>{{ p.description or p.summary or '—' }}</td>
+        <td>{{ p.requested_by or '—' }}</td>
+        <td class="small">{{ (p.created_at or '')[:16] }}</td>
+        <td style="white-space:nowrap">
+          <form method="post" action="/approvals/{{ p.id }}/approve" style="display:inline">
+            <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+          </form>
+          <form method="post" action="/approvals/{{ p.id }}/reject" style="display:inline">
+            <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No pending approvals.</p>
+  {% endif %}
+</div>
+{% endblock %}

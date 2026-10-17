@@ -1,70 +1,57 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reports – DOSE pro</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/theme.js"></script>
-</head>
-<body>
-    <header>
-        <div class="header-nav">
-            <a class="nav-btn" href="javascript:history.back()">← Back</a>
-            <a class="nav-btn" href="/">Home</a>
-            <strong>Reports</strong>
-        </div>
-        <div class="header-actions">
-            <button type="button" id="theme-toggle">Light theme</button>
-        </div>
-    </header>
-    <main>
-        <div class="card">
-            <h1>Generate report (PDF)</h1>
-            <p style="color:var(--text-muted);">Stored by machine and date. View online or download PDF.</p>
-            <form method="post" action="/reports/generate">
-                <div class="grid grid-2">
-                    <div>
-                        <label>Machine *</label>
-                        <select name="linac_id" required>
-                            {% for l in linacs %}
-                            <option value="{{ l.id }}">{{ l.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label>Date *</label>
-                        <input type="date" name="report_date" required value="{{ today }}">
-                    </div>
-                </div>
-                <label>Notes</label>
-                <input name="notes">
-                <button type="submit" style="margin-top:1rem; width:100%;">Generate report</button>
-            </form>
-        </div>
+{% extends "base.html" %}
+{% block title %}Reports — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Reports</h1>
+  <p class="muted">Generate and download absolute dosimetry PDF reports.</p>
+</div>
 
-        <div class="card">
-            <h2>Stored reports</h2>
-            {% if reports %}
-            <table>
-                <tr><th>Date</th><th>Machine</th><th>Title</th><th>By</th><th></th></tr>
-                {% for r in reports %}
-                <tr>
-                    <td>{{ r.report_date }}</td>
-                    <td>{{ r.linac_name }}</td>
-                    <td>{{ r.title }}</td>
-                    <td>{{ r.created_by }}</td>
-                    <td style="white-space:nowrap;">
-                        <a class="btn btn-sm btn-outline" href="/reports/{{ r.id }}/view">View</a>
-                        <a class="btn btn-sm" href="/reports/{{ r.id }}/pdf">PDF</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </table>
-            {% else %}
-            <p style="color:var(--text-muted);">No reports yet. Save measurements during a session, then generate.</p>
-            {% endif %}
-        </div>
-    </main>
-</body>
-</html>
+<div class="card form-card">
+  <h2 style="margin-top:0">Generate report</h2>
+  <form method="post" action="/reports/generate">
+    <div class="grid-2">
+      <label>Machine
+        <select name="linac_id" required>
+          {% for m in linacs %}
+          <option value="{{ m.id }}">{{ m.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Report date
+        <input type="date" name="report_date" required>
+      </label>
+    </div>
+    <label>Notes <input name="notes"></label>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Generate report</button>
+    </div>
+  </form>
+</div>
+
+<div class="card result-card">
+  <h2 style="margin-top:0">Stored reports</h2>
+  {% if reports %}
+  <table class="data-table">
+    <thead>
+      <tr><th>Date</th><th>Machine</th><th>Title</th><th>By</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for r in reports %}
+      <tr>
+        <td>{{ r.report_date }}</td>
+        <td>{{ r.linac_name }}</td>
+        <td>{{ r.title }}</td>
+        <td>{{ r.created_by }}</td>
+        <td style="white-space:nowrap">
+          <a class="btn btn-secondary btn-sm" href="/reports/{{ r.id }}/view">View</a>
+          <a class="btn btn-primary btn-sm" href="/reports/{{ r.id }}/pdf">PDF</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No reports yet. Save measurements during a session, then generate.</p>
+  {% endif %}
+</div>
+{% endblock %}

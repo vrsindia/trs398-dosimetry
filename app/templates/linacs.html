@@ -1,173 +1,131 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Machine Directory – DOSE pro</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/theme.js"></script>
-</head>
-<body>
-    <header>
-        <div class="header-nav">
-            <a class="nav-btn" href="javascript:history.back()">← Back</a>
-            <a class="nav-btn" href="/">Home</a>
-            <strong>Machine Directory</strong>
-        </div>
-        <div class="header-actions">
-            <button type="button" id="theme-toggle">Light theme</button>
-        </div>
-    </header>
-    <main>
-        {% for linac in linacs %}
-        {% set cat = linac.category if linac.category is defined else 'ct_linac' %}
-        <div class="card">
-            <div style="display:flex; justify-content:space-between; align-items:start; flex-wrap:wrap; gap:0.5rem;">
-                <div>
-                    <h2 style="margin-bottom:0.3rem;">
-                        {{ linac.name }}
-                        {% if cat == 'ct_linac' %}<span class="badge badge-ct">CT Linac</span>
-                        {% elif cat == 'mr_linac' %}<span class="badge badge-mr">MR Linac</span>
-                        {% elif cat == 'brachy' %}<span class="badge badge-brachy">Brachy</span>
-                        {% endif %}
-                    </h2>
-                    <p style="color:var(--text-muted); margin:0; font-size:0.9rem;">
-                        {{ linac.manufacturer }} {{ linac.model }}
-                        {% if linac.serial_number %} · S/N {{ linac.serial_number }}{% endif %}
-                        {% if linac.location %} · {{ linac.location }}{% endif %}
-                    </p>
-                </div>
-                {% if current_user.has('library_edit') %}
-                <form method="post" action="/linacs/{{ linac.id }}/delete" onsubmit="return confirm('Delete machine?');">
-                    <button type="submit" class="btn-sm btn-danger">Delete</button>
-                </form>
-                {% endif %}
-            </div>
+{% extends "base.html" %}
+{% block title %}Machines — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Machines library</h1>
+  <p class="muted">CT Linac, MR Linac and brachytherapy units with beams and energies.</p>
+</div>
 
-            {% if cat != 'brachy' %}
-            <h3 style="margin-top:1.2rem; font-size:1rem;">Beams / Energies</h3>
-            {% set linac_beams = beams | selectattr('linac_id', 'equalto', linac.id) | list %}
-            {% if linac_beams %}
-            <table>
-                <tr>
-                    <th>Modality</th><th>Energy</th><th>Depth</th><th>PDD</th><th>k_Q</th><th>Nominal</th>
-                    {% if current_user.has('library_edit') %}<th></th>{% endif %}
-                </tr>
-                {% for b in linac_beams %}
-                <tr>
-                    <td>{{ b.modality }}</td>
-                    <td>{{ b.nominal_energy }}</td>
-                    <td>{{ b.measurement_depth_cm }} cm</td>
-                    <td>{{ "%.3f"|format(b.pdd) }}</td>
-                    <td>{{ "%.4f"|format(b.k_Q) }}</td>
-                    <td>{{ "%.3f"|format(b.nominal_output_cGy_MU) }}</td>
-                    {% if current_user.has('library_edit') %}
-                    <td>
-                        <form method="post" action="/beams/{{ b.id }}/delete" onsubmit="return confirm('Delete beam?');">
-                            <button type="submit" class="btn-sm btn-danger">Delete</button>
-                        </form>
-                    </td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-            </table>
-            {% else %}
-            <p class="note">No beams defined.</p>
-            {% endif %}
-            {% if current_user.has('library_edit') %}
-            <details style="margin-top:1rem;">
-                <summary>+ Add Beam / Energy</summary>
-                <form method="post" action="/beams/add" style="margin-top:0.8rem;">
-                    <input type="hidden" name="linac_id" value="{{ linac.id }}">
-                    <div class="grid grid-3">
-                        <div>
-                            <label>Modality</label>
-                            <select name="modality" required>
-                                <option value="photon">Photon</option>
-                                <option value="electron">Electron</option>
-                            </select>
-                        </div>
-                        <div><label>Energy</label><input name="nominal_energy" required placeholder="6 MV"></div>
-                        <div><label>Depth (cm)</label><input type="number" step="any" name="measurement_depth_cm" value="10" required></div>
-                    </div>
-                    <div class="grid grid-3">
-                        <div><label>PDD</label><input type="number" step="any" name="pdd" required></div>
-                        <div><label>k_Q</label><input type="number" step="any" name="k_Q" required></div>
-                        <div><label>Nominal cGy/MU</label><input type="number" step="any" name="nominal_output_cGy_MU" value="1.0"></div>
-                    </div>
-                    <button type="submit" style="margin-top:0.8rem;">Add Beam</button>
-                </form>
-            </details>
-            {% endif %}
-            {% else %}
-            <p class="note" style="margin-top:1rem;">Brachytherapy machine — use HDR source strength workflow and brachy tolerances (not linac beam output).</p>
-            {% endif %}
+{% for linac in linacs %}
+{% set cat = linac.category if linac.category is defined else 'ct_linac' %}
+<div class="card result-card">
+  <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:0.5rem">
+    <div>
+      <h2 style="margin:0 0 0.3rem;font-size:1.1rem">
+        {{ linac.name }}
+        {% if cat == 'ct_linac' %}<span class="badge">CT Linac</span>
+        {% elif cat == 'mr_linac' %}<span class="badge">MR Linac</span>
+        {% elif cat == 'brachy' %}<span class="badge">Brachy</span>{% endif %}
+      </h2>
+      <p class="muted small" style="margin:0">
+        {{ linac.manufacturer }} {{ linac.model }}
+        {% if linac.serial_number %} · S/N {{ linac.serial_number }}{% endif %}
+        {% if linac.location %} · {{ linac.location }}{% endif %}
+      </p>
+    </div>
+    {% if current_user.has('library_edit') %}
+    <form method="post" action="/linacs/{{ linac.id }}/delete" onsubmit="return confirm('Delete machine?');">
+      <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+    </form>
+    {% endif %}
+  </div>
 
-            <h3 style="margin-top:1.4rem; font-size:1rem;">Tolerances for this machine</h3>
-            {% set linac_tols = tolerances | selectattr('linac_id', 'equalto', linac.id) | list %}
-            {% if cat == 'brachy' %}
-              {% set type_tols = tolerances | selectattr('parameter', 'equalto', 'source_strength') | list %}
-              {% set mod_tols = tolerances | selectattr('modality', 'equalto', 'brachy') | list %}
-            {% else %}
-              {% set type_tols = tolerances | selectattr('parameter', 'equalto', 'output') | list %}
-              {% set mod_tols = tolerances | rejectattr('modality', 'equalto', 'brachy') | list %}
-            {% endif %}
-            <table>
-                <tr><th>Name</th><th>Modality</th><th>Parameter</th><th>±% Tol</th><th>Scope</th>
-                {% if current_user.role in ['developer', 'admin'] %}<th></th>{% endif %}
-                </tr>
-                {% for t in linac_tols %}
-                <tr>
-                    <td>{{ t.name }}</td><td>{{ t.modality }}</td><td>{{ t.parameter }}</td>
-                    <td>{{ t.tolerance_percent }}%</td><td>This machine</td>
-                    {% if current_user.role in ['developer', 'admin'] %}
-                    <td><form method="post" action="/tolerances/{{ t.id }}/delete" onsubmit="return confirm('Delete?');">
-                        <button type="submit" class="btn-sm btn-danger">Delete</button></form></td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-                {% for t in mod_tols if not t.linac_id %}
-                <tr>
-                    <td>{{ t.name }}</td><td>{{ t.modality }}</td><td>{{ t.parameter }}</td>
-                    <td>{{ t.tolerance_percent }}%</td><td>Global</td>
-                    {% if current_user.role in ['developer', 'admin'] %}
-                    <td><form method="post" action="/tolerances/{{ t.id }}/delete" onsubmit="return confirm('Delete?');">
-                        <button type="submit" class="btn-sm btn-danger">Delete</button></form></td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-            </table>
-            <p class="note"><a href="/tolerances">Manage tolerance tables →</a></p>
-        </div>
-        {% endfor %}
-
+  {% if cat != 'brachy' %}
+  <h3 style="margin:1.1rem 0 0.5rem;font-size:0.95rem">Beams / energies</h3>
+  {% set linac_beams = beams | selectattr('linac_id', 'equalto', linac.id) | list %}
+  {% if linac_beams %}
+  <div style="overflow-x:auto">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Modality</th><th>Energy</th><th>Depth</th><th>PDD</th><th>k<sub>Q</sub></th><th>Nominal</th>
+        {% if current_user.has('library_edit') %}<th></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in linac_beams %}
+      <tr>
+        <td>{{ b.modality }}</td>
+        <td>{{ b.nominal_energy }}</td>
+        <td>{{ b.measurement_depth_cm }} cm</td>
+        <td>{{ b.pdd }}</td>
+        <td>{{ b.k_Q }}</td>
+        <td>{{ b.nominal_output_cGy_MU }}</td>
         {% if current_user.has('library_edit') %}
-        <div class="card">
-            <h2>Add New Machine</h2>
-            <form method="post" action="/linacs/add">
-                <div class="grid grid-2">
-                    <div><label>Name *</label><input name="name" required placeholder="TrueBeam 1"></div>
-                    <div>
-                        <label>Category *</label>
-                        <select name="category" required>
-                            <option value="ct_linac">CT Linac</option>
-                            <option value="mr_linac">MR Linac</option>
-                            <option value="brachy">Brachytherapy</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="grid grid-2">
-                    <div><label>Manufacturer</label><input name="manufacturer"></div>
-                    <div><label>Model</label><input name="model"></div>
-                </div>
-                <div class="grid grid-2">
-                    <div><label>Serial</label><input name="serial_number"></div>
-                    <div><label>Location</label><input name="location"></div>
-                </div>
-                <button type="submit" style="margin-top:1rem; width:100%;">Add Machine</button>
-            </form>
-        </div>
+        <td>
+          <form method="post" action="/beams/{{ b.id }}/delete" onsubmit="return confirm('Delete beam?');">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </td>
         {% endif %}
-    </main>
-</body>
-</html>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted small">No beams registered for this machine.</p>
+  {% endif %}
+
+  {% if current_user.has('library_edit') %}
+  <details style="margin-top:1rem">
+    <summary style="cursor:pointer;color:var(--accent);font-weight:600">Add beam</summary>
+    <form method="post" action="/beams/add" class="form-card" style="margin-top:0.75rem;box-shadow:none;padding:0.75rem 0 0">
+      <input type="hidden" name="linac_id" value="{{ linac.id }}">
+      <div class="grid-3">
+        <label>Modality
+          <select name="modality">
+            <option value="photon">Photon</option>
+            {% if cat != 'mr_linac' %}<option value="electron">Electron</option>{% endif %}
+          </select>
+        </label>
+        <label>Energy <input name="nominal_energy" required placeholder="6 MV"></label>
+        <label>Depth (cm) <input type="number" step="any" name="measurement_depth_cm" value="10"></label>
+      </div>
+      <div class="grid-3">
+        <label>PDD <input type="number" step="any" name="pdd" value="1"></label>
+        <label>k<sub>Q</sub> <input type="number" step="any" name="k_Q" value="1"></label>
+        <label>Nominal (cGy/MU) <input type="number" step="any" name="nominal_output_cGy_MU" value="1"></label>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Add beam</button>
+      </div>
+    </form>
+  </details>
+  {% endif %}
+  {% endif %}
+</div>
+{% else %}
+<div class="card"><p class="muted">No machines registered yet.</p></div>
+{% endfor %}
+
+{% if current_user.has('library_edit') %}
+<div class="card form-card">
+  <h2 style="margin-top:0">Add machine</h2>
+  <form method="post" action="/linacs/add">
+    <div class="grid-2">
+      <label>Name * <input name="name" required></label>
+      <label>Category
+        <select name="category">
+          <option value="ct_linac">CT Linac</option>
+          <option value="mr_linac">MR Linac</option>
+          <option value="brachy">Brachytherapy</option>
+        </select>
+      </label>
+    </div>
+    <div class="grid-2">
+      <label>Manufacturer <input name="manufacturer"></label>
+      <label>Model <input name="model"></label>
+    </div>
+    <div class="grid-2">
+      <label>Serial number <input name="serial_number"></label>
+      <label>Location <input name="location"></label>
+    </div>
+    <label>Notes <input name="notes"></label>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Add machine</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
