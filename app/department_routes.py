@@ -1,6 +1,5 @@
-"""Department view / edit / save and logo upload.
+"""Department view / edit / save, logo upload and delete.
 Admin and developer edit and save directly (no approval queue).
-Routes are force-replaced so they always win over core main.py.
 """
 from __future__ import annotations
 import base64
@@ -15,14 +14,13 @@ MAX_LOGO_BYTES = 512 * 1024
 
 
 def _strip_routes(app, paths):
-    """Remove every route whose path is in paths."""
     paths = set(paths)
     before = len(app.router.routes)
     kept = [r for r in app.router.routes if getattr(r, "path", None) not in paths]
     app.router.routes[:] = kept
     removed = before - len(kept)
     if removed:
-        print(f"department_routes: stripped {removed} old route(s) for {paths}")
+        print(f"department_routes: stripped {removed} old route(s)")
 
 
 def register_department_routes(app, templates):
@@ -61,7 +59,10 @@ def register_department_routes(app, templates):
             pass
         update_department(**data)
 
-    _strip_routes(app, ("/department", "/department/edit", "/department/logo"))
+    _strip_routes(app, (
+        "/department", "/department/edit",
+        "/department/logo", "/department/logo/delete",
+    ))
 
     @app.get("/department", response_class=HTMLResponse)
     async def dept_page(request: Request):
@@ -71,6 +72,7 @@ def register_department_routes(app, templates):
         can_edit = _can_edit(user)
         saved = request.query_params.get("saved") == "1"
         logo_ok = request.query_params.get("logo") == "1"
+        logo_del = request.query_params.get("logo_del") == "1"
         force_view = request.query_params.get("view") == "1"
         show_form = can_edit and not force_view
         return templates.TemplateResponse(
@@ -83,6 +85,7 @@ def register_department_routes(app, templates):
                 "show_form": show_form,
                 "saved": saved,
                 "logo_ok": logo_ok,
+                "logo_del": logo_del,
             },
         )
 
@@ -96,7 +99,6 @@ def register_department_routes(app, templates):
         country: str = Form(""),
         phone: str = Form(""),
         email: str = Form(""),
-        head_physicist: str = Form(""),
         notes: str = Form(""),
     ):
         user = _user(request)
@@ -112,8 +114,8 @@ def register_department_routes(app, templates):
             country=(country or "").strip(),
             phone=(phone or "").strip(),
             email=(email or "").strip(),
-            head_physicist=(head_physicist or "").strip(),
             notes=(notes or "").strip(),
+            head_physicist="",  # field removed from UI
         )
         return RedirectResponse("/department?saved=1", 303)
 
@@ -137,11 +139,15 @@ def register_department_routes(app, templates):
         _save_dept(logo_url=data_url)
         return RedirectResponse("/department?logo=1", 303)
 
-    # Verify
-    dept_paths = [
-        getattr(r, "path", None)
-        for r in app.router.routes
-        if getattr(r, "path", None) in ("/department", "/department/edit", "/department/logo")
-    ]
-    print("department routes active:", dept_paths)
+    @app.post("/department/logo/delete")
+    async def dept_logo_delete(request: Request):
+        user = _user(request)
+        if not user:
+            return RedirectResponse("/login", 303)
+        if not _can_edit(user):
+            raise HTTPException(403, "Only developer or admin can delete the logo")
+        _save_dept(logo_url="")
+        return RedirectResponse("/department?logo_del=1", 303)
+
+    print("department routes active (edit/save/logo/delete)")
     return True

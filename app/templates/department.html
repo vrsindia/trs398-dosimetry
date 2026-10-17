@@ -16,12 +16,23 @@
 {% if logo_ok %}
 <div class="alert alert-ok">Hospital logo uploaded successfully.</div>
 {% endif %}
+{% if logo_del %}
+<div class="alert alert-ok">Hospital logo removed.</div>
+{% endif %}
 
 {% if dept.logo_url %}
 <div class="card" style="margin-bottom:1rem">
   <p class="muted small" style="margin-top:0">Current hospital logo</p>
-  <img src="{{ dept.logo_url }}" alt="Department logo"
-       style="max-height:80px;max-width:220px;object-fit:contain;border:1px solid var(--border);border-radius:6px;padding:4px;background:var(--surface-2)">
+  <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+    <img src="{{ dept.logo_url }}" alt="Department logo"
+         style="max-height:80px;max-width:220px;object-fit:contain;border:1px solid var(--border);border-radius:6px;padding:4px;background:var(--surface-2)">
+    {% if editor %}
+    <form method="post" action="/department/logo/delete"
+          onsubmit="return confirm('Remove the hospital logo?');">
+      <button type="submit" class="btn btn-danger btn-sm">Delete logo</button>
+    </form>
+    {% endif %}
+  </div>
 </div>
 {% endif %}
 
@@ -68,9 +79,6 @@
         <input type="email" name="email" value="{{ dept.email or '' }}">
       </label>
     </div>
-    <label>Head of medical physics
-      <input name="head_physicist" value="{{ dept.head_physicist or '' }}">
-    </label>
     <label>Notes
       <input name="notes" value="{{ dept.notes or '' }}">
     </label>
@@ -78,7 +86,6 @@
   <div class="form-actions">
     <button type="submit" class="btn btn-primary">Save</button>
     <a href="/department?view=1" class="btn btn-secondary">View only</a>
-    <a href="/" class="btn btn-ghost">Back to home</a>
   </div>
 </form>
 
@@ -92,7 +99,6 @@
     <tr><th>Country</th><td>{{ dept.country or '—' }}</td></tr>
     <tr><th>Phone</th><td>{{ dept.phone or '—' }}</td></tr>
     <tr><th>Email</th><td>{{ dept.email or '—' }}</td></tr>
-    <tr><th>Head of physics</th><td>{{ dept.head_physicist or '—' }}</td></tr>
     <tr><th>Notes</th><td>{{ dept.notes or '—' }}</td></tr>
   </table>
   <div class="form-actions" style="margin-top:1.25rem">
@@ -101,7 +107,6 @@
     {% else %}
     <p class="muted small" style="margin:0 0 0.5rem">View only. Contact a developer or admin to change these details.</p>
     {% endif %}
-    <a href="/" class="btn btn-ghost">Back to home</a>
   </div>
 </div>
 {% endif %}
