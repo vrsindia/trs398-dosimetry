@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Fractionation pattern — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Fractionation pattern calculator</h1>
+  <p class="muted">
+    Find alternative fractionations that deliver the same biologically effective dose (BED).
+    Enter a reference schedule or a target BED, then explore equivalent patterns.
+  </p>
+</div>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="/fractionation" class="card form-card">
+  <fieldset>
+    <legend>Reference schedule (optional)</legend>
+    <p class="muted small">Fill these to compute the target BED automatically. Or enter target BED directly below.</p>
+    <div class="grid-3">
+      <label>
+        Number of fractions
+        <input type="number" name="ref_n" step="1" min="0"
+               value="{{ form.ref_n if form else 30 }}">
+      </label>
+      <label>
+        Dose per fraction (Gy)
+        <input type="number" name="ref_d" step="0.01" min="0"
+               value="{{ form.ref_d if form else 2.0 }}">
+      </label>
+      <label>
+        α/β (Gy)
+        <input type="number" name="ab" step="0.1" min="0.1" required
+               value="{{ form.ab if form else 10 }}">
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Target BED</legend>
+    <div class="grid-2">
+      <label>
+        Target BED (Gy)
+        <input type="number" name="target_bed" step="0.01" min="0"
+               value="{{ form.target_bed if form else '' }}"
+               placeholder="Leave blank to use reference schedule">
+      </label>
+      <label>
+        Preset α/β
+        <select name="ab_preset">
+          <option value="">Custom</option>
+          <option value="early">Early responding (10)</option>
+          <option value="late">Late responding (3)</option>
+          <option value="prostate">Prostate (1.5)</option>
+        </select>
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Solve for one pattern</legend>
+    <p class="muted small">Enter either number of fractions or dose/fx (or both to check).</p>
+    <div class="grid-2">
+      <label>
+        Desired number of fractions
+        <input type="number" name="solve_n" step="1" min="0"
+               value="{{ form.solve_n if form else '' }}"
+               placeholder="e.g. 15">
+      </label>
+      <label>
+        Desired dose per fraction (Gy)
+        <input type="number" name="solve_d" step="0.01" min="0"
+               value="{{ form.solve_d if form else '' }}"
+               placeholder="e.g. 2.5">
+      </label>
+    </div>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Calculate</button>
+    <a href="/" class="btn btn-ghost">Back to home</a>
+  </div>
+</form>
+
+{% if result %}
+<div class="card result-card">
+  <h2>Results</h2>
+  <table class="result-table wide">
+    <tr>
+      <th>Target BED</th>
+      <td class="highlight">{{ "%.2f"|format(result.target_bed) }} Gy</td>
+      <th>α/β</th>
+      <td>{{ "%.1f"|format(result.ab) }} Gy</td>
+    </tr>
+    {% if result.solved %}
+    <tr>
+      <th>Solved pattern</th>
+      <td colspan="3" class="highlight">
+        {{ "%.1f"|format(result.solved.n) }} × {{ "%.3f"|format(result.solved.d) }} Gy
+        → BED {{ "%.2f"|format(result.solved.achieved_bed) }} Gy
+        (EQD2 {{ "%.2f"|format(result.solved.achieved_eqd2) }} Gy)
+      </td>
+    </tr>
+    {% endif %}
+  </table>
+  {% if result.solved and result.solved.notes %}
+  <p class="notes">{{ result.solved.notes }}</p>
+  {% endif %}
+</div>
+
+{% if result.table %}
+<div class="card result-card" style="margin-top:1rem">
+  <h2>Alternative patterns (same BED)</h2>
+  <table class="result-table wide">
+    <thead>
+      <tr>
+        <th>Fractions (n)</th>
+        <th>Dose/fx (Gy)</th>
+        <th>Total dose (Gy)</th>
+        <th>BED (Gy)</th>
+        <th>EQD2 (Gy)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in result.table %}
+      <tr>
+        <td>{{ "%.0f"|format(row.n) }}</td>
+        <td>{{ "%.2f"|format(row.d) }}</td>
+        <td>{{ "%.1f"|format(row.total_dose) }}</td>
+        <td>{{ "%.2f"|format(row.bed) }}</td>
+        <td>{{ "%.2f"|format(row.eqd2) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small" style="margin-top:0.75rem">
+    All rows target the same BED. Choose a pattern that also respects normal-tissue constraints
+    and departmental protocols.
+  </p>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
