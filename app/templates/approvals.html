@@ -1,38 +1,50 @@
-{% extends "base.html" %}
-{% block title %}Approvals — DOSE pro{% endblock %}
-{% block content %}
-<div class="page-header">
-  <h1>Approvals</h1>
-  <p class="muted">Pending library and department changes awaiting review.</p>
-</div>
-
-<div class="card result-card">
-  {% if pending %}
-  <table class="data-table">
-    <thead>
-      <tr><th>Type</th><th>Description</th><th>Requested by</th><th>Date</th><th></th></tr>
-    </thead>
-    <tbody>
-      {% for p in pending %}
-      <tr>
-        <td>{{ p.type or p.kind or '—' }}</td>
-        <td>{{ p.description or p.summary or '—' }}</td>
-        <td>{{ p.requested_by or '—' }}</td>
-        <td class="small">{{ (p.created_at or '')[:16] }}</td>
-        <td style="white-space:nowrap">
-          <form method="post" action="/approvals/{{ p.id }}/approve" style="display:inline">
-            <button type="submit" class="btn btn-primary btn-sm">Approve</button>
-          </form>
-          <form method="post" action="/approvals/{{ p.id }}/reject" style="display:inline">
-            <button type="submit" class="btn btn-danger btn-sm">Reject</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="muted">No pending approvals.</p>
-  {% endif %}
-</div>
-{% endblock %}
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Approvals – DOSE pro</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-nav">
+            <a class="nav-btn" href="/">Home</a>
+            <strong>Approvals</strong>
+        </div>
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
+        </div>
+    </header>
+    <main>
+        <div class="card">
+            <h1>Pending approvals</h1>
+            {% if pending is defined and pending %}
+            <table>
+                <tr><th>Type</th><th>Description</th><th>By</th><th>Date</th><th></th></tr>
+                {% for p in pending %}
+                <tr>
+                    <td>{{ p.type or p.kind or '—' }}</td>
+                    <td>{{ p.description or p.summary or '—' }}</td>
+                    <td>{{ p.requested_by or '—' }}</td>
+                    <td>{{ (p.created_at or '')[:16] }}</td>
+                    <td>
+                        <form method="post" action="/approvals/{{ p.id }}/approve" style="display:inline">
+                            <button type="submit" class="btn-sm">Approve</button>
+                        </form>
+                        <form method="post" action="/approvals/{{ p.id }}/reject" style="display:inline">
+                            <button type="submit" class="btn-sm btn-danger">Reject</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% else %}
+            <p style="color:var(--text-muted)">No pending approvals.</p>
+            {% endif %}
+        </div>
+    </main>
+    <footer>DOSE pro developed under project "GARUDA" by VRS DOSIMETRY SOLUTIONS</footer>
+</body>
+</html>
