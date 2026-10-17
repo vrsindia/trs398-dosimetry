@@ -54,7 +54,7 @@ SECTION_LABELS = {
     SEC_EQSQUARE: "Equivalent square",
     SEC_MU: "MU calculator",
     SEC_UNITS: "Units converter",
-    SEC_NT: "Normal-tissue EQD2",
+    SEC_NT: "OAR constraints",
     SEC_LIBRARIES: "Libraries",
     SEC_HISTORY: "Output history",
     SEC_REPORTS: "Reports",
