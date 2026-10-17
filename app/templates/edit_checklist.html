@@ -4,32 +4,29 @@
 {% set base = '/library/edit-checklist' if kind == 'daily' else '/library/edit-mechanical-qa' %}
 <div class="page-header">
   <h1>{{ title }}</h1>
-  <p class="muted">
-    Checklist items are <strong>machine-specific</strong>. Select a machine, then add or edit items.
-    Yes/No → green (Yes) / red (No). Numerical → green / yellow / red by tolerance.
-  </p>
+  <p class="muted">Items are <strong>machine-specific</strong>. Select a machine, then add or edit items.</p>
 </div>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 
 <div class="card form-card">
-  <form method="get" action="{{ base }}" class="grid-2" style="align-items:end">
+  <form method="get" action="{{ base }}">
     <label>Machine *
-      <select name="linac_id" required onchange="this.form.submit()">
+      <select name="linac_id" onchange="this.form.submit()">
         <option value="">— Select machine —</option>
         {% for m in machines %}
         <option value="{{ m.id }}" {% if linac_id == m.id %}selected{% endif %}>
-          {{ m.name }}{% if m.category is defined %} ({{ m.category }}){% endif %}
+          {{ m.name }}{% if m.category %} ({{ m.category }}){% endif %}
         </option>
         {% endfor %}
       </select>
     </label>
-    <div>
+    <div class="form-actions">
       <button type="submit" class="btn btn-secondary">Load items</button>
     </div>
   </form>
   {% if not machines %}
-  <p class="muted" style="margin-top:0.75rem">No machines registered. Add machines under Libraries first.</p>
+  <p class="muted" style="margin-top:0.75rem">No machines registered. Add machines under <a href="/linacs">Libraries</a> first.</p>
   {% endif %}
 </div>
 
@@ -37,11 +34,10 @@
 <div class="card result-card">
   <h2 style="margin-top:0">Items for {{ machine.name }}</h2>
   {% if items %}
+  <div style="overflow-x:auto">
   <table class="data-table">
     <thead>
-      <tr>
-        <th>#</th><th>Label</th><th>Type</th><th>Tolerance</th><th></th>
-      </tr>
+      <tr><th>#</th><th>Label</th><th>Type</th><th>Tolerance</th><th></th></tr>
     </thead>
     <tbody>
       {% for it in items %}
@@ -51,13 +47,21 @@
         <td>{{ it.item_type }}</td>
         <td class="small muted">
           {% if it.item_type == 'numerical' %}
-          nom {{ it.nominal }}{{ it.unit or '' }} · OK ±{{ it.tol_ok }} · warn ±{{ it.tol_warn }}
-          ({{ it.mode }})
+          nom {{ it.nominal }}{{ it.unit or '' }} · OK ±{{ it.tol_ok }} · warn ±{{ it.tol_warn }} ({{ it.mode }})
           {% else %}Yes = PASS · No = FAIL{% endif %}
         </td>
         <td style="white-space:nowrap">
           <button type="button" class="btn btn-secondary btn-sm"
-                  onclick='startEdit({{ it | tojson }})'>Edit</button>
+            data-id="{{ it.id }}"
+            data-label="{{ it.label | e }}"
+            data-order="{{ it.order }}"
+            data-type="{{ it.item_type }}"
+            data-nominal="{{ it.nominal if it.nominal is defined else 0 }}"
+            data-tol-ok="{{ it.tol_ok if it.tol_ok is defined else 1 }}"
+            data-tol-warn="{{ it.tol_warn if it.tol_warn is defined else 2 }}"
+            data-unit="{{ it.unit if it.unit is defined else '' }}"
+            data-mode="{{ it.mode if it.mode is defined else 'absolute' }}"
+            onclick="startEdit(this)">Edit</button>
           <form method="post" action="{{ base }}/delete" style="display:inline"
                 onsubmit="return confirm('Delete this item?');">
             <input type="hidden" name="id" value="{{ it.id }}">
@@ -69,8 +73,9 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
-  <p class="muted">No items yet for this machine. Add one below (defaults were seeded if this is the first open).</p>
+  <p class="muted">No items yet. Defaults are seeded on first open — try reloading, or add below.</p>
   {% endif %}
 </div>
 
@@ -95,20 +100,12 @@
     </label>
     <div id="num-fields" style="display:none">
       <div class="grid-3">
-        <label>Nominal
-          <input type="number" step="any" name="nominal" id="f-nominal" value="0">
-        </label>
-        <label>OK tolerance
-          <input type="number" step="any" name="tol_ok" id="f-tol-ok" value="1">
-        </label>
-        <label>Warn tolerance
-          <input type="number" step="any" name="tol_warn" id="f-tol-warn" value="2">
-        </label>
+        <label>Nominal <input type="number" step="any" name="nominal" id="f-nominal" value="0"></label>
+        <label>OK tolerance <input type="number" step="any" name="tol_ok" id="f-tol-ok" value="1"></label>
+        <label>Warn tolerance <input type="number" step="any" name="tol_warn" id="f-tol-warn" value="2"></label>
       </div>
       <div class="grid-2">
-        <label>Unit
-          <input name="unit" id="f-unit" placeholder="mm, %, cGy/MU…">
-        </label>
+        <label>Unit <input name="unit" id="f-unit" placeholder="mm, %, deg…"></label>
         <label>Mode
           <select name="mode" id="f-mode">
             <option value="absolute">Absolute difference</option>
@@ -116,7 +113,6 @@
           </select>
         </label>
       </div>
-      <p class="muted small">Green if |value − nominal| ≤ OK. Yellow if ≤ warn. Red beyond warn.</p>
     </div>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary" id="form-submit">Add item</button>
@@ -130,18 +126,18 @@ function toggleNum() {
   var t = document.getElementById('f-type').value;
   document.getElementById('num-fields').style.display = t === 'numerical' ? '' : 'none';
 }
-function startEdit(it) {
+function startEdit(btn) {
   document.getElementById('form-title').textContent = 'Edit item';
   document.getElementById('item-form').action = '{{ base }}/edit';
-  document.getElementById('f-id').value = it.id || '';
-  document.getElementById('f-label').value = it.label || '';
-  document.getElementById('f-order').value = it.order || 0;
-  document.getElementById('f-type').value = it.item_type || 'yes_no';
-  document.getElementById('f-nominal').value = it.nominal != null ? it.nominal : 0;
-  document.getElementById('f-tol-ok').value = it.tol_ok != null ? it.tol_ok : 1;
-  document.getElementById('f-tol-warn').value = it.tol_warn != null ? it.tol_warn : 2;
-  document.getElementById('f-unit').value = it.unit || '';
-  document.getElementById('f-mode').value = it.mode || 'absolute';
+  document.getElementById('f-id').value = btn.getAttribute('data-id') || '';
+  document.getElementById('f-label').value = btn.getAttribute('data-label') || '';
+  document.getElementById('f-order').value = btn.getAttribute('data-order') || 0;
+  document.getElementById('f-type').value = btn.getAttribute('data-type') || 'yes_no';
+  document.getElementById('f-nominal').value = btn.getAttribute('data-nominal') || 0;
+  document.getElementById('f-tol-ok').value = btn.getAttribute('data-tol-ok') || 1;
+  document.getElementById('f-tol-warn').value = btn.getAttribute('data-tol-warn') || 2;
+  document.getElementById('f-unit').value = btn.getAttribute('data-unit') || '';
+  document.getElementById('f-mode').value = btn.getAttribute('data-mode') || 'absolute';
   document.getElementById('form-submit').textContent = 'Save changes';
   document.getElementById('form-cancel').style.display = '';
   toggleNum();

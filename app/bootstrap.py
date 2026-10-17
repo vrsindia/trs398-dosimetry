@@ -7,7 +7,7 @@ try:
     from app.auth_supabase import hydrate_users_from_supabase, patch_auth_for_supabase
     n = hydrate_users_from_supabase()
     if n:
-        print(f"Loaded {n} users from Supabase")
+        print("Loaded %d users from Supabase" % n)
     else:
         from app.auth import seed_users
         seed_users()
@@ -80,7 +80,7 @@ except Exception as e:
     print("fix_calc FAILED:", e)
     traceback.print_exc()
 
-# QA must register
+# QA — register late so paths are not overwritten
 try:
     from app.qa_routes import register_qa_routes
     register_qa_routes(app, templates)
@@ -89,7 +89,6 @@ except Exception as e:
     print("qa_routes FAILED:", e)
     traceback.print_exc()
 
-# Users section access grid
 try:
     from app.users_routes import register_users_routes
     register_users_routes(app, templates)
