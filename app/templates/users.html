@@ -9,7 +9,6 @@
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
 
-{# Fallbacks if route forgot to pass lists #}
 {% set sec_list = section_perms if section_perms is defined and section_perms else [
   'sec_linac','sec_brachy','sec_activity','sec_bed','sec_bed_combined','sec_gap',
   'sec_fractionation','sec_eqsquare','sec_mu','sec_units','sec_nt_constraints',
@@ -118,17 +117,15 @@
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Save user</button>
-        {% if u.role != 'developer' or users|selectattr('role','equalto','developer')|list|length > 1 %}
-        </div>
-      </form>
-      <form method="post" action="/users/{{ u.id }}/delete" style="display:inline"
-            onsubmit="return confirm('Delete user {{ u.username }}?');">
-        <button type="submit" class="btn btn-danger btn-sm" style="margin-left:0.5rem">Delete</button>
-      </form>
-        {% else %}
       </div>
     </form>
-        {% endif %}
+
+    {% if u.role != 'developer' or users|selectattr('role','equalto','developer')|list|length > 1 %}
+    <form method="post" action="/users/{{ u.id }}/delete" style="margin-top:0.5rem"
+          onsubmit="return confirm('Delete user {{ u.username }}?');">
+      <button type="submit" class="btn btn-danger btn-sm">Delete user</button>
+    </form>
+    {% endif %}
   </div>
   {% endfor %}
   {% else %}
@@ -159,7 +156,7 @@
         </select>
       </label>
     </div>
-    <p class="muted small">After creating a user, open their card above to set section access and task rights.</p>
+    <p class="muted small">After creating a user, set their section access and task rights in the card above.</p>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">Create user</button>
     </div>
