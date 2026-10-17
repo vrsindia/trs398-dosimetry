@@ -10,6 +10,9 @@
 <div class="alert alert-error">{{ error }}</div>
 {% endif %}
 
+{% set f = form if form else {} %}
+{% set iso = isotopes if isotopes else {} %}
+
 <form method="post" action="/activity" class="card form-card">
   <fieldset>
     <legend>Isotope</legend>
@@ -18,18 +21,17 @@
         Select isotope
         <select name="isotope" id="isotope">
           <option value="">Custom half-life</option>
-          {% for name, info in isotopes.items() %}
-          <option value="{{ name }}" {% if form and form.isotope == name %}selected{% endif %}>
-            {{ name }} (T½ = {{ "%.2f"|format(info.half_life_days) }} d) — {{ info.use }}
+          {% for name, info in iso.items() %}
+          <option value="{{ name }}" {% if f.get('isotope') == name %}selected{% endif %}>
+            {{ name }} (T½ = {{ info.half_life_days }} d) — {{ info.use }}
           </option>
           {% endfor %}
         </select>
       </label>
       <label>
         Half-life (days)
-        <input type="number" name="half_life_days" step="0.001" min="0.0001" required
-               value="{{ form.half_life_days if form else 73.83 }}"
-               id="half_life_input">
+        <input type="number" name="half_life_days" step="any" min="0" required
+               value="{{ f.get('half_life_days', '73.83') }}" id="half_life_input">
       </label>
     </div>
   </fieldset>
@@ -40,27 +42,26 @@
       <label>
         Reference activity (A₀)
         <input type="number" name="a0" step="any" min="0" required
-               value="{{ form.a0 if form else 10 }}">
+               value="{{ f.get('a0', '10') }}">
       </label>
       <label>
         Unit
         <select name="unit">
           {% for u in ['Ci', 'mCi', 'GBq', 'MBq', 'Bq'] %}
-          <option value="{{ u }}" {% if form and form.unit == u %}selected{% endif %}>{{ u }}</option>
+          <option value="{{ u }}" {% if f.get('unit') == u %}selected{% endif %}>{{ u }}</option>
           {% endfor %}
         </select>
       </label>
       <label>
         Elapsed time (days)
-        <input type="number" name="elapsed_days" step="0.01" min="0" required
-               value="{{ form.elapsed_days if form else 7 }}">
+        <input type="number" name="elapsed_days" step="any" min="0" required
+               value="{{ f.get('elapsed_days', '7') }}">
       </label>
     </div>
   </fieldset>
 
   <div class="form-actions">
     <button type="submit" class="btn btn-primary">Calculate</button>
-    <a href="/" class="btn btn-ghost">Back to home</a>
   </div>
 </form>
 
@@ -68,22 +69,31 @@
 <div class="card result-card">
   <h2>Results</h2>
   <table class="result-table wide">
-    <tr><th>Reference activity</th><td>{{ "%.4g"|format(result.a0) }} {{ result.unit }}</td></tr>
-    <tr><th>Half-life</th><td>{{ "%.4g"|format(result.half_life_days) }} days</td></tr>
-    <tr><th>Elapsed</th><td>{{ "%.4g"|format(result.elapsed_days) }} days</td></tr>
+    <tr><th>Reference activity</th><td>{{ result.a0 }} {{ result.unit }}</td></tr>
+    <tr><th>Half-life</th><td>{{ result.half_life_days }} days</td></tr>
+    <tr><th>Elapsed</th><td>{{ result.elapsed_days }} days</td></tr>
     <tr><th>Decay factor</th><td>{{ "%.6f"|format(result.decay_factor) }}</td></tr>
-    <tr><th>Current activity</th><td class="highlight">{{ "%.4g"|format(result.activity) }} {{ result.unit }}</td></tr>
+    <tr><th>Current activity</th>
+        <td class="highlight">{{ "%.6g"|format(result.activity) }} {{ result.unit }}</td></tr>
   </table>
+  {% if result.isotope %}
+  <p class="muted small">Isotope: {{ result.isotope }}</p>
+  {% endif %}
 </div>
 {% endif %}
 
 <script>
-const isotopes = {{ isotopes | tojson }};
-document.getElementById('isotope').addEventListener('change', function() {
-  const v = this.value;
-  if (v && isotopes[v]) {
-    document.getElementById('half_life_input').value = isotopes[v].half_life_days;
-  }
-});
+(function(){
+  var sel = document.getElementById('isotope');
+  var hl = document.getElementById('half_life_input');
+  if (!sel || !hl) return;
+  var map = {
+    {% for name, info in iso.items() %}
+    "{{ name }}": {{ info.half_life_days }},{% endfor %}
+  };
+  sel.addEventListener('change', function(){
+    if (map[sel.value] != null) hl.value = map[sel.value];
+  });
+})();
 </script>
 {% endblock %}
