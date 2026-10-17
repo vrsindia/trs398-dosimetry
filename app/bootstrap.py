@@ -3,6 +3,25 @@ import traceback
 
 from app.main import app, templates
 
+# Supabase user hydrate + patch (before routes need auth)
+try:
+    from app.auth_supabase import hydrate_users_from_supabase, patch_auth_for_supabase
+    n = hydrate_users_from_supabase()
+    if n:
+        print(f"Loaded {n} users from Supabase")
+    else:
+        from app.auth import seed_users
+        seed_users()
+        print("seed_users (in-memory defaults)")
+    patch_auth_for_supabase()
+except Exception as e:
+    print("auth_supabase:", e)
+    try:
+        from app.auth import seed_users
+        seed_users()
+    except Exception:
+        pass
+
 try:
     from app.force_utils import register_force_utils
     register_force_utils(app, templates)
@@ -45,18 +64,15 @@ except Exception as e:
 try:
     from app.fix_fractionation import register_fix_fractionation
     register_fix_fractionation(app, templates)
-    print("fix_fractionation OK")
 except Exception as e:
     print("fix_fractionation:", e)
 
 try:
     from app.fix_oar import register_fix_oar
     register_fix_oar(app, templates)
-    print("fix_oar OK")
 except Exception as e:
     print("fix_oar:", e)
 
-# Self-contained activity + EBRT/brachy MUST be last
 try:
     from app.fix_calc import register_fix_calc
     register_fix_calc(app, templates)
