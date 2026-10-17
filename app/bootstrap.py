@@ -3,7 +3,6 @@ import traceback
 
 from app.main import app, templates
 
-# Supabase user hydrate + patch (before routes need auth)
 try:
     from app.auth_supabase import hydrate_users_from_supabase, patch_auth_for_supabase
     n = hydrate_users_from_supabase()
@@ -81,6 +80,14 @@ except Exception as e:
     print("fix_calc FAILED:", e)
     traceback.print_exc()
 
+try:
+    from app.qa_routes import register_qa_routes
+    register_qa_routes(app, templates)
+    print("qa_routes OK")
+except Exception as e:
+    print("qa_routes FAILED:", e)
+    traceback.print_exc()
+
 
 @app.on_event("startup")
 def _startup_rebind():
@@ -91,6 +98,7 @@ def _startup_rebind():
         ("fix_fractionation", "app.fix_fractionation", "register_fix_fractionation"),
         ("fix_oar", "app.fix_oar", "register_fix_oar"),
         ("fix_calc", "app.fix_calc", "register_fix_calc"),
+        ("qa_routes", "app.qa_routes", "register_qa_routes"),
     ]:
         try:
             mod = __import__(mod_name, fromlist=[fn_name])

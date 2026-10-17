@@ -10,15 +10,10 @@
   <p class="muted">Department details and hospital logo. Developer and admin can edit and save directly.</p>
 </div>
 
-{% if saved %}
-<div class="alert alert-ok">Department details saved successfully.</div>
-{% endif %}
-{% if logo_ok %}
-<div class="alert alert-ok">Hospital logo uploaded successfully.</div>
-{% endif %}
-{% if logo_del %}
-<div class="alert alert-ok">Hospital logo removed.</div>
-{% endif %}
+{% if saved %}<div class="alert alert-ok">Department details saved successfully.</div>{% endif %}
+{% if logo_ok %}<div class="alert alert-ok">Hospital logo uploaded successfully.</div>{% endif %}
+{% if logo_del %}<div class="alert alert-ok">Hospital logo removed.</div>{% endif %}
+{% if logo_err %}<div class="alert alert-error">Logo upload error: {{ logo_err }}</div>{% endif %}
 
 {% if dept.logo_url %}
 <div class="card" style="margin-bottom:1rem">
@@ -40,8 +35,8 @@
 <div class="card form-card" style="margin-bottom:1.25rem">
   <h2 style="margin-top:0;font-size:1.05rem">Upload hospital logo</h2>
   <form method="post" action="/department/logo" enctype="multipart/form-data">
-    <label>Logo file (PNG, JPG, SVG or WebP — max 512 KB)
-      <input type="file" name="logo" accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp" required>
+    <label>Logo file (PNG, JPG, SVG or WebP — max 1 MB)
+      <input type="file" name="logo" accept="image/*,.png,.jpg,.jpeg,.svg,.webp,.gif" required>
     </label>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">Upload logo</button>
@@ -105,7 +100,7 @@
     {% if editor %}
     <a href="/department" class="btn btn-primary">Edit</a>
     {% else %}
-    <p class="muted small" style="margin:0 0 0.5rem">View only. Contact a developer or admin to change these details.</p>
+    <p class="muted small">View only. Contact a developer or admin to change these details.</p>
     {% endif %}
   </div>
 </div>

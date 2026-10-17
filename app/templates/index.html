@@ -7,6 +7,7 @@
 </div>
 
 {% set u = current_user %}
+{% set is_staff = u and u.role in ['developer','admin','physicist'] %}
 
 <section class="home-section">
   <h3 class="section-label">Dosimetry</h3>
@@ -21,6 +22,16 @@
     <a class="home-card card-teal" href="/brachy">
       <h2>Brachytherapy</h2>
       <p>Well-chamber air-kerma strength measurement.</p>
+    </a>
+    {% endif %}
+    {% if u %}
+    <a class="home-card card-sky" href="/daily-qa">
+      <h2>Daily QA checklist</h2>
+      <p>Daily checks with pass / borderline / fail colour coding.</p>
+    </a>
+    <a class="home-card card-indigo" href="/mechanical-qa">
+      <h2>Mechanical QA</h2>
+      <p>Mechanical geometry and safety checks.</p>
     </a>
     {% endif %}
   </div>
@@ -93,6 +104,16 @@
     <a class="home-card card-green" href="/detectors">
       <h2>Libraries</h2>
       <p>Detectors, machines and tolerances.</p>
+    </a>
+    {% endif %}
+    {% if is_staff %}
+    <a class="home-card card-amber" href="/library/edit-checklist">
+      <h2>Edit checklist</h2>
+      <p>Configure Daily QA items, tolerances and Yes/No questions.</p>
+    </a>
+    <a class="home-card card-rose" href="/library/edit-mechanical-qa">
+      <h2>Edit mechanical QA</h2>
+      <p>Configure Mechanical QA items and tolerances.</p>
     </a>
     {% endif %}
     {% if u and (u.has('sec_department') or u.has('dept_edit') or u.role in ['developer','admin']) %}

@@ -1,6 +1,4 @@
-"""Department view / edit / save, logo upload and delete.
-Admin and developer edit and save directly (no approval queue).
-"""
+"""Department view / edit / save, logo upload and delete."""
 from __future__ import annotations
 import base64
 from fastapi import Request, Form, File, UploadFile, HTTPException
@@ -10,17 +8,14 @@ from app.auth import get_user_by_token, PERM_DEPT_EDIT
 from app.models import get_department, update_department
 
 COOKIE = "dosepro_session"
-MAX_LOGO_BYTES = 512 * 1024
+MAX_LOGO_BYTES = 1024 * 1024  # 1 MB
 
 
 def _strip_routes(app, paths):
     paths = set(paths)
-    before = len(app.router.routes)
-    kept = [r for r in app.router.routes if getattr(r, "path", None) not in paths]
-    app.router.routes[:] = kept
-    removed = before - len(kept)
-    if removed:
-        print(f"department_routes: stripped {removed} old route(s)")
+    app.router.routes[:] = [
+        r for r in app.router.routes if getattr(r, "path", None) not in paths
+    ]
 
 
 def register_department_routes(app, templates):
@@ -55,8 +50,8 @@ def register_department_routes(app, templates):
             if use_db():
                 repo.save_department(**data)
                 return
-        except Exception:
-            pass
+        except Exception as e:
+            print("save_department db failed:", e)
         update_department(**data)
 
     _strip_routes(app, (
@@ -73,12 +68,13 @@ def register_department_routes(app, templates):
         saved = request.query_params.get("saved") == "1"
         logo_ok = request.query_params.get("logo") == "1"
         logo_del = request.query_params.get("logo_del") == "1"
+        logo_err = request.query_params.get("logo_err") or ""
         force_view = request.query_params.get("view") == "1"
         show_form = can_edit and not force_view
         return templates.TemplateResponse(
-            request=request,
-            name="department.html",
-            context={
+            "department.html",
+            {
+                "request": request,
                 "dept": _dept_object(),
                 "current_user": user,
                 "can_edit": can_edit,
@@ -86,6 +82,7 @@ def register_department_routes(app, templates):
                 "saved": saved,
                 "logo_ok": logo_ok,
                 "logo_del": logo_del,
+                "logo_err": logo_err.replace("+", " "),
             },
         )
 
@@ -115,28 +112,58 @@ def register_department_routes(app, templates):
             phone=(phone or "").strip(),
             email=(email or "").strip(),
             notes=(notes or "").strip(),
-            head_physicist="",  # field removed from UI
+            head_physicist="",
         )
         return RedirectResponse("/department?saved=1", 303)
 
     @app.post("/department/logo")
-    async def dept_logo(request: Request, logo: UploadFile = File(...)):
+    async def dept_logo(request: Request, logo: UploadFile = File(None)):
         user = _user(request)
         if not user:
             return RedirectResponse("/login", 303)
         if not _can_edit(user):
             raise HTTPException(403, "Only developer or admin can upload the logo")
-        data = await logo.read()
+        if logo is None or not getattr(logo, "filename", None):
+            return RedirectResponse("/department?logo_err=No+file+selected", 303)
+        try:
+            data = await logo.read()
+        except Exception as e:
+            return RedirectResponse(f"/department?logo_err=Read+failed:+{e}", 303)
+        if not data:
+            return RedirectResponse("/department?logo_err=Empty+file", 303)
         if len(data) > MAX_LOGO_BYTES:
-            raise HTTPException(400, f"Logo must be ≤ 512 KB (got {len(data) // 1024} KB)")
+            return RedirectResponse(
+                f"/department?logo_err=Logo+must+be+≤+1+MB+(got+{len(data)//1024}+KB)",
+                303,
+            )
         content_type = (logo.content_type or "image/png").lower()
-        if content_type not in (
-            "image/png", "image/jpeg", "image/jpg", "image/svg+xml", "image/webp",
-        ):
-            raise HTTPException(400, "Allowed types: PNG, JPG, SVG, WebP")
-        b64 = base64.b64encode(data).decode("ascii")
-        data_url = f"data:{content_type};base64,{b64}"
-        _save_dept(logo_url=data_url)
+        # Accept common types; default to png if unknown
+        allowed = {
+            "image/png", "image/jpeg", "image/jpg", "image/svg+xml",
+            "image/webp", "image/gif", "application/octet-stream",
+        }
+        if content_type not in allowed:
+            # still try if extension looks like an image
+            name = (logo.filename or "").lower()
+            if not any(name.endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif")):
+                return RedirectResponse(
+                    "/department?logo_err=Allowed+types:+PNG,+JPG,+SVG,+WebP",
+                    303,
+                )
+            if name.endswith(".jpg") or name.endswith(".jpeg"):
+                content_type = "image/jpeg"
+            elif name.endswith(".svg"):
+                content_type = "image/svg+xml"
+            elif name.endswith(".webp"):
+                content_type = "image/webp"
+            else:
+                content_type = "image/png"
+        try:
+            b64 = base64.b64encode(data).decode("ascii")
+            data_url = f"data:{content_type};base64,{b64}"
+            _save_dept(logo_url=data_url)
+        except Exception as e:
+            return RedirectResponse(f"/department?logo_err=Save+failed:+{e}", 303)
         return RedirectResponse("/department?logo=1", 303)
 
     @app.post("/department/logo/delete")
