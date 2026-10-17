@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — DOSE pro{% endblock %}
+{% block content %}
+{% set base = '/library/edit-checklist' if kind == 'daily' else '/library/edit-mechanical-qa' %}
+<div class="page-header">
+  <h1>{{ title }}</h1>
+  <p class="muted">
+    Add, edit or delete checklist items.
+    <strong>Yes/No</strong> items score green (Yes) or red (No).
+    <strong>Numerical</strong> items use nominal + OK / warn tolerances (green / yellow / red).
+  </p>
+</div>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+
+<div class="card result-card">
+  <h2 style="margin-top:0">Current items</h2>
+  {% if items %}
+  <div style="overflow-x:auto">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Order</th><th>Label</th><th>Type</th>
+        <th>Nominal</th><th>OK tol</th><th>Warn tol</th><th>Unit</th><th>Mode</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ it.order }}</td>
+        <td><strong>{{ it.label }}</strong></td>
+        <td>{{ it.item_type }}</td>
+        <td>{% if it.item_type == 'numerical' %}{{ it.nominal }}{% else %}—{% endif %}</td>
+        <td>{% if it.item_type == 'numerical' %}{{ it.tol_ok }}{% else %}—{% endif %}</td>
+        <td>{% if it.item_type == 'numerical' %}{{ it.tol_warn }}{% else %}—{% endif %}</td>
+        <td>{% if it.item_type == 'numerical' %}{{ it.unit or '—' }}{% else %}—{% endif %}</td>
+        <td>{% if it.item_type == 'numerical' %}{{ it.mode or '—' }}{% else %}—{% endif %}</td>
+        <td style="white-space:nowrap">
+          <button type="button" class="btn btn-secondary btn-sm"
+                  onclick='startEdit({{ it|tojson }})'>Edit</button>
+          <form method="post" action="{{ base }}/delete" style="display:inline"
+                onsubmit="return confirm('Delete this item?');">
+            <input type="hidden" name="id" value="{{ it.id }}">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">No items yet.</p>
+  {% endif %}
+</div>
+
+<div class="card form-card" id="edit-card">
+  <h2 style="margin-top:0" id="form-title">Add item</h2>
+  <form method="post" id="item-form" action="{{ base }}/add">
+    <input type="hidden" name="id" id="f-id" value="">
+    <div class="grid-2">
+      <label>Label *
+        <input name="label" id="f-label" required placeholder="e.g. Output constancy">
+      </label>
+      <label>Order
+        <input type="number" name="order" id="f-order" value="0">
+      </label>
+    </div>
+    <label>Type
+      <select name="item_type" id="f-type" onchange="toggleNum()">
+        <option value="yes_no">Yes / No</option>
+        <option value="numerical">Numerical</option>
+      </select>
+    </label>
+    <div id="num-fields" style="display:none">
+      <div class="grid-3">
+        <label>Nominal
+          <input type="number" step="any" name="nominal" id="f-nominal" value="0">
+        </label>
+        <label>OK tolerance (green)
+          <input type="number" step="any" name="tol_ok" id="f-tol-ok" value="1">
+        </label>
+        <label>Warn tolerance (yellow)
+          <input type="number" step="any" name="tol_warn" id="f-tol-warn" value="2">
+        </label>
+      </div>
+      <div class="grid-2">
+        <label>Unit
+          <input name="unit" id="f-unit" placeholder="mm, %, cGy/MU…">
+        </label>
+        <label>Mode
+          <select name="mode" id="f-mode">
+            <option value="absolute">Absolute difference</option>
+            <option value="percent">Percent of nominal</option>
+          </select>
+        </label>
+      </div>
+      <p class="muted small">Green if |value − nominal| ≤ OK tol. Yellow if ≤ warn tol. Red if beyond warn.</p>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" id="form-submit">Add item</button>
+      <button type="button" class="btn btn-secondary" id="form-cancel" style="display:none" onclick="cancelEdit()">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<script>
+function toggleNum() {
+  var t = document.getElementById('f-type').value;
+  document.getElementById('num-fields').style.display = t === 'numerical' ? '' : 'none';
+}
+function startEdit(it) {
+  document.getElementById('form-title').textContent = 'Edit item';
+  document.getElementById('item-form').action = '{{ base }}/edit';
+  document.getElementById('f-id').value = it.id || '';
+  document.getElementById('f-label').value = it.label || '';
+  document.getElementById('f-order').value = it.order || 0;
+  document.getElementById('f-type').value = it.item_type || 'yes_no';
+  document.getElementById('f-nominal').value = it.nominal != null ? it.nominal : 0;
+  document.getElementById('f-tol-ok').value = it.tol_ok != null ? it.tol_ok : 1;
+  document.getElementById('f-tol-warn').value = it.tol_warn != null ? it.tol_warn : 2;
+  document.getElementById('f-unit').value = it.unit || '';
+  document.getElementById('f-mode').value = it.mode || 'absolute';
+  document.getElementById('form-submit').textContent = 'Save changes';
+  document.getElementById('form-cancel').style.display = '';
+  toggleNum();
+  document.getElementById('edit-card').scrollIntoView({behavior:'smooth'});
+}
+function cancelEdit() {
+  document.getElementById('form-title').textContent = 'Add item';
+  document.getElementById('item-form').action = '{{ base }}/add';
+  document.getElementById('f-id').value = '';
+  document.getElementById('f-label').value = '';
+  document.getElementById('f-order').value = 0;
+  document.getElementById('f-type').value = 'yes_no';
+  document.getElementById('form-submit').textContent = 'Add item';
+  document.getElementById('form-cancel').style.display = 'none';
+  toggleNum();
+}
+toggleNum();
+</script>
+{% endblock %}

@@ -40,7 +40,34 @@ def register_qa_routes(app, templates):
     def _login():
         return RedirectResponse("/login", 303)
 
-    # ---------- Daily QA (run) ----------
+    def _run_qa(items, form):
+        results = []
+        overall = "green"
+        for it in items:
+            iid = it["id"]
+            if it.get("item_type") == "yes_no":
+                ans = str(form.get(f"ans_{iid}") or "")
+                status = evaluate_yes_no(ans)
+                results.append({**it, "answer": ans, "status": status, "display": ans or "—"})
+            else:
+                raw = str(form.get(f"ans_{iid}") or "").strip()
+                try:
+                    val = float(raw) if raw != "" else None
+                except ValueError:
+                    val = None
+                if val is None:
+                    status = "yellow"
+                    display = raw or "—"
+                else:
+                    status = evaluate_numerical(it, val)
+                    display = f"{val} {it.get('unit') or ''}".strip()
+                results.append({**it, "answer": raw, "status": status, "display": display})
+            if status == "red":
+                overall = "red"
+            elif status == "yellow" and overall != "red":
+                overall = "yellow"
+        return results, overall
+
     @app.get("/daily-qa", response_class=HTMLResponse)
     async def daily_qa_get(request: Request):
         user = _user(request)
@@ -48,14 +75,8 @@ def register_qa_routes(app, templates):
             return _login()
         return templates.TemplateResponse(
             "daily_qa.html",
-            {
-                "request": request,
-                "current_user": user,
-                "items": load_daily_items(),
-                "results": None,
-                "error": None,
-                "can_edit": _can_edit(user),
-            },
+            {"request": request, "current_user": user, "items": load_daily_items(),
+             "results": None, "overall": None, "can_edit": _can_edit(user)},
         )
 
     @app.post("/daily-qa", response_class=HTMLResponse)
@@ -65,45 +86,13 @@ def register_qa_routes(app, templates):
             return _login()
         form = await request.form()
         items = load_daily_items()
-        results = []
-        overall = "green"
-        for it in items:
-            iid = it["id"]
-            if it.get("item_type") == "yes_no":
-                ans = str(form.get(f"ans_{iid}") or "")
-                status = evaluate_yes_no(ans)
-                results.append({**it, "answer": ans, "status": status, "display": ans or "—"})
-            else:
-                raw = str(form.get(f"ans_{iid}") or "").strip()
-                try:
-                    val = float(raw) if raw != "" else None
-                except ValueError:
-                    val = None
-                if val is None:
-                    status = "yellow"
-                    display = raw or "—"
-                else:
-                    status = evaluate_numerical(it, val)
-                    display = f"{val} {it.get('unit') or ''}".strip()
-                results.append({**it, "answer": raw, "status": status, "display": display})
-            if status == "red":
-                overall = "red"
-            elif status == "yellow" and overall != "red":
-                overall = "yellow"
+        results, overall = _run_qa(items, form)
         return templates.TemplateResponse(
             "daily_qa.html",
-            {
-                "request": request,
-                "current_user": user,
-                "items": items,
-                "results": results,
-                "overall": overall,
-                "error": None,
-                "can_edit": _can_edit(user),
-            },
+            {"request": request, "current_user": user, "items": items,
+             "results": results, "overall": overall, "can_edit": _can_edit(user)},
         )
 
-    # ---------- Mechanical QA (run) ----------
     @app.get("/mechanical-qa", response_class=HTMLResponse)
     async def mech_qa_get(request: Request):
         user = _user(request)
@@ -111,14 +100,8 @@ def register_qa_routes(app, templates):
             return _login()
         return templates.TemplateResponse(
             "mechanical_qa.html",
-            {
-                "request": request,
-                "current_user": user,
-                "items": load_mech_items(),
-                "results": None,
-                "error": None,
-                "can_edit": _can_edit(user),
-            },
+            {"request": request, "current_user": user, "items": load_mech_items(),
+             "results": None, "overall": None, "can_edit": _can_edit(user)},
         )
 
     @app.post("/mechanical-qa", response_class=HTMLResponse)
@@ -128,64 +111,26 @@ def register_qa_routes(app, templates):
             return _login()
         form = await request.form()
         items = load_mech_items()
-        results = []
-        overall = "green"
-        for it in items:
-            iid = it["id"]
-            if it.get("item_type") == "yes_no":
-                ans = str(form.get(f"ans_{iid}") or "")
-                status = evaluate_yes_no(ans)
-                results.append({**it, "answer": ans, "status": status, "display": ans or "—"})
-            else:
-                raw = str(form.get(f"ans_{iid}") or "").strip()
-                try:
-                    val = float(raw) if raw != "" else None
-                except ValueError:
-                    val = None
-                if val is None:
-                    status = "yellow"
-                    display = raw or "—"
-                else:
-                    status = evaluate_numerical(it, val)
-                    display = f"{val} {it.get('unit') or ''}".strip()
-                results.append({**it, "answer": raw, "status": status, "display": display})
-            if status == "red":
-                overall = "red"
-            elif status == "yellow" and overall != "red":
-                overall = "yellow"
+        results, overall = _run_qa(items, form)
         return templates.TemplateResponse(
             "mechanical_qa.html",
-            {
-                "request": request,
-                "current_user": user,
-                "items": items,
-                "results": results,
-                "overall": overall,
-                "error": None,
-                "can_edit": _can_edit(user),
-            },
+            {"request": request, "current_user": user, "items": items,
+             "results": results, "overall": overall, "can_edit": _can_edit(user)},
         )
 
-    # ---------- Library: Edit Daily Checklist ----------
-    def _editor_page(request, kind: str, msg: str = ""):
+    def _editor_page(request, kind: str):
         user = _user(request)
         if not user:
             return _login()
         if not _can_edit(user):
             raise HTTPException(403, "Only developer, admin or physicist can edit checklists")
+        msg = (request.query_params.get("msg") or "").replace("+", " ")
         items = load_daily_items() if kind == "daily" else load_mech_items()
         title = "Edit checklist (Daily QA)" if kind == "daily" else "Edit mechanical QA"
         return templates.TemplateResponse(
             "edit_checklist.html",
-            {
-                "request": request,
-                "current_user": user,
-                "items": items,
-                "kind": kind,
-                "title": title,
-                "message": msg,
-                "error": None,
-            },
+            {"request": request, "current_user": user, "items": items,
+             "kind": kind, "title": title, "message": msg},
         )
 
     @app.get("/library/edit-checklist", response_class=HTMLResponse)
@@ -249,8 +194,7 @@ def register_qa_routes(app, templates):
         user = _user(request)
         if not user or not _can_edit(user):
             raise HTTPException(403)
-        rows = [r for r in load_daily_items() if r.get("id") != id]
-        save_daily_items(rows)
+        save_daily_items([r for r in load_daily_items() if r.get("id") != id])
         return RedirectResponse("/library/edit-checklist?msg=Item+deleted", 303)
 
     @app.post("/library/edit-mechanical-qa/add")
@@ -288,15 +232,8 @@ def register_qa_routes(app, templates):
         user = _user(request)
         if not user or not _can_edit(user):
             raise HTTPException(403)
-        rows = [r for r in load_mech_items() if r.get("id") != id]
-        save_mech_items(rows)
+        save_mech_items([r for r in load_mech_items() if r.get("id") != id])
         return RedirectResponse("/library/edit-mechanical-qa?msg=Item+deleted", 303)
-
-    # Support ?msg=
-    @app.get("/library/edit-checklist", response_class=HTMLResponse, name="edit_daily_msg")
-    async def edit_daily_msg(request: Request):
-        msg = (request.query_params.get("msg") or "").replace("+", " ")
-        return _editor_page(request, "daily", msg)
 
     print("qa_routes: daily + mechanical QA registered")
     return True

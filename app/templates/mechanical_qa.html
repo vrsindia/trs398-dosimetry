@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Mechanical QA — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Mechanical QA</h1>
+  <p class="muted">Mechanical checks for linac geometry and safety.
+    {% if can_edit %}<a href="/library/edit-mechanical-qa">Edit mechanical QA</a>{% endif %}
+  </p>
+</div>
+
+{% if overall %}
+<div class="alert {% if overall == 'green' %}alert-ok{% else %}alert-error{% endif %}"
+     style="{% if overall == 'yellow' %}background:rgba(251,191,36,0.15);border-color:#fbbf24;color:#fbbf24{% endif %}">
+  Overall status:
+  <strong>{% if overall == 'green' %}PASS{% elif overall == 'yellow' %}BORDERLINE{% else %}FAIL{% endif %}</strong>
+</div>
+{% endif %}
+
+<form method="post" action="/mechanical-qa" class="card form-card">
+  {% for it in items %}
+  <div style="margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border)">
+    <label style="font-weight:600;color:var(--text)">
+      {{ loop.index }}. {{ it.label }}
+      {% if it.item_type == 'numerical' %}
+      <span class="muted small">
+        (nominal {{ it.nominal }}{{ it.unit or '' }} ·
+        OK ≤ {{ it.tol_ok }}{% if it.mode == 'percent' %}%{% else %}{{ it.unit or '' }}{% endif %} ·
+        warn ≤ {{ it.tol_warn }}{% if it.mode == 'percent' %}%{% else %}{{ it.unit or '' }}{% endif %})
+      </span>
+      {% endif %}
+    </label>
+    {% if it.item_type == 'yes_no' %}
+    <div class="radio-row" style="margin-top:0.35rem">
+      <label class="check-label"><input type="radio" name="ans_{{ it.id }}" value="yes"> Yes</label>
+      <label class="check-label"><input type="radio" name="ans_{{ it.id }}" value="no"> No</label>
+    </div>
+    {% else %}
+    <input type="number" step="any" name="ans_{{ it.id }}" placeholder="Enter measured value"
+           style="max-width:220px;margin-top:0.35rem">
+    {% endif %}
+  </div>
+  {% else %}
+  <p class="muted">No items. {% if can_edit %}<a href="/library/edit-mechanical-qa">Add items</a>{% endif %}</p>
+  {% endfor %}
+  {% if items %}
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Evaluate checklist</button>
+  </div>
+  {% endif %}
+</form>
+
+{% if results %}
+<div class="card result-card">
+  <h2>Results</h2>
+  <table class="data-table">
+    <thead><tr><th>#</th><th>Item</th><th>Value</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for r in results %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ r.label }}</td>
+        <td>{{ r.display }}</td>
+        <td>
+          {% if r.status == 'green' %}<span style="color:var(--success);font-weight:700">● GREEN</span>
+          {% elif r.status == 'yellow' %}<span style="color:var(--highlight);font-weight:700">● YELLOW</span>
+          {% else %}<span style="color:var(--danger);font-weight:700">● RED</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
