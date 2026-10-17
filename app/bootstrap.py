@@ -18,6 +18,7 @@ for _label, _mod, _fn in [
     ("report_view", "app.report_view_route", "register_report_view"),
     ("linac_category", "app.linac_add_patch", "register_linac_category_routes"),
     ("branding_routes", "app.branding_routes", "register_branding_routes"),
+    ("department_routes", "app.department_routes", "register_department_routes"),
     ("mr_energy_patch", "app.mr_energy_patch", "register_mr_energy_patch"),
     ("activity_routes", "app.activity_routes", "register_activity_routes"),
 ]:
@@ -30,7 +31,8 @@ for _label, _mod, _fn in [
 
 try:
     import app.force_utils as fu
-    fu._DONE = False
+    if hasattr(fu, "_DONE"):
+        fu._DONE = False
     fu.register_force_utils(app, templates)
     print("force_utils re-OK")
 except Exception as e:
