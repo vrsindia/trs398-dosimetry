@@ -1,16 +1,16 @@
-"""In-memory + JSON file store for Daily QA and Mechanical QA checklists."""
+"""Daily QA and Mechanical QA checklist store (memory + optional JSON file)."""
 from __future__ import annotations
 import json
 import uuid
+from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List
 
-_DATA = Path(__file__).resolve().parent / "data"
-_DAILY_FILE = _DATA / "daily_qa_items.json"
-_MECH_FILE = _DATA / "mechanical_qa_items.json"
-
-# item types: yes_no | numerical
-# numerical: nominal, tol_ok (% or absolute), tol_warn (% or absolute), unit, mode: percent|absolute
+# Prefer writable locations (Render ephemeral disk)
+_CANDIDATES = [
+    Path("/tmp/dosepro_qa"),
+    Path(__file__).resolve().parent / "data",
+]
 
 DEFAULT_DAILY: List[dict] = [
     {"id": "d1", "label": "Door interlock functional", "item_type": "yes_no", "order": 1},
@@ -37,40 +37,89 @@ DEFAULT_MECH: List[dict] = [
     {"id": "m6", "label": "Safety interlocks verified", "item_type": "yes_no", "order": 6},
 ]
 
+_mem_daily: List[dict] = deepcopy(DEFAULT_DAILY)
+_mem_mech: List[dict] = deepcopy(DEFAULT_MECH)
+_dir: Path | None = None
+_loaded = False
 
-def _load(path: Path, defaults: List[dict]) -> List[dict]:
-    _DATA.mkdir(parents=True, exist_ok=True)
+
+def _data_dir() -> Path | None:
+    global _dir
+    if _dir is not None:
+        return _dir
+    for p in _CANDIDATES:
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+            test = p / ".write_test"
+            test.write_text("ok")
+            test.unlink()
+            _dir = p
+            return _dir
+        except Exception:
+            continue
+    _dir = None
+    return None
+
+
+def _load_file(name: str, defaults: List[dict]) -> List[dict]:
+    d = _data_dir()
+    if not d:
+        return deepcopy(defaults)
+    path = d / name
     if not path.exists():
-        _save(path, defaults)
-        return [dict(x) for x in defaults]
+        try:
+            path.write_text(json.dumps(defaults, indent=2))
+        except Exception:
+            pass
+        return deepcopy(defaults)
     try:
         data = json.loads(path.read_text())
-        if not isinstance(data, list):
-            return [dict(x) for x in defaults]
-        return data
+        if isinstance(data, list) and data:
+            return data
     except Exception:
-        return [dict(x) for x in defaults]
+        pass
+    return deepcopy(defaults)
 
 
-def _save(path: Path, rows: List[dict]) -> None:
-    _DATA.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(rows, indent=2))
+def _save_file(name: str, rows: List[dict]) -> None:
+    d = _data_dir()
+    if not d:
+        return
+    try:
+        (d / name).write_text(json.dumps(rows, indent=2))
+    except Exception as e:
+        print("qa_store save failed:", e)
+
+
+def _ensure_loaded() -> None:
+    global _loaded, _mem_daily, _mem_mech
+    if _loaded:
+        return
+    _mem_daily = _load_file("daily_qa_items.json", DEFAULT_DAILY)
+    _mem_mech = _load_file("mechanical_qa_items.json", DEFAULT_MECH)
+    _loaded = True
 
 
 def load_daily_items() -> List[dict]:
-    return sorted(_load(_DAILY_FILE, DEFAULT_DAILY), key=lambda x: x.get("order", 0))
+    _ensure_loaded()
+    return sorted(_mem_daily, key=lambda x: x.get("order", 0))
 
 
 def save_daily_items(rows: List[dict]) -> None:
-    _save(_DAILY_FILE, rows)
+    global _mem_daily
+    _mem_daily = list(rows)
+    _save_file("daily_qa_items.json", _mem_daily)
 
 
 def load_mech_items() -> List[dict]:
-    return sorted(_load(_MECH_FILE, DEFAULT_MECH), key=lambda x: x.get("order", 0))
+    _ensure_loaded()
+    return sorted(_mem_mech, key=lambda x: x.get("order", 0))
 
 
 def save_mech_items(rows: List[dict]) -> None:
-    _save(_MECH_FILE, rows)
+    global _mem_mech
+    _mem_mech = list(rows)
+    _save_file("mechanical_qa_items.json", _mem_mech)
 
 
 def new_id(prefix: str = "q") -> str:
@@ -78,7 +127,6 @@ def new_id(prefix: str = "q") -> str:
 
 
 def evaluate_numerical(item: dict, value: float) -> str:
-    """Return 'green' | 'yellow' | 'red' for a numerical reading."""
     try:
         val = float(value)
     except (TypeError, ValueError):
@@ -87,20 +135,13 @@ def evaluate_numerical(item: dict, value: float) -> str:
     tol_ok = float(item.get("tol_ok") or 0)
     tol_warn = float(item.get("tol_warn") or tol_ok)
     mode = (item.get("mode") or "absolute").lower()
-    if mode == "percent":
-        if nominal == 0:
-            diff = abs(val)
-            # treat as absolute if nominal 0
-            ok_lim, warn_lim = tol_ok, tol_warn
-        else:
-            diff = abs(val - nominal) / abs(nominal) * 100.0
-            ok_lim, warn_lim = tol_ok, tol_warn
+    if mode == "percent" and nominal != 0:
+        diff = abs(val - nominal) / abs(nominal) * 100.0
     else:
         diff = abs(val - nominal)
-        ok_lim, warn_lim = tol_ok, tol_warn
-    if diff <= ok_lim:
+    if diff <= tol_ok:
         return "green"
-    if diff <= warn_lim:
+    if diff <= tol_warn:
         return "yellow"
     return "red"
 

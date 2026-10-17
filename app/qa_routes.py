@@ -1,10 +1,20 @@
-"""Daily QA + Mechanical QA checklists and library editors."""
+"""Daily QA + Mechanical QA — always register working routes."""
 from __future__ import annotations
 from fastapi import Request, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 COOKIE = "dosepro_session"
 EDIT_ROLES = {"developer", "admin", "physicist"}
+
+QA_PATHS = {
+    "/daily-qa", "/mechanical-qa",
+    "/library/edit-checklist", "/library/edit-mechanical-qa",
+    "/library/edit-checklist/add", "/library/edit-checklist/edit",
+    "/library/edit-checklist/delete",
+    "/library/edit-mechanical-qa/add", "/library/edit-mechanical-qa/edit",
+    "/library/edit-mechanical-qa/delete",
+    "/qa-ping",
+}
 
 
 def register_qa_routes(app, templates):
@@ -15,18 +25,9 @@ def register_qa_routes(app, templates):
         new_id, evaluate_numerical, evaluate_yes_no,
     )
 
-    # Strip any previous QA routes
-    qa_paths = {
-        "/daily-qa", "/mechanical-qa",
-        "/library/edit-checklist", "/library/edit-mechanical-qa",
-        "/library/edit-checklist/add", "/library/edit-checklist/edit",
-        "/library/edit-checklist/delete",
-        "/library/edit-mechanical-qa/add", "/library/edit-mechanical-qa/edit",
-        "/library/edit-mechanical-qa/delete",
-    }
     app.router.routes[:] = [
         r for r in app.router.routes
-        if getattr(r, "path", None) not in qa_paths
+        if getattr(r, "path", None) not in QA_PATHS
     ]
 
     def _user(request: Request):
@@ -43,9 +44,14 @@ def register_qa_routes(app, templates):
     def _login():
         return RedirectResponse("/login", 303)
 
-    def _tpl(request, name, **ctx):
-        ctx["request"] = request
-        return templates.TemplateResponse(name, ctx)
+    def _tpl(request: Request, name: str, **ctx):
+        ctx.setdefault("request", request)
+        try:
+            return templates.TemplateResponse(
+                request=request, name=name, context=ctx,
+            )
+        except TypeError:
+            return templates.TemplateResponse(name, ctx)
 
     def _run_qa(items, form):
         results = []
@@ -75,6 +81,7 @@ def register_qa_routes(app, templates):
                 overall = "yellow"
         return results, overall
 
+    # ---- Daily QA ----
     @app.get("/daily-qa", response_class=HTMLResponse)
     async def daily_qa_get(request: Request):
         user = _user(request)
@@ -82,8 +89,11 @@ def register_qa_routes(app, templates):
             return _login()
         return _tpl(
             request, "daily_qa.html",
-            current_user=user, items=load_daily_items(),
-            results=None, overall=None, can_edit=_can_edit(user),
+            current_user=user,
+            items=load_daily_items(),
+            results=None,
+            overall=None,
+            can_edit=_can_edit(user),
         )
 
     @app.post("/daily-qa", response_class=HTMLResponse)
@@ -96,10 +106,14 @@ def register_qa_routes(app, templates):
         results, overall = _run_qa(items, form)
         return _tpl(
             request, "daily_qa.html",
-            current_user=user, items=items,
-            results=results, overall=overall, can_edit=_can_edit(user),
+            current_user=user,
+            items=items,
+            results=results,
+            overall=overall,
+            can_edit=_can_edit(user),
         )
 
+    # ---- Mechanical QA ----
     @app.get("/mechanical-qa", response_class=HTMLResponse)
     async def mech_qa_get(request: Request):
         user = _user(request)
@@ -107,8 +121,11 @@ def register_qa_routes(app, templates):
             return _login()
         return _tpl(
             request, "mechanical_qa.html",
-            current_user=user, items=load_mech_items(),
-            results=None, overall=None, can_edit=_can_edit(user),
+            current_user=user,
+            items=load_mech_items(),
+            results=None,
+            overall=None,
+            can_edit=_can_edit(user),
         )
 
     @app.post("/mechanical-qa", response_class=HTMLResponse)
@@ -121,11 +138,15 @@ def register_qa_routes(app, templates):
         results, overall = _run_qa(items, form)
         return _tpl(
             request, "mechanical_qa.html",
-            current_user=user, items=items,
-            results=results, overall=overall, can_edit=_can_edit(user),
+            current_user=user,
+            items=items,
+            results=results,
+            overall=overall,
+            can_edit=_can_edit(user),
         )
 
-    def _editor_page(request, kind: str):
+    # ---- Library editors ----
+    def _editor(request: Request, kind: str):
         user = _user(request)
         if not user:
             return _login()
@@ -136,17 +157,20 @@ def register_qa_routes(app, templates):
         title = "Edit checklist (Daily QA)" if kind == "daily" else "Edit mechanical QA"
         return _tpl(
             request, "edit_checklist.html",
-            current_user=user, items=items,
-            kind=kind, title=title, message=msg,
+            current_user=user,
+            items=items,
+            kind=kind,
+            title=title,
+            message=msg,
         )
 
     @app.get("/library/edit-checklist", response_class=HTMLResponse)
     async def edit_daily_get(request: Request):
-        return _editor_page(request, "daily")
+        return _editor(request, "daily")
 
     @app.get("/library/edit-mechanical-qa", response_class=HTMLResponse)
     async def edit_mech_get(request: Request):
-        return _editor_page(request, "mech")
+        return _editor(request, "mech")
 
     def _parse_item(form) -> dict:
         item_type = str(form.get("item_type") or "yes_no")
@@ -193,6 +217,8 @@ def register_qa_routes(app, templates):
             if r.get("id") == iid:
                 rows[i] = row
                 break
+        else:
+            rows.append(row)
         save_daily_items(rows)
         return RedirectResponse("/library/edit-checklist?msg=Item+updated", 303)
 
@@ -231,6 +257,8 @@ def register_qa_routes(app, templates):
             if r.get("id") == iid:
                 rows[i] = row
                 break
+        else:
+            rows.append(row)
         save_mech_items(rows)
         return RedirectResponse("/library/edit-mechanical-qa?msg=Item+updated", 303)
 
@@ -242,15 +270,27 @@ def register_qa_routes(app, templates):
         save_mech_items([r for r in load_mech_items() if r.get("id") != id])
         return RedirectResponse("/library/edit-mechanical-qa?msg=Item+deleted", 303)
 
-    # Diagnostic
     @app.get("/qa-ping")
     async def qa_ping():
-        from fastapi.responses import JSONResponse
         found = sorted({
             getattr(r, "path", "") for r in app.router.routes
-            if getattr(r, "path", "") in qa_paths or getattr(r, "path", "") == "/qa-ping"
+            if getattr(r, "path", "") in QA_PATHS
         })
-        return JSONResponse({"ok": True, "paths": found})
+        try:
+            n_daily = len(load_daily_items())
+            n_mech = len(load_mech_items())
+        except Exception as e:
+            n_daily, n_mech = -1, -1
+            err = str(e)
+        else:
+            err = None
+        return JSONResponse({
+            "ok": True,
+            "paths": found,
+            "daily_items": n_daily,
+            "mech_items": n_mech,
+            "error": err,
+        })
 
-    print("qa_routes: daily + mechanical QA registered")
+    print("qa_routes: registered OK")
     return True
