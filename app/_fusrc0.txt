@@ -1,0 +1,48 @@
+"""
+Force-register utility calculators so they are always available even if
+bootstrap / extra_routes fail on Render free tier.
+Routes: /activity, /bed, /bed-combined, /gap, /utils-ping
+"""
+from __future__ import annotations
+from typing import Optional, List
+from fastapi import Request, Form, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
+
+# Permission keys (must match auth.py)
+PERM_CALCULATE = "calculate"
+SEC_ACTIVITY = "sec_activity"
+SEC_BED = "sec_bed"
+SEC_BED_COMBINED = "sec_bed_combined"
+SEC_GAP = "sec_gap"
+SEC_FRACTIONATION = "sec_fractionation"
+SEC_EQSQUARE = "sec_eqsquare"
+SEC_MU = "sec_mu"
+SEC_UNITS = "sec_units"
+SEC_NT = "sec_nt_constraints"
+
+
+def _user_from_request(request: Request):
+    try:
+        from app.auth import get_user_by_token
+        token = request.cookies.get("dosepro_session")
+        return get_user_by_token(token) if token else None
+    except Exception:
+        return None
+
+
+def _need(request: Request, *keys: str) -> bool:
+    """True if user has calculate OR any of the listed section keys."""
+    user = _user_from_request(request)
+    if not user:
+        return False
+    if hasattr(user, "has"):
+        if user.has(PERM_CALCULATE):
+            return True
+        for k in keys:
+            if user.has(k):
+                return True
+        role = getattr(user, "role", "") or ""
+        if role in ("developer", "admin"):
+            return True
+    return False
