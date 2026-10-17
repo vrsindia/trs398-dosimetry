@@ -28,7 +28,6 @@ for _label, _mod, _fn in [
     except Exception as e:
         print(_label + ":", e)
 
-# Department
 try:
     from app.department_routes import register_department_routes
     register_department_routes(app, templates)
@@ -37,7 +36,6 @@ except Exception as e:
     print("department_routes:", e)
     traceback.print_exc()
 
-# Working utility routes MUST be last — override any broken handlers
 try:
     from app.fix_utils import register_fix_utils
     register_fix_utils(app, templates)
@@ -46,18 +44,30 @@ except Exception as e:
     print("fix_utils FAILED:", e)
     traceback.print_exc()
 
+try:
+    from app.fix_fractionation import register_fix_fractionation
+    register_fix_fractionation(app, templates)
+    print("fix_fractionation OK")
+except Exception as e:
+    print("fix_fractionation:", e)
+
 
 @app.on_event("startup")
 def _startup_rebind():
     try:
         from app.department_routes import register_department_routes
         register_department_routes(app, templates)
-        print("department startup rebind OK")
     except Exception as e:
         print("department startup:", e)
     try:
         from app.fix_utils import register_fix_utils
         register_fix_utils(app, templates)
-        print("fix_utils startup rebind OK")
+        print("fix_utils startup OK")
     except Exception as e:
         print("fix_utils startup:", e)
+    try:
+        from app.fix_fractionation import register_fix_fractionation
+        register_fix_fractionation(app, templates)
+        print("fix_fractionation startup OK")
+    except Exception as e:
+        print("fix_fractionation startup:", e)
