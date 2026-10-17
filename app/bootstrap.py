@@ -41,7 +41,6 @@ try:
     print("fix_utils OK")
 except Exception as e:
     print("fix_utils FAILED:", e)
-    traceback.print_exc()
 
 try:
     from app.fix_fractionation import register_fix_fractionation
@@ -56,6 +55,14 @@ try:
     print("fix_oar OK")
 except Exception as e:
     print("fix_oar:", e)
+
+# Self-contained activity + EBRT/brachy MUST be last
+try:
+    from app.fix_calc import register_fix_calc
+    register_fix_calc(app, templates)
+    print("fix_calc OK")
+except Exception as e:
+    print("fix_calc FAILED:", e)
     traceback.print_exc()
 
 
@@ -63,9 +70,11 @@ except Exception as e:
 def _startup_rebind():
     for label, mod_name, fn_name in [
         ("department", "app.department_routes", "register_department_routes"),
+        ("storage_hooks", "app.storage_hooks", "register_storage_hooks"),
         ("fix_utils", "app.fix_utils", "register_fix_utils"),
         ("fix_fractionation", "app.fix_fractionation", "register_fix_fractionation"),
         ("fix_oar", "app.fix_oar", "register_fix_oar"),
+        ("fix_calc", "app.fix_calc", "register_fix_calc"),
     ]:
         try:
             mod = __import__(mod_name, fromlist=[fn_name])
