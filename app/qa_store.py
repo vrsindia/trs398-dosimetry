@@ -4,9 +4,8 @@ import json
 import uuid
 from copy import deepcopy
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
-# Prefer writable locations (Render ephemeral disk)
 _CANDIDATES = [
     Path("/tmp/dosepro_qa"),
     Path(__file__).resolve().parent / "data",
@@ -39,11 +38,12 @@ DEFAULT_MECH: List[dict] = [
 
 _mem_daily: List[dict] = deepcopy(DEFAULT_DAILY)
 _mem_mech: List[dict] = deepcopy(DEFAULT_MECH)
-_dir: Path | None = None
+_dir = None  # type: Optional[Path]
 _loaded = False
 
 
-def _data_dir() -> Path | None:
+def _data_dir():
+    # type: () -> Optional[Path]
     global _dir
     if _dir is not None:
         return _dir
@@ -61,7 +61,7 @@ def _data_dir() -> Path | None:
     return None
 
 
-def _load_file(name: str, defaults: List[dict]) -> List[dict]:
+def _load_file(name, defaults):
     d = _data_dir()
     if not d:
         return deepcopy(defaults)
@@ -81,7 +81,7 @@ def _load_file(name: str, defaults: List[dict]) -> List[dict]:
     return deepcopy(defaults)
 
 
-def _save_file(name: str, rows: List[dict]) -> None:
+def _save_file(name, rows):
     d = _data_dir()
     if not d:
         return
@@ -91,7 +91,7 @@ def _save_file(name: str, rows: List[dict]) -> None:
         print("qa_store save failed:", e)
 
 
-def _ensure_loaded() -> None:
+def _ensure_loaded():
     global _loaded, _mem_daily, _mem_mech
     if _loaded:
         return
@@ -100,33 +100,33 @@ def _ensure_loaded() -> None:
     _loaded = True
 
 
-def load_daily_items() -> List[dict]:
+def load_daily_items():
     _ensure_loaded()
     return sorted(_mem_daily, key=lambda x: x.get("order", 0))
 
 
-def save_daily_items(rows: List[dict]) -> None:
+def save_daily_items(rows):
     global _mem_daily
     _mem_daily = list(rows)
     _save_file("daily_qa_items.json", _mem_daily)
 
 
-def load_mech_items() -> List[dict]:
+def load_mech_items():
     _ensure_loaded()
     return sorted(_mem_mech, key=lambda x: x.get("order", 0))
 
 
-def save_mech_items(rows: List[dict]) -> None:
+def save_mech_items(rows):
     global _mem_mech
     _mem_mech = list(rows)
     _save_file("mechanical_qa_items.json", _mem_mech)
 
 
-def new_id(prefix: str = "q") -> str:
-    return f"{prefix}{uuid.uuid4().hex[:8]}"
+def new_id(prefix="q"):
+    return "%s%s" % (prefix, uuid.uuid4().hex[:8])
 
 
-def evaluate_numerical(item: dict, value: float) -> str:
+def evaluate_numerical(item, value):
     try:
         val = float(value)
     except (TypeError, ValueError):
@@ -146,7 +146,7 @@ def evaluate_numerical(item: dict, value: float) -> str:
     return "red"
 
 
-def evaluate_yes_no(answer: str) -> str:
+def evaluate_yes_no(answer):
     a = (answer or "").strip().lower()
     if a in ("yes", "y", "true", "1", "pass", "ok"):
         return "green"
