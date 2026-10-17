@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gap correction – DOSE pro</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-nav">
+            <a class="nav-btn" href="javascript:history.back()">← Back</a>
+            <a class="nav-btn" href="/">Home</a>
+            <strong>Gap correction</strong>
+        </div>
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
+        </div>
+    </header>
+    <main>
+        <div class="card">
+            <h1>Gap correction (treatment interruption)</h1>
+            <p style="color:var(--text-muted);">
+                Estimates extra dose needed after a treatment gap using the lq model with a
+                repopulation term K (Gy/day). Suggested remaining dose per fraction compensates
+                for bed lost during the gap.
+            </p>
+            <form method="post" action="/gap">
+                <h2 style="font-size:1rem;">Planned course</h2>
+                <div class="grid grid-2">
+                    <div>
+                        <label>Planned total dose (Gy) *</label>
+                        <input type="number" step="any" name="planned_total" value="{{ inputs.planned_total }}" required>
+                    </div>
+                    <div>
+                        <label>Planned number of fractions *</label>
+                        <input type="number" step="any" name="planned_n" value="{{ inputs.planned_n }}" required>
+                    </div>
+                </div>
+                <label>α/β (Gy) *</label>
+                <input type="number" step="any" name="alpha_beta" value="{{ inputs.alpha_beta }}" required>
+
+                <h2 style="font-size:1rem; margin-top:1rem;">Interruption</h2>
+                <div class="grid grid-2">
+                    <div>
+                        <label>Fractions already delivered *</label>
+                        <input type="number" step="any" name="delivered_n" value="{{ inputs.delivered_n }}" required>
+                    </div>
+                    <div>
+                        <label>Gap duration (days) *</label>
+                        <input type="number" step="any" name="gap_days" value="{{ inputs.gap_days }}" required>
+                    </div>
+                </div>
+                <label>Repopulation factor K (Gy/day, typical 0.5–0.9 for head &amp; neck)</label>
+                <input type="number" step="any" name="k_gy_per_day" value="{{ inputs.k_gy_per_day }}">
+
+                <button type="submit" style="margin-top:1.2rem; width:100%;">Calculate gap correction</button>
+            </form>
+        </div>
+
+        {% if error %}
+        <div class="card result-fail"><p><strong>Error:</strong> {{ error }}</p></div>
+        {% endif %}
+
+        {% if result %}
+        <div class="card result-pass">
+            <h2>Results</h2>
+            <table>
+                <tr><th>Planned dose / fraction</th><td>{{ "%.3g"|format(result.planned_d) }} Gy × {{ "%.3g"|format(result.planned_n) }} fx</td></tr>
+                <tr><th>Planned bed</th><td>{{ "%.2f"|format(result.planned_bed) }} Gy</td></tr>
+                <tr><th>Delivered bed</th><td>{{ "%.2f"|format(result.delivered_bed) }} Gy ({{ "%.3g"|format(result.delivered_n) }} fx)</td></tr>
+                <tr><th>Gap</th><td>{{ "%.3g"|format(result.gap_days) }} days × K = {{ "%.3g"|format(result.k_gy_per_day) }} Gy/day</td></tr>
+                <tr><th>Bed loss (repopulation)</th><td>{{ "%.2f"|format(result.bed_loss_repop) }} Gy</td></tr>
+                <tr><th>Remaining fractions</th><td>{{ "%.3g"|format(result.remaining_n) }}</td></tr>
+                <tr><th>Remaining bed needed</th><td>{{ "%.2f"|format(result.remaining_bed_needed) }} Gy</td></tr>
+                <tr><th>Suggested dose / remaining fraction</th><td><strong>{{ "%.3f"|format(result.suggested_d_remaining) }} Gy</strong></td></tr>
+                <tr><th>Remaining total dose</th><td><strong>{{ "%.2f"|format(result.remaining_total_dose) }} Gy</strong></td></tr>
+            </table>
+            <p class="note" style="margin-top:0.8rem;">Clinical decisions must follow departmental protocol. K and α/β are tissue- and site-specific.</p>
+        </div>
+        {% endif %}
+    </main>
+    <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
+</body>
+</html>

@@ -12,7 +12,7 @@
         <div class="header-nav">
             <div class="brand">
                 <span class="brand-title">DOSE pro</span>
-                <span class="brand-sub">Dosimetry Solution</span>
+                <span class="brand-sub">Dosimetry solution</span>
             </div>
         </div>
         <div class="header-actions">
@@ -23,48 +23,59 @@
     </header>
     <main>
         <div class="card">
-            <h1>Absolute Dosimetry</h1>
+            <h1>Absolute dosimetry</h1>
             <p style="color:var(--text-muted); margin-top:0;">Guided clinical workflow by machine category</p>
-            {% if current_user.has('calculate') %}
             <div class="grid grid-2" style="margin-top:1.25rem;">
-                <a class="btn btn-block" href="/linac" style="padding:1.3rem; font-size:1.05rem;">Linac Absolute Dosimetry<br><span style="font-size:0.8rem;font-weight:400;opacity:0.85;">CT Linac · MR Linac</span></a>
-                <a class="btn btn-block btn-success" href="/brachy" style="padding:1.3rem; font-size:1.05rem;">Brachytherapy<br><span style="font-size:0.8rem;font-weight:400;opacity:0.85;">HDR source strength</span></a>
+                {% if current_user.has('sec_linac') or current_user.has('calculate') %}
+                <a class="btn btn-block" href="/linac" style="padding:1.3rem; font-size:1.05rem;">Linac absolute dosimetry<br><span style="font-size:0.8rem;font-weight:400;opacity:0.85;">Ct linac · Mr linac</span></a>
+                {% endif %}
+                {% if current_user.has('sec_brachy') or current_user.has('calculate') %}
+                <a class="btn btn-block btn-success" href="/brachy" style="padding:1.3rem; font-size:1.05rem;">Brachytherapy<br><span style="font-size:0.8rem;font-weight:400;opacity:0.85;">Hdr source strength</span></a>
+                {% endif %}
             </div>
-            {% else %}
-            <p style="color:var(--text-muted); margin-top:1rem;">Your role ({{ current_user.role }}) has view-only access.</p>
-            {% endif %}
         </div>
 
-        {% if current_user.has('calculate') %}
         <div class="card">
             <h2>Utilities</h2>
             <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:0.75rem;">
-                <a class="btn btn-outline btn-block" href="/activity" style="padding:1rem;">Source Activity Calculator</a>
-                <a class="btn btn-outline btn-block" href="/bed" style="padding:1rem;">BED / EQD2 Calculator</a>
-                <a class="btn btn-outline btn-block" href="/bed-combined" style="padding:1rem;">EBRT + Brachy BED</a>
+                {% if current_user.has('sec_activity') or current_user.has('calculate') %}
+                <a class="btn btn-outline btn-block" href="/activity" style="padding:1rem;">Source activity calculator</a>
+                {% endif %}
+                {% if current_user.has('sec_bed') or current_user.has('calculate') %}
+                <a class="btn btn-outline btn-block" href="/bed" style="padding:1rem;">Bed / eqd2 calculator</a>
+                {% endif %}
+                {% if current_user.has('sec_bed_combined') or current_user.has('calculate') %}
+                <a class="btn btn-outline btn-block" href="/bed-combined" style="padding:1rem;">Ebrt + brachy bed</a>
+                {% endif %}
+                {% if current_user.has('sec_gap') or current_user.has('calculate') %}
+                <a class="btn btn-outline btn-block" href="/gap" style="padding:1rem;">Gap correction</a>
+                {% endif %}
             </div>
         </div>
-        {% endif %}
 
         <div class="card">
-            <h2>Libraries &amp; Records</h2>
+            <h2>Libraries &amp; records</h2>
             <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
-                {% if current_user.has('library_view') %}
+                {% if current_user.has('sec_libraries') or current_user.has('library_view') %}
                 <a class="btn btn-outline btn-block" href="/detectors">Detectors</a>
-                <a class="btn btn-outline btn-block" href="/linacs">Machine Directory</a>
+                <a class="btn btn-outline btn-block" href="/linacs">Machine directory</a>
                 <a class="btn btn-outline btn-block" href="/tolerances">Tolerances</a>
-                <a class="btn btn-outline btn-block" href="/calc-profiles">Calc Profiles</a>
+                <a class="btn btn-outline btn-block" href="/calc-profiles">Calc profiles</a>
                 {% endif %}
-                {% if current_user.has('history_view') %}
-                <a class="btn btn-outline btn-block" href="/output-history">Output History</a>
+                {% if current_user.has('sec_history') or current_user.has('history_view') %}
+                <a class="btn btn-outline btn-block" href="/output-history">Output history</a>
+                {% endif %}
+                {% if current_user.has('sec_reports') or current_user.has('history_view') %}
                 <a class="btn btn-outline btn-block" href="/reports">Reports</a>
                 {% endif %}
-                {% if current_user.has('approve') %}
+                {% if current_user.has('sec_approvals') or current_user.has('approve') %}
                 <a class="btn btn-outline btn-block" href="/approvals">Approvals</a>
                 {% endif %}
+                {% if current_user.has('sec_department') or true %}
                 <a class="btn btn-outline btn-block" href="/department">Department</a>
+                {% endif %}
                 {% if current_user.has('admin_panel') %}
-                <a class="btn btn-outline btn-block" href="/users">User Directory</a>
+                <a class="btn btn-outline btn-block" href="/users">User directory</a>
                 {% endif %}
             </div>
         </div>

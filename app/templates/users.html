@@ -1,26 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Directory – DOSE pro</title>
+    <title>User directory – DOSE pro</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
 </head>
 <body>
     <header>
-        <strong>User Directory</strong>
-        <div>
-            <span style="color:var(--text-muted); font-size:0.85rem; margin-right:1rem;">{{ current_user.full_name }} ({{ current_user.role }})</span>
-            <a href="/">Home</a>
+        <div class="header-nav">
+            <a class="nav-btn" href="/">Home</a>
+            <strong>User directory</strong>
+        </div>
+        <div class="header-actions">
+            <button type="button" id="theme-toggle">Light theme</button>
+            <span style="color:var(--text-muted); font-size:0.85rem;">{{ current_user.full_name }} · {{ current_user.role }}</span>
         </div>
     </header>
     <main>
         <div class="card">
             <h1>Users</h1>
-            <p style="color:var(--text-muted);">Visible only to Admin and Developer. Set password when editing any user.</p>
+            <p style="color:var(--text-muted);">Admin and developer can set role, password, and which sections each user may open.</p>
             <table>
                 <tr>
-                    <th>Username</th><th>Full Name</th><th>Role</th><th>Active</th><th>Permissions</th><th></th>
+                    <th>Username</th><th>Full name</th><th>Role</th><th>Active</th><th></th>
                 </tr>
                 {% for u in users %}
                 <tr>
@@ -28,10 +32,9 @@
                     <td>{{ u.full_name }}</td>
                     <td>{{ u.role }}</td>
                     <td>{{ "Yes" if u.active else "No" }}</td>
-                    <td style="font-size:0.75rem; color:var(--text-muted);">{{ u.permissions | join(", ") }}</td>
                     <td>
                         <details>
-                            <summary style="font-size:0.85rem;">Edit / Set password</summary>
+                            <summary style="font-size:0.85rem;">Edit / set password</summary>
                             <form method="post" action="/users/{{ u.id }}/edit" style="margin-top:0.6rem;">
                                 <label>Full name</label><input name="full_name" value="{{ u.full_name }}">
                                 <label>Role</label>
@@ -41,12 +44,14 @@
                                     {% endfor %}
                                 </select>
                                 <label>Set new password (leave blank to keep current)</label>
-                                <input type="password" name="password" autocomplete="new-password" placeholder="New password for this user">
-                                <label style="margin-top:0.8rem;">Permissions</label>
+                                <input type="password" name="password" autocomplete="new-password" placeholder="New password">
+                                <label style="margin-top:0.8rem;"><strong>Permissions &amp; sections</strong></label>
+                                <p class="note">Tick sections this user may see on the home page.</p>
                                 {% for p in all_perms %}
-                                <label style="font-weight:400; display:flex; align-items:center; gap:0.4rem; margin-top:0.3rem;">
+                                <label style="font-weight:400; display:flex; align-items:center; gap:0.4rem; margin-top:0.25rem;">
                                     <input type="checkbox" name="permissions" value="{{ p }}" style="width:auto;"
-                                           {% if p in u.permissions %}checked{% endif %}> {{ p }}
+                                           {% if p in u.permissions %}checked{% endif %}>
+                                    {{ perm_labels.get(p, p) if perm_labels is defined else p }}
                                 </label>
                                 {% endfor %}
                                 <label style="margin-top:0.6rem; display:flex; align-items:center; gap:0.4rem;">
@@ -68,7 +73,7 @@
         </div>
 
         <div class="card">
-            <h2>Create User</h2>
+            <h2>Create user</h2>
             <form method="post" action="/users/add">
                 <div class="grid grid-2">
                     <div><label>Username *</label><input name="username" required autocomplete="off"></div>
@@ -85,9 +90,10 @@
                         </select>
                     </div>
                 </div>
-                <button type="submit" style="margin-top:1rem; width:100%;">Create User</button>
+                <button type="submit" style="margin-top:1rem; width:100%;">Create user</button>
             </form>
         </div>
     </main>
+    <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
 </body>
 </html>
