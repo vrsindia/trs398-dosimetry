@@ -1,99 +1,135 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User directory – DOSE pro</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/theme.js"></script>
-</head>
-<body>
-    <header>
-        <div class="header-nav">
-            <a class="nav-btn" href="/">Home</a>
-            <strong>User directory</strong>
-        </div>
-        <div class="header-actions">
-            <button type="button" id="theme-toggle">Light theme</button>
-            <span style="color:var(--text-muted); font-size:0.85rem;">{{ current_user.full_name }} · {{ current_user.role }}</span>
-        </div>
-    </header>
-    <main>
-        <div class="card">
-            <h1>Users</h1>
-            <p style="color:var(--text-muted);">Admin and developer can set role, password, and which sections each user may open.</p>
-            <table>
-                <tr>
-                    <th>Username</th><th>Full name</th><th>Role</th><th>Active</th><th></th>
-                </tr>
-                {% for u in users %}
-                <tr>
-                    <td>{{ u.username }}</td>
-                    <td>{{ u.full_name }}</td>
-                    <td>{{ u.role }}</td>
-                    <td>{{ "Yes" if u.active else "No" }}</td>
-                    <td>
-                        <details>
-                            <summary style="font-size:0.85rem;">Edit / set password</summary>
-                            <form method="post" action="/users/{{ u.id }}/edit" style="margin-top:0.6rem;">
-                                <label>Full name</label><input name="full_name" value="{{ u.full_name }}">
-                                <label>Role</label>
-                                <select name="role">
-                                    {% for r in roles %}
-                                    <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
-                                    {% endfor %}
-                                </select>
-                                <label>Set new password (leave blank to keep current)</label>
-                                <input type="password" name="password" autocomplete="new-password" placeholder="New password">
-                                <label style="margin-top:0.8rem;"><strong>Permissions &amp; sections</strong></label>
-                                <p class="note">Tick sections this user may see on the home page.</p>
-                                {% for p in all_perms %}
-                                <label style="font-weight:400; display:flex; align-items:center; gap:0.4rem; margin-top:0.25rem;">
-                                    <input type="checkbox" name="permissions" value="{{ p }}" style="width:auto;"
-                                           {% if p in u.permissions %}checked{% endif %}>
-                                    {{ perm_labels.get(p, p) if perm_labels is defined else p }}
-                                </label>
-                                {% endfor %}
-                                <label style="margin-top:0.6rem; display:flex; align-items:center; gap:0.4rem;">
-                                    <input type="checkbox" name="active" value="1" style="width:auto;" {% if u.active %}checked{% endif %}> Active
-                                </label>
-                                <button type="submit" class="btn-sm" style="margin-top:0.7rem;">Save user</button>
-                            </form>
-                            {% if u.role != 'developer' or users|selectattr('role','equalto','developer')|list|length > 1 %}
-                            <form method="post" action="/users/{{ u.id }}/delete" style="margin-top:0.4rem;"
-                                  onsubmit="return confirm('Delete user {{ u.username }}?');">
-                                <button type="submit" class="btn-sm btn-danger">Delete</button>
-                            </form>
-                            {% endif %}
-                        </details>
-                    </td>
-                </tr>
-                {% endfor %}
-            </table>
-        </div>
+{% extends "base.html" %}
+{% block title %}Users — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Users</h1>
+  <p class="muted">Admin and developer can set role, password, and which sections each user may open on the home page.</p>
+</div>
 
-        <div class="card">
-            <h2>Create user</h2>
-            <form method="post" action="/users/add">
-                <div class="grid grid-2">
-                    <div><label>Username *</label><input name="username" required autocomplete="off"></div>
-                    <div><label>Full name *</label><input name="full_name" required></div>
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="card result-card">
+  <h2 style="margin-top:0">User directory</h2>
+  {% if users %}
+  <div style="overflow-x:auto">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th>Full name</th>
+        <th>Role</th>
+        <th>Active</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td><strong>{{ u.username }}</strong></td>
+        <td>{{ u.full_name }}</td>
+        <td><span class="badge">{{ u.role }}</span></td>
+        <td>{% if u.active %}<span style="color:var(--success)">Yes</span>{% else %}<span style="color:var(--danger)">No</span>{% endif %}</td>
+        <td>
+          <details class="user-edit">
+            <summary class="btn btn-secondary btn-sm" style="display:inline-block;cursor:pointer;list-style:none">Edit / permissions</summary>
+            <form method="post" action="/users/{{ u.id }}/edit" class="card form-card" style="margin-top:0.75rem;box-shadow:none">
+              <div class="grid-2">
+                <label>Full name
+                  <input name="full_name" value="{{ u.full_name }}">
+                </label>
+                <label>Role
+                  <select name="role">
+                    {% for r in roles %}
+                    <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+              </div>
+              <label>New password <span class="muted small">(leave blank to keep current)</span>
+                <input type="password" name="password" autocomplete="new-password" placeholder="New password">
+              </label>
+
+              <fieldset class="perm-fieldset">
+                <legend>Home page sections</legend>
+                <p class="muted small">Tick the sections this user can open from the home page.</p>
+                <div class="perm-grid">
+                  {% for p in section_perms %}
+                  <label class="check-label perm-item">
+                    <input type="checkbox" name="permissions" value="{{ p }}"
+                           {% if p in u.permissions %}checked{% endif %}>
+                    <span class="perm-name">{{ section_labels.get(p, p) }}</span>
+                  </label>
+                  {% endfor %}
                 </div>
-                <div class="grid grid-2">
-                    <div><label>Password *</label><input type="password" name="password" required autocomplete="new-password"></div>
-                    <div>
-                        <label>Role *</label>
-                        <select name="role" required>
-                            {% for r in roles %}
-                            <option value="{{ r }}">{{ r }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+              </fieldset>
+
+              <fieldset class="perm-fieldset">
+                <legend>System permissions</legend>
+                <div class="perm-grid">
+                  {% for p in system_perms %}
+                  <label class="check-label perm-item">
+                    <input type="checkbox" name="permissions" value="{{ p }}"
+                           {% if p in u.permissions %}checked{% endif %}>
+                    <span class="perm-name">{{ perm_labels.get(p, p) }}</span>
+                  </label>
+                  {% endfor %}
                 </div>
-                <button type="submit" style="margin-top:1rem; width:100%;">Create user</button>
+              </fieldset>
+
+              <label class="check-label" style="margin-top:0.75rem">
+                <input type="checkbox" name="active" value="1" {% if u.active %}checked{% endif %}>
+                <span>Active account</span>
+              </label>
+
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-sm">Save user</button>
+              </div>
             </form>
-        </div>
-    </main>
-    <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
-</body>
-</html>
+            {% if u.role != 'developer' or users|selectattr('role','equalto','developer')|list|length > 1 %}
+            <form method="post" action="/users/{{ u.id }}/delete" style="margin-top:0.5rem"
+                  onsubmit="return confirm('Delete user {{ u.username }}?');">
+              <button type="submit" class="btn btn-danger btn-sm">Delete user</button>
+            </form>
+            {% endif %}
+          </details>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">No users found.</p>
+  {% endif %}
+</div>
+
+<div class="card form-card">
+  <h2 style="margin-top:0">Create user</h2>
+  <form method="post" action="/users/add">
+    <div class="grid-2">
+      <label>Username *
+        <input name="username" required autocomplete="off">
+      </label>
+      <label>Full name *
+        <input name="full_name" required>
+      </label>
+    </div>
+    <div class="grid-2">
+      <label>Password *
+        <input type="password" name="password" required autocomplete="new-password">
+      </label>
+      <label>Role *
+        <select name="role" required>
+          {% for r in roles %}
+          <option value="{{ r }}">{{ r }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Create user</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
