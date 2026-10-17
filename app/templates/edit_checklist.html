@@ -5,23 +5,42 @@
 <div class="page-header">
   <h1>{{ title }}</h1>
   <p class="muted">
-    Add, edit or delete checklist items.
-    <strong>Yes/No</strong> items score green (Yes) or red (No).
-    <strong>Numerical</strong> items use nominal + OK / warn tolerances (green / yellow / red).
+    Checklist items are <strong>machine-specific</strong>. Select a machine, then add or edit items.
+    Yes/No → green (Yes) / red (No). Numerical → green / yellow / red by tolerance.
   </p>
 </div>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 
+<div class="card form-card">
+  <form method="get" action="{{ base }}" class="grid-2" style="align-items:end">
+    <label>Machine *
+      <select name="linac_id" required onchange="this.form.submit()">
+        <option value="">— Select machine —</option>
+        {% for m in machines %}
+        <option value="{{ m.id }}" {% if linac_id == m.id %}selected{% endif %}>
+          {{ m.name }}{% if m.category is defined %} ({{ m.category }}){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <div>
+      <button type="submit" class="btn btn-secondary">Load items</button>
+    </div>
+  </form>
+  {% if not machines %}
+  <p class="muted" style="margin-top:0.75rem">No machines registered. Add machines under Libraries first.</p>
+  {% endif %}
+</div>
+
+{% if machine %}
 <div class="card result-card">
-  <h2 style="margin-top:0">Current items</h2>
+  <h2 style="margin-top:0">Items for {{ machine.name }}</h2>
   {% if items %}
-  <div style="overflow-x:auto">
   <table class="data-table">
     <thead>
       <tr>
-        <th>Order</th><th>Label</th><th>Type</th>
-        <th>Nominal</th><th>OK tol</th><th>Warn tol</th><th>Unit</th><th>Mode</th><th></th>
+        <th>#</th><th>Label</th><th>Type</th><th>Tolerance</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -30,17 +49,19 @@
         <td>{{ it.order }}</td>
         <td><strong>{{ it.label }}</strong></td>
         <td>{{ it.item_type }}</td>
-        <td>{% if it.item_type == 'numerical' %}{{ it.nominal }}{% else %}—{% endif %}</td>
-        <td>{% if it.item_type == 'numerical' %}{{ it.tol_ok }}{% else %}—{% endif %}</td>
-        <td>{% if it.item_type == 'numerical' %}{{ it.tol_warn }}{% else %}—{% endif %}</td>
-        <td>{% if it.item_type == 'numerical' %}{{ it.unit or '—' }}{% else %}—{% endif %}</td>
-        <td>{% if it.item_type == 'numerical' %}{{ it.mode or '—' }}{% else %}—{% endif %}</td>
+        <td class="small muted">
+          {% if it.item_type == 'numerical' %}
+          nom {{ it.nominal }}{{ it.unit or '' }} · OK ±{{ it.tol_ok }} · warn ±{{ it.tol_warn }}
+          ({{ it.mode }})
+          {% else %}Yes = PASS · No = FAIL{% endif %}
+        </td>
         <td style="white-space:nowrap">
           <button type="button" class="btn btn-secondary btn-sm"
-                  onclick='startEdit({{ it|tojson }})'>Edit</button>
+                  onclick='startEdit({{ it | tojson }})'>Edit</button>
           <form method="post" action="{{ base }}/delete" style="display:inline"
                 onsubmit="return confirm('Delete this item?');">
             <input type="hidden" name="id" value="{{ it.id }}">
+            <input type="hidden" name="linac_id" value="{{ linac_id }}">
             <button type="submit" class="btn btn-danger btn-sm">Delete</button>
           </form>
         </td>
@@ -48,19 +69,19 @@
       {% endfor %}
     </tbody>
   </table>
-  </div>
   {% else %}
-  <p class="muted">No items yet.</p>
+  <p class="muted">No items yet for this machine. Add one below (defaults were seeded if this is the first open).</p>
   {% endif %}
 </div>
 
 <div class="card form-card" id="edit-card">
   <h2 style="margin-top:0" id="form-title">Add item</h2>
-  <form method="post" id="item-form" action="{{ base }}/add">
+  <form method="post" action="{{ base }}/add" id="item-form">
     <input type="hidden" name="id" id="f-id" value="">
+    <input type="hidden" name="linac_id" value="{{ linac_id }}">
     <div class="grid-2">
       <label>Label *
-        <input name="label" id="f-label" required placeholder="e.g. Output constancy">
+        <input name="label" id="f-label" required placeholder="e.g. Door interlock">
       </label>
       <label>Order
         <input type="number" name="order" id="f-order" value="0">
@@ -77,10 +98,10 @@
         <label>Nominal
           <input type="number" step="any" name="nominal" id="f-nominal" value="0">
         </label>
-        <label>OK tolerance (green)
+        <label>OK tolerance
           <input type="number" step="any" name="tol_ok" id="f-tol-ok" value="1">
         </label>
-        <label>Warn tolerance (yellow)
+        <label>Warn tolerance
           <input type="number" step="any" name="tol_warn" id="f-tol-warn" value="2">
         </label>
       </div>
@@ -95,7 +116,7 @@
           </select>
         </label>
       </div>
-      <p class="muted small">Green if |value − nominal| ≤ OK tol. Yellow if ≤ warn tol. Red if beyond warn.</p>
+      <p class="muted small">Green if |value − nominal| ≤ OK. Yellow if ≤ warn. Red beyond warn.</p>
     </div>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary" id="form-submit">Add item</button>
@@ -139,4 +160,5 @@ function cancelEdit() {
 }
 toggleNum();
 </script>
+{% endif %}
 {% endblock %}

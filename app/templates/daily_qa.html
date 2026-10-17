@@ -3,23 +3,59 @@
 {% block content %}
 <div class="page-header">
   <h1>Daily QA checklist</h1>
-  <p class="muted">Complete each item. Numerical values are graded green / yellow / red against configured tolerances.
-    {% if can_edit %}<a href="/library/edit-checklist">Edit checklist</a>{% endif %}
+  <p class="muted">Machine-specific daily checks. Numerical values are graded green / yellow / red.
+    {% if can_edit and linac_id %}
+    <a href="/library/edit-checklist?linac_id={{ linac_id }}">Edit checklist for this machine</a>
+    {% elif can_edit %}
+    <a href="/library/edit-checklist">Edit checklists</a>
+    {% endif %}
   </p>
 </div>
 
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="card form-card">
+  <form method="get" action="/daily-qa" class="grid-2" style="align-items:end">
+    <label>Machine *
+      <select name="linac_id" required onchange="this.form.submit()">
+        <option value="">— Select machine —</option>
+        {% for m in machines %}
+        <option value="{{ m.id }}" {% if linac_id == m.id %}selected{% endif %}>
+          {{ m.name }}{% if m.category is defined %} ({{ m.category }}){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <div>
+      <button type="submit" class="btn btn-secondary">Load checklist</button>
+    </div>
+  </form>
+  {% if not machines %}
+  <p class="muted" style="margin-top:0.75rem">No machines registered. Add a machine under Libraries first.</p>
+  {% endif %}
+</div>
+
+{% if machine %}
+<div class="card" style="margin-bottom:1rem">
+  <strong>Machine:</strong> {{ machine.name }}
+  {% if machine.manufacturer is defined and machine.manufacturer %}
+  <span class="muted">· {{ machine.manufacturer }} {{ machine.model or '' }}</span>
+  {% endif %}
+</div>
+
 {% if overall %}
-<div class="alert {% if overall == 'green' %}alert-ok{% elif overall == 'yellow' %}alert-error{% else %}alert-error{% endif %}"
-     style="{% if overall == 'yellow' %}background:rgba(251,191,36,0.15);border-color:#fbbf24;color:#fbbf24{% elif overall == 'green' %}{% else %}{% endif %}">
+<div class="alert {% if overall == 'green' %}alert-ok{% else %}alert-error{% endif %}"
+     style="{% if overall == 'yellow' %}background:rgba(251,191,36,0.15);border-color:#fbbf24;color:#fbbf24{% endif %}">
   Overall status:
   <strong>{% if overall == 'green' %}PASS{% elif overall == 'yellow' %}BORDERLINE{% else %}FAIL{% endif %}</strong>
 </div>
 {% endif %}
 
 <form method="post" action="/daily-qa" class="card form-card">
+  <input type="hidden" name="linac_id" value="{{ linac_id }}">
   {% for it in items %}
   <div style="margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border)">
-    <label style="font-weight:600;color:var(--text)">
+    <label style="font-weight:600">
       {{ loop.index }}. {{ it.label }}
       {% if it.item_type == 'numerical' %}
       <span class="muted small">
@@ -40,7 +76,9 @@
     {% endif %}
   </div>
   {% else %}
-  <p class="muted">No checklist items. {% if can_edit %}<a href="/library/edit-checklist">Add items</a>{% endif %}</p>
+  <p class="muted">No checklist items for this machine.
+    {% if can_edit %}<a href="/library/edit-checklist?linac_id={{ linac_id }}">Add items</a>{% endif %}
+  </p>
   {% endfor %}
   {% if items %}
   <div class="form-actions">
@@ -51,7 +89,7 @@
 
 {% if results %}
 <div class="card result-card">
-  <h2>Results</h2>
+  <h2>Results — {{ machine.name }}</h2>
   <table class="data-table">
     <thead><tr><th>#</th><th>Item</th><th>Value</th><th>Status</th></tr></thead>
     <tbody>
@@ -61,14 +99,15 @@
         <td>{{ r.label }}</td>
         <td>{{ r.display }}</td>
         <td>
-          {% if r.status == 'green' %}<span style="color:var(--success);font-weight:700">● GREEN</span>
-          {% elif r.status == 'yellow' %}<span style="color:var(--highlight);font-weight:700">● YELLOW</span>
-          {% else %}<span style="color:var(--danger);font-weight:700">● RED</span>{% endif %}
+          {% if r.status == 'green' %}<span style="color:var(--success);font-weight:700">PASS</span>
+          {% elif r.status == 'yellow' %}<span style="color:#fbbf24;font-weight:700">BORDERLINE</span>
+          {% else %}<span style="color:var(--danger);font-weight:700">FAIL</span>{% endif %}
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+{% endif %}
 {% endif %}
 {% endblock %}
