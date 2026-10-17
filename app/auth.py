@@ -12,50 +12,102 @@ import secrets
 import uuid
 
 
-# ---------------------------------------------------------------------------
-# Roles & default permissions
-# ---------------------------------------------------------------------------
-
-ROLES = ("developer", "admin", "physicist", "intern", "observer")
+ROLES = (
+    "developer", "admin", "physicist", "doctor", "technologist", "intern", "observer",
+)
 
 # Permission keys
-PERM_CALCULATE = "calculate"           # run absolute dosimetry sessions
-PERM_TUNE = "tune"                     # tune output
-PERM_LIBRARY_VIEW = "library_view"     # view detectors/linacs/tolerances
-PERM_LIBRARY_EDIT = "library_edit"     # propose edits (goes to approval)
-PERM_APPROVE = "approve"               # approve/reject library changes
-PERM_USER_MANAGE = "user_manage"       # create/edit/delete users
-PERM_DEPT_EDIT = "dept_edit"           # edit department details
+PERM_CALCULATE = "calculate"
+PERM_TUNE = "tune"
+PERM_LIBRARY_VIEW = "library_view"
+PERM_LIBRARY_EDIT = "library_edit"
+PERM_APPROVE = "approve"
+PERM_USER_MANAGE = "user_manage"
+PERM_DEPT_EDIT = "dept_edit"
 PERM_HISTORY_VIEW = "history_view"
-PERM_ADMIN_PANEL = "admin_panel"       # see user directory
+PERM_ADMIN_PANEL = "admin_panel"
+
+# Section visibility (admin/developer assign per user)
+SEC_LINAC = "sec_linac"
+SEC_BRACHY = "sec_brachy"
+SEC_ACTIVITY = "sec_activity"
+SEC_BED = "sec_bed"
+SEC_BED_COMBINED = "sec_bed_combined"
+SEC_GAP = "sec_gap"
+SEC_LIBRARIES = "sec_libraries"
+SEC_HISTORY = "sec_history"
+SEC_REPORTS = "sec_reports"
+SEC_APPROVALS = "sec_approvals"
+SEC_DEPARTMENT = "sec_department"
+
+SECTION_LABELS = {
+    SEC_LINAC: "Linac absolute dosimetry",
+    SEC_BRACHY: "Brachytherapy",
+    SEC_ACTIVITY: "Source activity calculator",
+    SEC_BED: "Bed / eqd2 calculator",
+    SEC_BED_COMBINED: "Ebrt + brachy bed",
+    SEC_GAP: "Gap correction",
+    SEC_LIBRARIES: "Libraries (detectors, machines, tolerances)",
+    SEC_HISTORY: "Output history",
+    SEC_REPORTS: "Reports",
+    SEC_APPROVALS: "Approvals",
+    SEC_DEPARTMENT: "Department",
+}
+
+ALL_SECTION_PERMS = list(SECTION_LABELS.keys())
 
 DEFAULT_PERMISSIONS: Dict[str, Set[str]] = {
     "developer": {
         PERM_CALCULATE, PERM_TUNE, PERM_LIBRARY_VIEW, PERM_LIBRARY_EDIT,
         PERM_APPROVE, PERM_USER_MANAGE, PERM_DEPT_EDIT, PERM_HISTORY_VIEW,
         PERM_ADMIN_PANEL,
+        *ALL_SECTION_PERMS,
     },
     "admin": {
         PERM_CALCULATE, PERM_TUNE, PERM_LIBRARY_VIEW, PERM_LIBRARY_EDIT,
         PERM_APPROVE, PERM_USER_MANAGE, PERM_DEPT_EDIT, PERM_HISTORY_VIEW,
         PERM_ADMIN_PANEL,
+        *ALL_SECTION_PERMS,
     },
     "physicist": {
         PERM_CALCULATE, PERM_TUNE, PERM_LIBRARY_VIEW, PERM_LIBRARY_EDIT,
         PERM_APPROVE, PERM_DEPT_EDIT, PERM_HISTORY_VIEW,
+        *ALL_SECTION_PERMS,
+    },
+    "doctor": {
+        PERM_LIBRARY_VIEW, PERM_HISTORY_VIEW,
+        SEC_BED, SEC_BED_COMBINED, SEC_GAP, SEC_REPORTS, SEC_DEPARTMENT,
+    },
+    "technologist": {
+        PERM_CALCULATE, PERM_LIBRARY_VIEW, PERM_HISTORY_VIEW,
+        SEC_LINAC, SEC_BRACHY, SEC_ACTIVITY, SEC_LIBRARIES, SEC_HISTORY, SEC_DEPARTMENT,
     },
     "intern": {
         PERM_CALCULATE, PERM_LIBRARY_VIEW, PERM_HISTORY_VIEW,
-        # no tune, no edit, no approve
+        SEC_LINAC, SEC_BRACHY, SEC_ACTIVITY, SEC_BED, SEC_BED_COMBINED, SEC_GAP,
+        SEC_LIBRARIES, SEC_HISTORY, SEC_DEPARTMENT,
     },
     "observer": {
         PERM_LIBRARY_VIEW, PERM_HISTORY_VIEW,
-        # view only
+        SEC_LIBRARIES, SEC_HISTORY, SEC_REPORTS, SEC_DEPARTMENT,
     },
 }
 
+PERM_LABELS = {
+    PERM_CALCULATE: "Run calculations",
+    PERM_TUNE: "Tune output",
+    PERM_LIBRARY_VIEW: "View libraries",
+    PERM_LIBRARY_EDIT: "Edit libraries",
+    PERM_APPROVE: "Approve changes",
+    PERM_USER_MANAGE: "Manage users",
+    PERM_DEPT_EDIT: "Edit department",
+    PERM_HISTORY_VIEW: "View history",
+    PERM_ADMIN_PANEL: "User directory",
+    **SECTION_LABELS,
+}
 
-def _hash_password(password: str, salt: Optional[str] = None) -> tuple[str, str]:
+
+def _hash_password(password: str, salt: Optional[str] = None) -> tuple:
     if salt is None:
         salt = secrets.token_hex(16)
     h = hashlib.sha256((salt + password).encode()).hexdigest()
@@ -71,7 +123,7 @@ class User:
     id: str
     username: str
     full_name: str
-    role: str                          # developer | admin | physicist | intern | observer
+    role: str
     password_hash: str
     salt: str
     active: bool = True
@@ -87,9 +139,9 @@ class User:
         return h == self.password_hash
 
 
-_USERS: Dict[str, User] = {}          # id -> User
-_BY_USERNAME: Dict[str, str] = {}     # username -> id
-_SESSIONS: Dict[str, str] = {}        # session_token -> user_id
+_USERS: Dict[str, User] = {}
+_BY_USERNAME: Dict[str, str] = {}
+_SESSIONS: Dict[str, str] = {}
 
 
 def create_user(username: str, password: str, full_name: str, role: str,
@@ -142,7 +194,6 @@ def update_user(user_id: str, **kwargs) -> Optional[User]:
         if hasattr(user, k) and k not in ("id", "password_hash", "salt"):
             setattr(user, k, v)
     if "username" in kwargs:
-        # rebuild index
         _BY_USERNAME.clear()
         for u in _USERS.values():
             _BY_USERNAME[u.username] = u.id
@@ -153,14 +204,12 @@ def delete_user(user_id: str) -> bool:
     user = _USERS.get(user_id)
     if not user:
         return False
-    # prevent deleting last developer
     if user.role == "developer":
         devs = [u for u in _USERS.values() if u.role == "developer" and u.id != user_id]
         if not devs:
             raise ValueError("Cannot delete the last developer account")
     _BY_USERNAME.pop(user.username, None)
     del _USERS[user_id]
-    # invalidate sessions
     to_del = [t for t, uid in _SESSIONS.items() if uid == user_id]
     for t in to_del:
         del _SESSIONS[t]
@@ -196,7 +245,6 @@ def destroy_session(token: str) -> None:
 
 
 def seed_users() -> None:
-    """Create default developer and admin if empty."""
     if _USERS:
         return
     create_user("developer", "DosePro@2026", "System Developer", "developer", created_by="system")
