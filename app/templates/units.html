@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Units converter — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Units converter</h1>
+  <p class="muted">Quick conversion for dose, activity, length and time units used in radiotherapy.</p>
+</div>
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+<form method="post" action="/units" class="card form-card">
+  <div class="grid-2">
+    <label>
+      Category
+      <select name="category" id="category">
+        {% for c in ['dose','activity','length','time'] %}
+        <option value="{{ c }}" {% if form and form.category == c %}selected{% endif %}>{{ c|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Value
+      <input type="number" name="value" step="any" required value="{{ form.value if form else 1 }}">
+    </label>
+  </div>
+  <div class="grid-2">
+    <label>
+      From unit
+      <select name="from_unit" id="from_unit">
+        {% for u in unit_options.get(form.category if form else 'dose', unit_options.dose) %}
+        <option value="{{ u }}" {% if form and form.from_unit == u %}selected{% endif %}>{{ u }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      To unit
+      <select name="to_unit" id="to_unit">
+        {% for u in unit_options.get(form.category if form else 'dose', unit_options.dose) %}
+        <option value="{{ u }}" {% if form and form.to_unit == u %}selected{% endif %}>{{ u }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Convert</button>
+    <a href="/" class="btn btn-ghost">Back to home</a>
+  </div>
+</form>
+{% if result %}
+<div class="card result-card">
+  <h2>Result</h2>
+  <p class="highlight" style="font-size:1.25rem">
+    {{ "%.6g"|format(result.value) }} {{ result.from_unit }} = <strong>{{ "%.6g"|format(result.result) }} {{ result.to_unit }}</strong>
+  </p>
+</div>
+{% endif %}
+<script>
+const opts = {{ unit_options | tojson }};
+document.getElementById('category').addEventListener('change', function() {
+  const list = opts[this.value] || [];
+  for (const id of ['from_unit','to_unit']) {
+    const sel = document.getElementById(id);
+    sel.innerHTML = list.map(u => `<option value="${u}">${u}</option>`).join('');
+  }
+});
+</script>
+{% endblock %}

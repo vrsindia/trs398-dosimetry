@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Equivalent square — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Equivalent square field</h1>
+  <p class="muted">Sterling formula: EqSq = 2 × L × W / (L + W). Also supports circular fields.</p>
+</div>
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+<form method="post" action="/eqsquare" class="card form-card">
+  <fieldset>
+    <legend>Rectangular field</legend>
+    <div class="grid-2">
+      <label>Length (cm) <input type="number" name="length" step="0.1" min="0" value="{{ form.length if form else 10 }}"></label>
+      <label>Width (cm) <input type="number" name="width" step="0.1" min="0" value="{{ form.width if form else 10 }}"></label>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Or circular field</legend>
+    <label>Diameter (cm) <input type="number" name="diameter" step="0.1" min="0" value="{{ form.diameter if form else '' }}" placeholder="Leave blank if using L×W"></label>
+  </fieldset>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Calculate</button>
+    <a href="/" class="btn btn-ghost">Back to home</a>
+  </div>
+</form>
+{% if result %}
+<div class="card result-card">
+  <h2>Results</h2>
+  <table class="result-table wide">
+    {% if result.length is defined %}
+    <tr><th>Field</th><td>{{ result.length }} × {{ result.width }} cm</td></tr>
+    <tr><th>Area</th><td>{{ "%.2f"|format(result.area) }} cm²</td></tr>
+    {% else %}
+    <tr><th>Diameter</th><td>{{ result.diameter }} cm</td></tr>
+    <tr><th>Area</th><td>{{ "%.2f"|format(result.area) }} cm²</td></tr>
+    {% endif %}
+    <tr><th>Equivalent square</th><td class="highlight">{{ "%.2f"|format(result.eq_square) }} cm</td></tr>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
