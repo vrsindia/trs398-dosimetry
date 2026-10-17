@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}MU calculator — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>MU calculator</h1>
+  <p class="muted">Simple independent MU estimate for photon (SSD/SAD) and electron fields. Not a substitute for TPS.</p>
+</div>
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+<form method="post" action="/mu" class="card form-card">
+  <fieldset>
+    <legend>Modality</legend>
+    <div class="grid-1">
+      <label class="radio-row"><input type="radio" name="modality" value="photon_ssd" {% if not form or form.modality == 'photon_ssd' %}checked{% endif %}> Photon SSD</label>
+      <label class="radio-row"><input type="radio" name="modality" value="photon_sad" {% if form and form.modality == 'photon_sad' %}checked{% endif %}> Photon SAD</label>
+      <label class="radio-row"><input type="radio" name="modality" value="electron" {% if form and form.modality == 'electron' %}checked{% endif %}> Electron</label>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Dose &amp; output</legend>
+    <div class="grid-2">
+      <label>Prescription dose (cGy) <input type="number" name="dose_cgy" step="0.1" min="0" required value="{{ form.dose_cgy if form else 200 }}"></label>
+      <label>Output (cGy/MU) <input type="number" name="output_cgy_mu" step="0.001" min="0" required value="{{ form.output_cgy_mu if form else 1.0 }}"></label>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Photon factors</legend>
+    <div class="grid-3">
+      <label>Sc <input type="number" name="sc" step="0.001" value="{{ form.sc if form else 1 }}"></label>
+      <label>Sp <input type="number" name="sp" step="0.001" value="{{ form.sp if form else 1 }}"></label>
+      <label>TMR / PDD <input type="number" name="tmr_or_pdd" step="0.001" value="{{ form.tmr_or_pdd if form else 1 }}"></label>
+      <label>Inv. square / SAD factor <input type="number" name="inv_square" step="0.001" value="{{ form.inv_square if form else 1 }}"></label>
+      <label>Wedge factor <input type="number" name="wedge" step="0.001" value="{{ form.wedge if form else 1 }}"></label>
+      <label>Tray / other <input type="number" name="tray" step="0.001" value="{{ form.tray if form else 1 }}"></label>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Electron factors</legend>
+    <div class="grid-3">
+      <label>Applicator factor <input type="number" name="applicator_factor" step="0.001" value="{{ form.applicator_factor if form else 1 }}"></label>
+      <label>Cutout factor <input type="number" name="cutout_factor" step="0.001" value="{{ form.cutout_factor if form else 1 }}"></label>
+      <label>SSDF <input type="number" name="ssdf" step="0.001" value="{{ form.ssdf if form else 1 }}"></label>
+    </div>
+  </fieldset>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Calculate MU</button>
+    <a href="/" class="btn btn-ghost">Back to home</a>
+  </div>
+</form>
+{% if result %}
+<div class="card result-card">
+  <h2>Results</h2>
+  <table class="result-table wide">
+    <tr><th>Modality</th><td>{{ result.modality }}</td></tr>
+    <tr><th>Dose</th><td>{{ result.dose_cgy }} cGy</td></tr>
+    <tr><th>MU</th><td class="highlight">{{ "%.2f"|format(result.mu) }}</td></tr>
+  </table>
+  <p class="muted small">This is a simplified product-of-factors estimate. Always verify against the treatment planning system and departmental charts.</p>
+</div>
+{% endif %}
+<style>.radio-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem}.radio-row input{width:auto}</style>
+{% endblock %}
