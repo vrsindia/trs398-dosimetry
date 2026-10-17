@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header">
   <h1>Users</h1>
-  <p class="muted">Set role, password, <strong>section access</strong> (home page cards) and <strong>task rights</strong> for each user.</p>
+  <p class="muted">Set role, password, <strong>section access</strong> and <strong>task rights</strong>. Click a user to expand.</p>
 </div>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
@@ -51,82 +51,85 @@
   <h2 style="margin-top:0">User directory</h2>
   {% if users %}
   {% for u in users %}
-  <div class="card form-card" style="margin-bottom:1.25rem;border-left:4px solid var(--primary)">
-    <div style="display:flex;flex-wrap:wrap;gap:0.75rem 1.5rem;align-items:center;margin-bottom:1rem">
-      <div>
-        <strong style="font-size:1.05rem">{{ u.full_name }}</strong>
+  <details class="user-collapse">
+    <summary class="user-summary">
+      <span class="user-summary-main">
+        <strong>{{ u.full_name }}</strong>
         <span class="muted small">@{{ u.username }}</span>
-      </div>
+      </span>
       <span class="badge">{{ u.role }}</span>
       {% if u.active %}
-      <span style="color:var(--success);font-weight:600">Active</span>
+      <span class="status-on">Active</span>
       {% else %}
-      <span style="color:var(--danger);font-weight:600">Inactive</span>
+      <span class="status-off">Inactive</span>
+      {% endif %}
+      <span class="user-chevron" aria-hidden="true">▸</span>
+    </summary>
+
+    <div class="user-body">
+      <form method="post" action="/users/{{ u.id }}/edit">
+        <div class="grid-2">
+          <label>Full name
+            <input name="full_name" value="{{ u.full_name }}">
+          </label>
+          <label>Role
+            <select name="role">
+              {% for r in roles %}
+              <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <label>New password <span class="muted small">(leave blank to keep current)</span>
+          <input type="password" name="password" autocomplete="new-password" placeholder="New password">
+        </label>
+
+        <fieldset class="perm-fieldset">
+          <legend>Section access (home page)</legend>
+          <p class="muted small">Tick each section this user is allowed to open.</p>
+          <div class="perm-grid">
+            {% for p in sec_list %}
+            <label class="check-label perm-item">
+              <input type="checkbox" name="permissions" value="{{ p }}"
+                     {% if p in u.permissions %}checked{% endif %}>
+              <span class="perm-name">{{ sec_names.get(p, p) }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        <fieldset class="perm-fieldset">
+          <legend>Task rights</legend>
+          <p class="muted small">Tick the actions this user is allowed to perform.</p>
+          <div class="perm-grid">
+            {% for p in task_list %}
+            <label class="check-label perm-item">
+              <input type="checkbox" name="permissions" value="{{ p }}"
+                     {% if p in u.permissions %}checked{% endif %}>
+              <span class="perm-name">{{ task_names.get(p, p) }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        <label class="check-label" style="margin-top:0.85rem">
+          <input type="checkbox" name="active" value="1" {% if u.active %}checked{% endif %}>
+          <span class="perm-name">Active account</span>
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Save user</button>
+        </div>
+      </form>
+
+      {% if u.role != 'developer' or users|selectattr('role','equalto','developer')|list|length > 1 %}
+      <form method="post" action="/users/{{ u.id }}/delete" style="margin-top:0.5rem"
+            onsubmit="return confirm('Delete user {{ u.username }}?');">
+        <button type="submit" class="btn btn-danger btn-sm">Delete user</button>
+      </form>
       {% endif %}
     </div>
-
-    <form method="post" action="/users/{{ u.id }}/edit">
-      <div class="grid-2">
-        <label>Full name
-          <input name="full_name" value="{{ u.full_name }}">
-        </label>
-        <label>Role
-          <select name="role">
-            {% for r in roles %}
-            <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
-            {% endfor %}
-          </select>
-        </label>
-      </div>
-      <label>New password <span class="muted small">(leave blank to keep current)</span>
-        <input type="password" name="password" autocomplete="new-password" placeholder="New password">
-      </label>
-
-      <fieldset class="perm-fieldset">
-        <legend>Section access (home page)</legend>
-        <p class="muted small">Tick each section this user is allowed to open.</p>
-        <div class="perm-grid">
-          {% for p in sec_list %}
-          <label class="check-label perm-item">
-            <input type="checkbox" name="permissions" value="{{ p }}"
-                   {% if p in u.permissions %}checked{% endif %}>
-            <span class="perm-name">{{ sec_names.get(p, p) }}</span>
-          </label>
-          {% endfor %}
-        </div>
-      </fieldset>
-
-      <fieldset class="perm-fieldset">
-        <legend>Task rights</legend>
-        <p class="muted small">Tick the actions this user is allowed to perform.</p>
-        <div class="perm-grid">
-          {% for p in task_list %}
-          <label class="check-label perm-item">
-            <input type="checkbox" name="permissions" value="{{ p }}"
-                   {% if p in u.permissions %}checked{% endif %}>
-            <span class="perm-name">{{ task_names.get(p, p) }}</span>
-          </label>
-          {% endfor %}
-        </div>
-      </fieldset>
-
-      <label class="check-label" style="margin-top:0.85rem">
-        <input type="checkbox" name="active" value="1" {% if u.active %}checked{% endif %}>
-        <span class="perm-name">Active account</span>
-      </label>
-
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">Save user</button>
-      </div>
-    </form>
-
-    {% if u.role != 'developer' or users|selectattr('role','equalto','developer')|list|length > 1 %}
-    <form method="post" action="/users/{{ u.id }}/delete" style="margin-top:0.5rem"
-          onsubmit="return confirm('Delete user {{ u.username }}?');">
-      <button type="submit" class="btn btn-danger btn-sm">Delete user</button>
-    </form>
-    {% endif %}
-  </div>
+  </details>
   {% endfor %}
   {% else %}
   <p class="muted">No users found.</p>
@@ -156,10 +159,49 @@
         </select>
       </label>
     </div>
-    <p class="muted small">After creating a user, set their section access and task rights in the card above.</p>
+    <p class="muted small">After creating a user, expand their row to set section access and task rights.</p>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">Create user</button>
     </div>
   </form>
 </div>
+
+<style>
+.user-collapse {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  margin-bottom: 0.65rem;
+  overflow: hidden;
+}
+.user-collapse[open] {
+  background: var(--surface);
+  border-color: var(--primary);
+}
+.user-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.user-summary::-webkit-details-marker { display: none; }
+.user-summary-main { flex: 1; min-width: 140px; }
+.user-chevron {
+  margin-left: auto;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+  font-size: 0.9rem;
+}
+.user-collapse[open] .user-chevron { transform: rotate(90deg); }
+.user-body {
+  padding: 0 1rem 1.15rem;
+  border-top: 1px solid var(--border);
+}
+.status-on { color: var(--success); font-weight: 600; font-size: 0.88rem; }
+.status-off { color: var(--danger); font-weight: 600; font-size: 0.88rem; }
+</style>
 {% endblock %}
