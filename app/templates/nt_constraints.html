@@ -1,84 +1,127 @@
 {% extends "base.html" %}
-{% block title %}Normal-tissue EQD2 — DOSE pro{% endblock %}
+{% block title %}OAR EQD2 constraints — DOSE pro{% endblock %}
 {% block content %}
 <div class="page-header">
-  <h1>Normal-tissue EQD2 constraints</h1>
+  <h1>OAR EQD2 constraints</h1>
   <p class="muted">
-    Reference EQD2 limits for organs at risk. Check a planned EQD2 against the library.
-    {% if can_edit %}<strong>Developer:</strong> you can edit the constraint table below.{% endif %}
+    Organ-at-risk dose constraints for radiotherapy planning (EQD2 reference limits).
+    This is a constraint library — not a calculator.
+    {% if can_edit %}<strong>Developer / admin:</strong> you can add, edit and delete constraints.{% endif %}
   </p>
 </div>
-{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
-{% if message %}<div class="alert" style="background:#14532d;color:#bbf7d0;padding:.75rem;border-radius:8px">{{ message }}</div>{% endif %}
 
-<form method="post" action="/nt-constraints" class="card form-card">
-  <input type="hidden" name="action" value="check">
-  <fieldset>
-    <legend>Check planned EQD2</legend>
-    <div class="grid-2">
-      <label>Planned EQD2 (Gy) <input type="number" name="eqd2" step="0.1" min="0" required value="{{ eqd2 if eqd2 is not none else 50 }}"></label>
-      <label>Filter organ (optional) <input type="text" name="organ_filter" value="{{ organ_filter or '' }}" placeholder="e.g. cord"></label>
-    </div>
-  </fieldset>
-  <div class="form-actions">
-    <button type="submit" class="btn btn-primary">Check</button>
-    <a href="/" class="btn btn-ghost">Back to home</a>
-  </div>
-</form>
-
-{% if check_rows %}
-<div class="card result-card">
-  <h2>Constraint check</h2>
-  <table class="result-table wide">
-    <thead>
-      <tr><th>Organ</th><th>Endpoint</th><th>Limit EQD2 (Gy)</th><th>α/β</th><th>Status</th><th>Notes</th></tr>
-    </thead>
-    <tbody>
-      {% for r in check_rows %}
-      <tr>
-        <td>{{ r.organ }}</td>
-        <td>{{ r.endpoint }}</td>
-        <td>{{ "%.1f"|format(r.eqd2_gy) }}</td>
-        <td>{{ r.ab }}</td>
-        <td class="{% if r.status == 'exceed' %}warn{% else %}ok{% endif %}">{{ r.status }}</td>
-        <td class="muted small">{{ r.notes }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+{% if message %}
+<div class="alert alert-ok">{{ message }}</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
 {% endif %}
 
-{% if can_edit %}
-<div class="card form-card" style="margin-top:1.5rem">
-  <h2>Edit constraints (developer only)</h2>
-  <form method="post" action="/nt-constraints">
-    <input type="hidden" name="action" value="save">
-    <p class="muted small">One constraint per line: Organ | Endpoint | EQD2 limit (Gy) | α/β | Notes</p>
-    <textarea name="constraints_text" rows="14" style="width:100%;font-family:monospace;font-size:0.85rem;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:0.75rem">{% for c in constraints %}{{ c.organ }} | {{ c.endpoint }} | {{ c.eqd2_gy }} | {{ c.ab }} | {{ c.notes }}
-{% endfor %}</textarea>
-    <div class="form-actions" style="margin-top:0.75rem">
-      <button type="submit" class="btn btn-primary">Save constraints</button>
-    </div>
-  </form>
-</div>
-{% else %}
-<div class="card result-card" style="margin-top:1.5rem">
-  <h2>Constraint library</h2>
-  <table class="result-table wide">
-    <thead><tr><th>Organ</th><th>Endpoint</th><th>EQD2 (Gy)</th><th>α/β</th><th>Notes</th></tr></thead>
+<div class="card result-card">
+  <h2 style="margin-top:0">Constraint library</h2>
+  {% if constraints %}
+  <div style="overflow-x:auto">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Organ</th>
+        <th>Endpoint</th>
+        <th>EQD2 limit (Gy)</th>
+        <th>α/β</th>
+        <th>Notes</th>
+        {% if can_edit %}<th>Actions</th>{% endif %}
+      </tr>
+    </thead>
     <tbody>
       {% for c in constraints %}
       <tr>
-        <td>{{ c.organ }}</td><td>{{ c.endpoint }}</td>
-        <td>{{ c.eqd2_gy }}</td><td>{{ c.ab }}</td>
+        <td><strong>{{ c.organ }}</strong></td>
+        <td>{{ c.endpoint }}</td>
+        <td>{{ "%.1f"|format(c.eqd2_gy) }}</td>
+        <td>{{ c.ab }}</td>
         <td class="muted small">{{ c.notes }}</td>
+        {% if can_edit %}
+        <td style="white-space:nowrap">
+          <button type="button" class="btn btn-secondary btn-sm"
+                  onclick="startEdit({{ loop.index0 }}, {{ c.organ|tojson }}, {{ c.endpoint|tojson }}, {{ c.eqd2_gy }}, {{ c.ab }}, {{ c.notes|tojson }})">
+            Edit
+          </button>
+          <form method="post" action="/nt-constraints/delete" style="display:inline"
+                onsubmit="return confirm('Delete this constraint?');">
+            <input type="hidden" name="index" value="{{ loop.index0 }}">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p class="muted small">Only a developer can edit this library.</p>
+  </div>
+  {% else %}
+  <p class="muted">No constraints defined yet.</p>
+  {% endif %}
 </div>
+
+{% if can_edit %}
+<div class="card form-card" id="edit-card">
+  <h2 style="margin-top:0" id="form-title">Add constraint</h2>
+  <form method="post" id="constraint-form" action="/nt-constraints/add">
+    <input type="hidden" name="index" id="f-index" value="">
+    <div class="grid-2">
+      <label>Organ
+        <input name="organ" id="f-organ" required placeholder="e.g. Spinal cord">
+      </label>
+      <label>Endpoint
+        <input name="endpoint" id="f-endpoint" placeholder="e.g. Myelopathy">
+      </label>
+    </div>
+    <div class="grid-2">
+      <label>EQD2 limit (Gy)
+        <input type="number" step="0.1" name="eqd2_gy" id="f-eqd2" required placeholder="45">
+      </label>
+      <label>α/β (Gy)
+        <input type="number" step="0.1" name="ab" id="f-ab" value="3">
+      </label>
+    </div>
+    <label>Notes
+      <input name="notes" id="f-notes" placeholder="e.g. Dmax conventional fractionation">
+    </label>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" id="form-submit">Add constraint</button>
+      <button type="button" class="btn btn-secondary" id="form-cancel" style="display:none" onclick="cancelEdit()">Cancel edit</button>
+    </div>
+  </form>
+</div>
+
+<script>
+function startEdit(index, organ, endpoint, eqd2, ab, notes) {
+  document.getElementById('form-title').textContent = 'Edit constraint';
+  document.getElementById('constraint-form').action = '/nt-constraints/edit';
+  document.getElementById('f-index').value = index;
+  document.getElementById('f-organ').value = organ || '';
+  document.getElementById('f-endpoint').value = endpoint || '';
+  document.getElementById('f-eqd2').value = eqd2;
+  document.getElementById('f-ab').value = ab;
+  document.getElementById('f-notes').value = notes || '';
+  document.getElementById('form-submit').textContent = 'Save changes';
+  document.getElementById('form-cancel').style.display = '';
+  document.getElementById('edit-card').scrollIntoView({ behavior: 'smooth' });
+}
+function cancelEdit() {
+  document.getElementById('form-title').textContent = 'Add constraint';
+  document.getElementById('constraint-form').action = '/nt-constraints/add';
+  document.getElementById('f-index').value = '';
+  document.getElementById('f-organ').value = '';
+  document.getElementById('f-endpoint').value = '';
+  document.getElementById('f-eqd2').value = '';
+  document.getElementById('f-ab').value = '3';
+  document.getElementById('f-notes').value = '';
+  document.getElementById('form-submit').textContent = 'Add constraint';
+  document.getElementById('form-cancel').style.display = 'none';
+}
+</script>
+{% else %}
+<p class="muted small">Only a developer or admin can add, edit or delete constraints.</p>
 {% endif %}
-<style>.ok{color:#22c55e}.warn{color:#fbbf24;font-weight:600}</style>
 {% endblock %}

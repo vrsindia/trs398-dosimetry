@@ -12,7 +12,7 @@
   <h3 class="section-label">Dosimetry</h3>
   <div class="home-grid">
     {% if u and (u.has('sec_linac') or u.has('calculate') or u.role in ['developer','admin']) %}
-    <a class="home-card card-blue" href="/output">
+    <a class="home-card card-blue" href="/linac">
       <h2>Linac absolute dosimetry</h2>
       <p>TRS-398 photon and electron output calibration.</p>
     </a>
@@ -61,8 +61,8 @@
     {% endif %}
     {% if u and (u.has('sec_nt_constraints') or u.has('calculate') or u.role in ['developer','admin']) %}
     <a class="home-card card-fuchsia" href="/nt-constraints">
-      <h2>Normal-tissue EQD2</h2>
-      <p>OAR constraint library and EQD2 check.</p>
+      <h2>OAR EQD2 constraints</h2>
+      <p>Planning constraint library for organs at risk.</p>
     </a>
     {% endif %}
     {% if u and (u.has('sec_eqsquare') or u.has('calculate') or u.role in ['developer','admin']) %}

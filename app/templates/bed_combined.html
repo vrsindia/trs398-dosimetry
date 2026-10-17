@@ -1,145 +1,130 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ebrt + brachy bed – DOSE pro</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/theme.js"></script>
-</head>
-<body>
-    <header>
-        <div class="header-nav">
-            <a class="nav-btn" href="javascript:history.back()">← Back</a>
-            <a class="nav-btn" href="/">Home</a>
-            <strong>Ebrt + brachy bed</strong>
+{% extends "base.html" %}
+{% block title %}EBRT + brachy BED — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>EBRT + brachytherapy BED / EQD2</h1>
+  <p class="muted">
+    Combines fractionated external beam with one or more brachytherapy fractions.
+    Total BED = BED<sub>EBRT</sub> + BED<sub>brachy</sub> (same α/β).
+  </p>
+</div>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="/bed-combined" class="card form-card" id="combined-form">
+  <fieldset>
+    <legend>EBRT (external beam)</legend>
+    <div class="grid-3">
+      <label>Number of fractions
+        <input type="number" step="any" name="ebrt_n" required
+               value="{{ inputs.ebrt_n if inputs else 25 }}">
+      </label>
+      <label>Dose per fraction (Gy)
+        <input type="number" step="any" name="ebrt_d" required
+               value="{{ inputs.ebrt_d if inputs else 1.8 }}">
+      </label>
+      <label>α/β (Gy)
+        <input type="number" step="any" name="ab" required
+               value="{{ inputs.ab if inputs else 10 }}">
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Brachytherapy fractions</legend>
+    <p class="muted small">Add each fraction dose. Use “Add fraction” for multiple fractions.</p>
+    <div id="brachy-list">
+      {% if inputs and inputs.brachy_doses %}
+        {% for d in inputs.brachy_doses %}
+        <div class="brachy-row">
+          <label>Fraction dose (Gy)
+            <input type="number" step="any" name="brachy_dose" value="{{ d }}" required>
+          </label>
+          <button type="button" class="btn btn-secondary btn-sm"
+                  onclick="this.closest('.brachy-row').remove()">Remove</button>
         </div>
-        <div class="header-actions">
-            <button type="button" id="theme-toggle">Light theme</button>
+        {% endfor %}
+      {% else %}
+        <div class="brachy-row">
+          <label>Fraction dose (Gy)
+            <input type="number" step="any" name="brachy_dose" value="7" required>
+          </label>
+          <button type="button" class="btn btn-secondary btn-sm"
+                  onclick="this.closest('.brachy-row').remove()">Remove</button>
         </div>
-    </header>
-    <main>
-        <div class="card">
-            <h1>Ebrt + brachytherapy bed / eqd2</h1>
-            <p style="color:var(--text-muted);">
-                Combines fractionated ebrt with one or more brachytherapy fractions.
-                Total bed = bed ebrt + bed brachy (same for eqd2).
-            </p>
-            <form method="post" action="/bed-combined" id="combined-form">
-                <h2 style="font-size:1rem; margin-top:0.5rem;">Ebrt (external beam)</h2>
-                <div class="grid grid-2">
-                    <div>
-                        <label>Ebrt total dose (Gy) *</label>
-                        <input type="number" step="any" name="ebrt_total" value="{{ inputs.ebrt_total }}" required>
-                    </div>
-                    <div>
-                        <label>Number of fractions *</label>
-                        <input type="number" step="any" name="ebrt_n" value="{{ inputs.ebrt_n }}" required>
-                    </div>
-                </div>
-                <label>Ebrt α/β (Gy) *</label>
-                <input type="number" step="any" name="ebrt_ab" value="{{ inputs.ebrt_ab }}" required>
+      {% endif %}
+    </div>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="addBrachyRow()" style="margin-top:0.5rem">
+      Add fraction
+    </button>
+    <label style="margin-top:1rem">Lea–Catcheside g-factor (usually 1 for HDR)
+      <input type="number" step="any" name="g" value="{{ inputs.g if inputs else 1 }}">
+    </label>
+  </fieldset>
 
-                <h2 style="font-size:1rem; margin-top:1.2rem;">Brachytherapy fractions</h2>
-                <p class="note">Add each brachytherapy fraction dose. Use “Add fraction” for multiple fractions.</p>
-                <div id="brachy-list">
-                    {% for d in inputs.brachy_doses %}
-                    <div class="brachy-row grid grid-2" style="align-items:end; margin-bottom:0.5rem;">
-                        <div>
-                            <label>Fraction dose (Gy) *</label>
-                            <input type="number" step="any" name="brachy_dose" value="{{ d }}" required>
-                        </div>
-                        <div>
-                            <button type="button" class="btn btn-outline btn-sm" onclick="this.closest('.brachy-row').remove()">Remove</button>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                <button type="button" class="btn btn-outline" onclick="addBrachyRow()" style="margin-top:0.5rem;">Add fraction</button>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Calculate</button>
+  </div>
+</form>
 
-                <div class="grid grid-2" style="margin-top:1rem;">
-                    <div>
-                        <label>Brachy α/β (Gy) *</label>
-                        <input type="number" step="any" name="brachy_ab" value="{{ inputs.brachy_ab }}" required>
-                    </div>
-                    <div>
-                        <label>Repair factor g (0–1, default 1 for hdr)</label>
-                        <input type="number" step="any" name="brachy_g" value="{{ inputs.brachy_g }}" min="0" max="1">
-                    </div>
-                </div>
+{% if result %}
+<div class="card result-card">
+  <h2>Results</h2>
+  <table class="result-table wide">
+    <tr>
+      <th></th>
+      <th>EBRT</th>
+      <th>Brachy</th>
+      <th>Combined</th>
+    </tr>
+    <tr>
+      <th>Schedule</th>
+      <td>{{ "%.1f"|format(result.ebrt_n) }} × {{ "%.2f"|format(result.ebrt_d) }} Gy
+          ({{ "%.1f"|format(result.ebrt_total) }} Gy)</td>
+      <td>{{ result.brachy_doses|length }} fraction(s)</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <th>α/β</th>
+      <td colspan="3">{{ "%.2f"|format(result.ab) }} Gy · g = {{ "%.2f"|format(result.g) }}</td>
+    </tr>
+    <tr>
+      <th>BED</th>
+      <td>{{ "%.2f"|format(result.ebrt_bed) }} Gy</td>
+      <td>{{ "%.2f"|format(result.brachy_bed) }} Gy</td>
+      <td class="highlight">{{ "%.2f"|format(result.total_bed) }} Gy</td>
+    </tr>
+    <tr>
+      <th>EQD2</th>
+      <td>{{ "%.2f"|format(result.ebrt_eqd2) }} Gy</td>
+      <td>{{ "%.2f"|format(result.brachy_eqd2) }} Gy</td>
+      <td class="highlight">{{ "%.2f"|format(result.total_eqd2) }} Gy</td>
+    </tr>
+  </table>
 
-                <button type="submit" style="margin-top:1.2rem; width:100%;">Calculate combined bed &amp; eqd2</button>
-            </form>
-        </div>
+  {% if result.brachy_doses|length > 1 %}
+  <h3 style="margin-top:1.2rem;font-size:1rem">Brachy fraction detail</h3>
+  <table class="result-table wide">
+    <tr><th>#</th><th>Dose (Gy)</th></tr>
+    {% for d in result.brachy_doses %}
+    <tr><td>{{ loop.index }}</td><td>{{ "%.3g"|format(d) }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  <p class="notes">Verify α/β and recovery assumptions against local protocol.</p>
+</div>
+{% endif %}
 
-        {% if error %}
-        <div class="card result-fail"><p><strong>Error:</strong> {{ error }}</p></div>
-        {% endif %}
-
-        {% if result %}
-        <div class="card result-pass">
-            <h2>Results</h2>
-            <table>
-                <tr><th></th><th>Ebrt</th><th>Brachy</th><th>Combined</th></tr>
-                <tr>
-                    <th>Dose</th>
-                    <td>{{ "%.3g"|format(result.ebrt_total) }} Gy / {{ "%.3g"|format(result.ebrt_n) }} fx<br>(d = {{ "%.3g"|format(result.ebrt_d) }} Gy)</td>
-                    <td>{{ result.brachy_n }} fx, total {{ "%.3g"|format(result.brachy_total_dose) }} Gy<br>
-                        {% for f in result.brachy_fractions %}{{ "%.3g"|format(f.dose) }} Gy{% if not loop.last %}, {% endif %}{% endfor %}
-                    </td>
-                    <td>—</td>
-                </tr>
-                <tr>
-                    <th>α/β</th>
-                    <td>{{ "%.3g"|format(result.ebrt_ab) }} Gy</td>
-                    <td>{{ "%.3g"|format(result.brachy_ab) }} Gy (g = {{ "%.3g"|format(result.brachy_g) }})</td>
-                    <td>—</td>
-                </tr>
-                <tr>
-                    <th>Bed</th>
-                    <td><strong>{{ "%.2f"|format(result.ebrt_bed) }} Gy</strong></td>
-                    <td><strong>{{ "%.2f"|format(result.brachy_bed) }} Gy</strong></td>
-                    <td><strong>{{ "%.2f"|format(result.total_bed) }} Gy</strong></td>
-                </tr>
-                <tr>
-                    <th>Eqd2</th>
-                    <td><strong>{{ "%.2f"|format(result.ebrt_eqd2) }} Gy</strong></td>
-                    <td><strong>{{ "%.2f"|format(result.brachy_eqd2) }} Gy</strong></td>
-                    <td><strong>{{ "%.2f"|format(result.total_eqd2) }} Gy</strong></td>
-                </tr>
-            </table>
-
-            {% if result.brachy_fractions|length > 1 %}
-            <h2 style="margin-top:1.2rem; font-size:1rem;">Brachy fraction detail</h2>
-            <table>
-                <tr><th>Fraction</th><th>Dose (Gy)</th><th>Bed (Gy)</th><th>Eqd2 (Gy)</th></tr>
-                {% for f in result.brachy_fractions %}
-                <tr>
-                    <td>{{ loop.index }}</td>
-                    <td>{{ "%.3g"|format(f.dose) }}</td>
-                    <td>{{ "%.2f"|format(f.bed) }}</td>
-                    <td>{{ "%.2f"|format(f.eqd2) }}</td>
-                </tr>
-                {% endfor %}
-            </table>
-            {% endif %}
-            <p class="note" style="margin-top:0.8rem;">Verify α/β and recovery assumptions against local protocol.</p>
-        </div>
-        {% endif %}
-    </main>
-    <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
-    <script>
-    function addBrachyRow() {
-        var list = document.getElementById('brachy-list');
-        var div = document.createElement('div');
-        div.className = 'brachy-row grid grid-2';
-        div.style.cssText = 'align-items:end;margin-bottom:0.5rem;';
-        div.innerHTML = '<div><label>Fraction dose (Gy) *</label>' +
-            '<input type="number" step="any" name="brachy_dose" value="" required></div>' +
-            '<div><button type="button" class="btn btn-outline btn-sm" ' +
-            'onclick="this.closest(\'.brachy-row\').remove()">Remove</button></div>';
-        list.appendChild(div);
-    }
-    </script>
-</body>
-</html>
+<script>
+function addBrachyRow() {
+  var list = document.getElementById('brachy-list');
+  var div = document.createElement('div');
+  div.className = 'brachy-row';
+  div.innerHTML = '<label>Fraction dose (Gy)<input type="number" step="any" name="brachy_dose" value="" required></label>' +
+    '<button type="button" class="btn btn-secondary btn-sm" onclick="this.closest(\'.brachy-row\').remove()">Remove</button>';
+  list.appendChild(div);
+}
+</script>
+{% endblock %}

@@ -28,17 +28,7 @@ for _label, _mod, _fn in [
     except Exception as e:
         print(_label + ":", e)
 
-try:
-    import app.force_utils as fu
-    if hasattr(fu, "_DONE"):
-        fu._DONE = False
-    fu.register_force_utils(app, templates)
-    print("force_utils re-OK")
-except Exception as e:
-    print("FORCE_UTILS 2:", e)
-    traceback.print_exc()
-
-# Department routes LAST — must win over core main.py /department handlers
+# Department
 try:
     from app.department_routes import register_department_routes
     register_department_routes(app, templates)
@@ -47,14 +37,27 @@ except Exception as e:
     print("department_routes:", e)
     traceback.print_exc()
 
+# Working utility routes MUST be last — override any broken handlers
+try:
+    from app.fix_utils import register_fix_utils
+    register_fix_utils(app, templates)
+    print("fix_utils OK")
+except Exception as e:
+    print("fix_utils FAILED:", e)
+    traceback.print_exc()
+
 
 @app.on_event("startup")
-def _rebind_department():
-    """Re-bind department after full startup so no earlier route can shadow it."""
+def _startup_rebind():
     try:
         from app.department_routes import register_department_routes
         register_department_routes(app, templates)
-        print("department_routes startup rebind OK")
+        print("department startup rebind OK")
     except Exception as e:
-        print("department startup rebind failed:", e)
-        traceback.print_exc()
+        print("department startup:", e)
+    try:
+        from app.fix_utils import register_fix_utils
+        register_fix_utils(app, templates)
+        print("fix_utils startup rebind OK")
+    except Exception as e:
+        print("fix_utils startup:", e)
