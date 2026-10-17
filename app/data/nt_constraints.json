@@ -1,0 +1,86 @@
+[
+  {
+    "organ": "Spinal cord",
+    "endpoint": "Myelopathy",
+    "eqd2_gy": 45.0,
+    "ab": 3.0,
+    "notes": "Dmax conventional"
+  },
+  {
+    "organ": "Brainstem",
+    "endpoint": "Necrosis",
+    "eqd2_gy": 54.0,
+    "ab": 3.0,
+    "notes": "Dmax"
+  },
+  {
+    "organ": "Optic nerve / chiasm",
+    "endpoint": "Neuropathy",
+    "eqd2_gy": 55.0,
+    "ab": 3.0,
+    "notes": "Dmax"
+  },
+  {
+    "organ": "Retina",
+    "endpoint": "Blindness",
+    "eqd2_gy": 45.0,
+    "ab": 3.0,
+    "notes": "Dmax"
+  },
+  {
+    "organ": "Parotid (mean)",
+    "endpoint": "Xerostomia",
+    "eqd2_gy": 26.0,
+    "ab": 3.0,
+    "notes": "Mean dose"
+  },
+  {
+    "organ": "Lung (mean)",
+    "endpoint": "Pneumonitis",
+    "eqd2_gy": 20.0,
+    "ab": 3.0,
+    "notes": "Mean bilateral"
+  },
+  {
+    "organ": "Heart (mean)",
+    "endpoint": "Pericarditis",
+    "eqd2_gy": 26.0,
+    "ab": 3.0,
+    "notes": "Mean"
+  },
+  {
+    "organ": "Esophagus (mean)",
+    "endpoint": "Esophagitis",
+    "eqd2_gy": 34.0,
+    "ab": 3.0,
+    "notes": "Mean"
+  },
+  {
+    "organ": "Rectum (Dmax)",
+    "endpoint": "Bleeding",
+    "eqd2_gy": 75.0,
+    "ab": 3.0,
+    "notes": "V75 etc also used"
+  },
+  {
+    "organ": "Bladder (Dmax)",
+    "endpoint": "Cystitis",
+    "eqd2_gy": 80.0,
+    "ab": 3.0,
+    "notes": "Approximate"
+  },
+  {
+    "organ": "Femoral head",
+    "endpoint": "Necrosis",
+    "eqd2_gy": 52.0,
+    "ab": 3.0,
+    "notes": "Dmax"
+  },
+  {
+    "organ": "Small bowel",
+    "endpoint": "Obstruction",
+    "eqd2_gy": 50.0,
+    "ab": 3.0,
+    "notes": "Volume dependent"
+  }
+]
