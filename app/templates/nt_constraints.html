@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Normal-tissue EQD2 — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Normal-tissue EQD2 constraints</h1>
+  <p class="muted">
+    Reference EQD2 limits for organs at risk. Check a planned EQD2 against the library.
+    {% if can_edit %}<strong>Developer:</strong> you can edit the constraint table below.{% endif %}
+  </p>
+</div>
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+{% if message %}<div class="alert" style="background:#14532d;color:#bbf7d0;padding:.75rem;border-radius:8px">{{ message }}</div>{% endif %}
+
+<form method="post" action="/nt-constraints" class="card form-card">
+  <input type="hidden" name="action" value="check">
+  <fieldset>
+    <legend>Check planned EQD2</legend>
+    <div class="grid-2">
+      <label>Planned EQD2 (Gy) <input type="number" name="eqd2" step="0.1" min="0" required value="{{ eqd2 if eqd2 is not none else 50 }}"></label>
+      <label>Filter organ (optional) <input type="text" name="organ_filter" value="{{ organ_filter or '' }}" placeholder="e.g. cord"></label>
+    </div>
+  </fieldset>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Check</button>
+    <a href="/" class="btn btn-ghost">Back to home</a>
+  </div>
+</form>
+
+{% if check_rows %}
+<div class="card result-card">
+  <h2>Constraint check</h2>
+  <table class="result-table wide">
+    <thead>
+      <tr><th>Organ</th><th>Endpoint</th><th>Limit EQD2 (Gy)</th><th>α/β</th><th>Status</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      {% for r in check_rows %}
+      <tr>
+        <td>{{ r.organ }}</td>
+        <td>{{ r.endpoint }}</td>
+        <td>{{ "%.1f"|format(r.eqd2_gy) }}</td>
+        <td>{{ r.ab }}</td>
+        <td class="{% if r.status == 'exceed' %}warn{% else %}ok{% endif %}">{{ r.status }}</td>
+        <td class="muted small">{{ r.notes }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if can_edit %}
+<div class="card form-card" style="margin-top:1.5rem">
+  <h2>Edit constraints (developer only)</h2>
+  <form method="post" action="/nt-constraints">
+    <input type="hidden" name="action" value="save">
+    <p class="muted small">One constraint per line: Organ | Endpoint | EQD2 limit (Gy) | α/β | Notes</p>
+    <textarea name="constraints_text" rows="14" style="width:100%;font-family:monospace;font-size:0.85rem;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:0.75rem">{% for c in constraints %}{{ c.organ }} | {{ c.endpoint }} | {{ c.eqd2_gy }} | {{ c.ab }} | {{ c.notes }}
+{% endfor %}</textarea>
+    <div class="form-actions" style="margin-top:0.75rem">
+      <button type="submit" class="btn btn-primary">Save constraints</button>
+    </div>
+  </form>
+</div>
+{% else %}
+<div class="card result-card" style="margin-top:1.5rem">
+  <h2>Constraint library</h2>
+  <table class="result-table wide">
+    <thead><tr><th>Organ</th><th>Endpoint</th><th>EQD2 (Gy)</th><th>α/β</th><th>Notes</th></tr></thead>
+    <tbody>
+      {% for c in constraints %}
+      <tr>
+        <td>{{ c.organ }}</td><td>{{ c.endpoint }}</td>
+        <td>{{ c.eqd2_gy }}</td><td>{{ c.ab }}</td>
+        <td class="muted small">{{ c.notes }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">Only a developer can edit this library.</p>
+</div>
+{% endif %}
+<style>.ok{color:#22c55e}.warn{color:#fbbf24;font-weight:600}</style>
+{% endblock %}
