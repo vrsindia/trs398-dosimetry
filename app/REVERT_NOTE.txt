@@ -1,0 +1,2 @@
+Reverted last UI/users-grid batch.
+Restored point: 26bc4e1 (Index QA cards; harden department logo; bootstrap qa_routes)
