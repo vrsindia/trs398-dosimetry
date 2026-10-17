@@ -1,86 +1,234 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gap correction – DOSE pro</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/theme.js"></script>
-</head>
-<body>
-    <header>
-        <div class="header-nav">
-            <a class="nav-btn" href="javascript:history.back()">← Back</a>
-            <a class="nav-btn" href="/">Home</a>
-            <strong>Gap correction</strong>
-        </div>
-        <div class="header-actions">
-            <button type="button" id="theme-toggle">Light theme</button>
-        </div>
-    </header>
-    <main>
-        <div class="card">
-            <h1>Gap correction (treatment interruption)</h1>
-            <p style="color:var(--text-muted);">
-                Estimates extra dose needed after a treatment gap using the lq model with a
-                repopulation term K (Gy/day). Suggested remaining dose per fraction compensates
-                for bed lost during the gap.
-            </p>
-            <form method="post" action="/gap">
-                <h2 style="font-size:1rem;">Planned course</h2>
-                <div class="grid grid-2">
-                    <div>
-                        <label>Planned total dose (Gy) *</label>
-                        <input type="number" step="any" name="planned_total" value="{{ inputs.planned_total }}" required>
-                    </div>
-                    <div>
-                        <label>Planned number of fractions *</label>
-                        <input type="number" step="any" name="planned_n" value="{{ inputs.planned_n }}" required>
-                    </div>
-                </div>
-                <label>α/β (Gy) *</label>
-                <input type="number" step="any" name="alpha_beta" value="{{ inputs.alpha_beta }}" required>
+{% extends "base.html" %}
+{% block title %}Gap correction — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Gap correction</h1>
+  <p class="muted">
+    BED-based gap correction using the mathematical factor
+    GCF = (total days / (total days + gap))<sup>0.169</sup>.
+    T uses n = fractions already delivered. Corrected delivered BED = delivered BED × GCF. Remaining BED needed = planned BED − corrected delivered BED.
+  </p>
+</div>
 
-                <h2 style="font-size:1rem; margin-top:1rem;">Interruption</h2>
-                <div class="grid grid-2">
-                    <div>
-                        <label>Fractions already delivered *</label>
-                        <input type="number" step="any" name="delivered_n" value="{{ inputs.delivered_n }}" required>
-                    </div>
-                    <div>
-                        <label>Gap duration (days) *</label>
-                        <input type="number" step="any" name="gap_days" value="{{ inputs.gap_days }}" required>
-                    </div>
-                </div>
-                <label>Repopulation factor K (Gy/day, typical 0.5–0.9 for head &amp; neck)</label>
-                <input type="number" step="any" name="k_gy_per_day" value="{{ inputs.k_gy_per_day }}">
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
 
-                <button type="submit" style="margin-top:1.2rem; width:100%;">Calculate gap correction</button>
-            </form>
-        </div>
+<form method="post" action="/gap" class="card form-card">
+  <fieldset>
+    <legend>Planned course</legend>
+    <div class="grid-3">
+      <label>
+        Planned number of fractions
+        <input type="number" name="planned_n" step="1" min="1" required
+               value="{{ result.planned_n if result else 30 }}">
+      </label>
+      <label>
+        Planned dose per fraction (Gy)
+        <input type="number" name="planned_d" step="0.01" min="0" required
+               value="{{ result.planned_d if result else 2.0 }}">
+      </label>
+      <label>
+        Treatment start date
+        <input type="date" name="start_date"
+               value="{{ result.start_date if result and result.start_date else '' }}">
+      </label>
+    </div>
+    <div class="grid-2" style="margin-top:0.75rem">
+      <label>
+        Overall treatment time T (days)
+        <input type="number" name="total_days" step="0.5" min="0"
+               value="{{ result.total_days if result else '' }}"
+               placeholder="Auto from delivered fractions if blank"
+               title="T is based on fractions already delivered. Leave blank to estimate: T ≈ 1 + (delivered_n − 1) × (7 / fx per week).">
+      </label>
+      <label>
+        Fractions per week
+        <input type="number" name="fx_per_week" step="0.5" min="1"
+               value="{{ result.fx_per_week if result else 5 }}"
+               title="Used only when T is left blank (to estimate T from delivered fractions)">
+      </label>
+    </div>
+  </fieldset>
 
-        {% if error %}
-        <div class="card result-fail"><p><strong>Error:</strong> {{ error }}</p></div>
-        {% endif %}
+  <fieldset>
+    <legend>Delivered so far &amp; gap</legend>
+    <div class="grid-3">
+      <label>
+        Fractions already delivered
+        <input type="number" name="delivered_n" step="1" min="0" required
+               value="{{ result.delivered_n if result else 15 }}">
+      </label>
+      <label>
+        Gap start date
+        <input type="date" name="gap_start_date"
+               value="{{ result.gap_start_date if result and result.gap_start_date else '' }}"
+               title="Last treatment day before interruption, or day gap began">
+      </label>
+      <label>
+        Resume date
+        <input type="date" name="resume_date"
+               value="{{ result.resume_date if result and result.resume_date else '' }}"
+               title="First day of treatment after the gap">
+      </label>
+    </div>
+    <div class="grid-1" style="margin-top:0.75rem">
+      <label>
+        Gap length (days)
+        <input type="number" name="gap_days" step="0.5" min="0"
+               value="{{ result.gap_days if result else 7 }}"
+               title="Used only if gap start / resume dates are not both filled">
+      </label>
+    </div>
+    <p class="muted small" style="margin-top:0.5rem">
+      If both gap start date and resume date are entered, gap length is calculated automatically
+      (resume − gap start). Otherwise the numeric gap length is used.
+      Works for mid-course gaps and for gaps after the last planned fraction.
+    </p>
+  </fieldset>
 
-        {% if result %}
-        <div class="card result-pass">
-            <h2>Results</h2>
-            <table>
-                <tr><th>Planned dose / fraction</th><td>{{ "%.3g"|format(result.planned_d) }} Gy × {{ "%.3g"|format(result.planned_n) }} fx</td></tr>
-                <tr><th>Planned bed</th><td>{{ "%.2f"|format(result.planned_bed) }} Gy</td></tr>
-                <tr><th>Delivered bed</th><td>{{ "%.2f"|format(result.delivered_bed) }} Gy ({{ "%.3g"|format(result.delivered_n) }} fx)</td></tr>
-                <tr><th>Gap</th><td>{{ "%.3g"|format(result.gap_days) }} days × K = {{ "%.3g"|format(result.k_gy_per_day) }} Gy/day</td></tr>
-                <tr><th>Bed loss (repopulation)</th><td>{{ "%.2f"|format(result.bed_loss_repop) }} Gy</td></tr>
-                <tr><th>Remaining fractions</th><td>{{ "%.3g"|format(result.remaining_n) }}</td></tr>
-                <tr><th>Remaining bed needed</th><td>{{ "%.2f"|format(result.remaining_bed_needed) }} Gy</td></tr>
-                <tr><th>Suggested dose / remaining fraction</th><td><strong>{{ "%.3f"|format(result.suggested_d_remaining) }} Gy</strong></td></tr>
-                <tr><th>Remaining total dose</th><td><strong>{{ "%.2f"|format(result.remaining_total_dose) }} Gy</strong></td></tr>
-            </table>
-            <p class="note" style="margin-top:0.8rem;">Clinical decisions must follow departmental protocol. K and α/β are tissue- and site-specific.</p>
-        </div>
-        {% endif %}
-    </main>
-    <footer>This project was developed by <strong>VRS DOSIMETRY SOLUTION</strong>, under the project <strong>GARUDA</strong>.</footer>
-</body>
-</html>
+  <fieldset>
+    <legend>Biological parameters</legend>
+    <div class="grid-2">
+      <label>
+        α/β (Gy)
+        <input type="number" name="ab" step="0.1" min="0.1" required
+               value="{{ result.ab if result else 10 }}">
+      </label>
+      <label>
+        Preset
+        <select name="ab_preset" id="ab_preset">
+          <option value="">Custom</option>
+          <option value="early">Early responding (10)</option>
+          <option value="late">Late responding (3)</option>
+          <option value="prostate">Prostate (1.5)</option>
+        </select>
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>How to deliver remaining BED</legend>
+    <div class="grid-1">
+      <label class="radio-row">
+        <input type="radio" name="remaining_mode" value="same_d"
+               {% if not result or result.remaining_mode == 'same_d' %}checked{% endif %}>
+        Same dose fractionation (keep original Gy/fx, extend number of fractions)
+      </label>
+      <label class="radio-row">
+        <input type="radio" name="remaining_mode" value="custom"
+               {% if result and result.remaining_mode == 'custom' %}checked{% endif %}>
+        Custom dose fractionation
+      </label>
+    </div>
+    <div class="grid-2" style="margin-top:0.75rem" id="custom_fields">
+      <label>
+        Custom remaining fractions
+        <input type="number" name="custom_remaining_n" step="1" min="0"
+               value="{{ result.custom_remaining_n if result and result.custom_remaining_n is not none else '' }}"
+               placeholder="Leave blank to solve for n">
+      </label>
+      <label>
+        Custom dose per fraction (Gy)
+        <input type="number" name="custom_remaining_d" step="0.01" min="0"
+               value="{{ result.custom_remaining_d if result and result.custom_remaining_d is not none else '' }}"
+               placeholder="Leave blank to solve for d">
+      </label>
+    </div>
+    <p class="muted small">
+      For custom: enter both n and d to check achieved BED, or enter only one and the other is solved
+      to match the required remaining BED.
+    </p>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Calculate</button>
+    <a href="/" class="btn btn-ghost">Back to home</a>
+  </div>
+</form>
+
+{% if result %}
+<div class="card result-card">
+  <h2>Results (BED-based)</h2>
+
+  <p class="muted small">
+    Gap position:
+    {% if result.gap_position == 'mid_course' %}Mid-course
+    {% elif result.gap_position == 'end_of_course' %}After last planned fraction
+    {% else %}Before treatment start{% endif %}
+    · T (from delivered fractions) {{ "%.1f"|format(result.total_days) }} days
+    · Gap {{ "%.1f"|format(result.gap_days) }} days
+  </p>
+
+  <table class="result-table wide">
+    <tr>
+      <th>Planned BED</th><td>{{ "%.2f"|format(result.planned_bed) }} Gy</td>
+      <th>Planned EQD2</th><td>{{ "%.2f"|format(result.planned_eqd2) }} Gy</td>
+    </tr>
+    <tr>
+      <th>Delivered BED</th><td>{{ "%.2f"|format(result.delivered_bed) }} Gy</td>
+      <th>Delivered EQD2</th><td>{{ "%.2f"|format(result.delivered_eqd2) }} Gy</td>
+    </tr>
+    <tr>
+      <th>Gap correction factor</th>
+      <td class="highlight">{{ "%.4f"|format(result.gap_correction_factor) }}</td>
+      <th></th><td></td>
+    </tr>
+    <tr>
+      <th>Corrected delivered BED</th>
+      <td>{{ "%.2f"|format(result.corrected_delivered_bed) }} Gy</td>
+      <th>Corrected delivered EQD2</th>
+      <td>{{ "%.2f"|format(result.corrected_delivered_eqd2) }} Gy</td>
+    </tr>
+    <tr>
+      <th>Remaining BED needed</th>
+      <td class="highlight">{{ "%.2f"|format(result.remaining_bed_needed) }} Gy</td>
+      <th>Remaining EQD2 needed</th>
+      <td class="highlight">{{ "%.2f"|format(result.remaining_eqd2_needed) }} Gy</td>
+    </tr>
+  </table>
+
+  <h3 style="margin-top:1.25rem">Remaining schedule</h3>
+
+  <div class="option-cards">
+    <div class="option-card {% if result.remaining_mode == 'same_d' %}selected{% endif %}">
+      <h4>Same dose fractionation</h4>
+      <p>Dose/fx: <strong>{{ "%.2f"|format(result.same_d_dose) }} Gy</strong></p>
+      <p>Total remaining fractions: <strong>{{ "%.1f"|format(result.same_d_total_remaining_n) }}</strong></p>
+      <p>Extra fractions beyond original plan: <strong>{{ "%.1f"|format(result.same_d_extra_n) }}</strong></p>
+    </div>
+
+    {% if result.remaining_mode == 'custom' and result.custom_n is not none %}
+    <div class="option-card selected">
+      <h4>Custom dose fractionation</h4>
+      <p>{{ "%.1f"|format(result.custom_n) }} × {{ "%.2f"|format(result.custom_d) }} Gy</p>
+      <p>Achieved BED: <strong>{{ "%.2f"|format(result.custom_achieved_bed) }} Gy</strong></p>
+      <p>Achieved EQD2: <strong>{{ "%.2f"|format(result.custom_achieved_eqd2) }} Gy</strong></p>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if result.notes %}
+  <p class="notes" style="margin-top:1rem">{{ result.notes }}</p>
+  {% endif %}
+
+  <p class="muted small" style="margin-top:1rem">
+    Formula: GCF = (T / (T + gap))<sup>0.169</sup>, where T is overall treatment time based on fractions already delivered.
+    T uses n = fractions already delivered. Corrected delivered BED = delivered BED × GCF. Remaining BED needed = planned BED − corrected delivered BED.
+    Clinical decisions must also consider normal-tissue constraints and departmental protocols.
+  </p>
+</div>
+{% endif %}
+
+<style>
+.radio-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+.radio-row input { width: auto; }
+.option-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 0.75rem; }
+.option-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; }
+.option-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.option-card h4 { margin: 0 0 0.5rem; font-size: 0.95rem; color: var(--text); }
+.option-card p { margin: 0.25rem 0; font-size: 0.9rem; color: var(--muted); }
+.option-card strong { color: var(--text); }
+.grid-1 { display: flex; flex-direction: column; gap: 0.25rem; }
+</style>
+{% endblock %}
