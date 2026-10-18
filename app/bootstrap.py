@@ -80,15 +80,6 @@ except Exception as e:
     print("fix_calc FAILED:", e)
     traceback.print_exc()
 
-# QA — register late so paths are not overwritten
-try:
-    from app.qa_routes import register_qa_routes
-    register_qa_routes(app, templates)
-    print("qa_routes OK")
-except Exception as e:
-    print("qa_routes FAILED:", e)
-    traceback.print_exc()
-
 try:
     from app.users_routes import register_users_routes
     register_users_routes(app, templates)
@@ -97,17 +88,36 @@ except Exception as e:
     print("users_routes FAILED:", e)
     traceback.print_exc()
 
+# QA must be last — include_router so paths are live
+try:
+    from app.qa_mount import mount_qa
+    mount_qa(app, templates)
+    print("qa_mount OK")
+except Exception as e:
+    print("qa_mount FAILED:", e)
+    traceback.print_exc()
+    # Fallback: still try legacy register
+    try:
+        from app.qa_routes import register_qa_routes
+        register_qa_routes(app, templates)
+        print("qa_routes fallback OK")
+    except Exception as e2:
+        print("qa_routes fallback FAILED:", e2)
+        traceback.print_exc()
+
 
 @app.on_event("startup")
 def _startup_rebind():
+    # Re-mount QA last so nothing shadows /daily-qa etc.
+    try:
+        from app.qa_mount import mount_qa
+        mount_qa(app, templates)
+        print("qa_mount startup OK")
+    except Exception as e:
+        print("qa_mount startup:", e)
+        traceback.print_exc()
     for label, mod_name, fn_name in [
         ("department", "app.department_routes", "register_department_routes"),
-        ("storage_hooks", "app.storage_hooks", "register_storage_hooks"),
-        ("fix_utils", "app.fix_utils", "register_fix_utils"),
-        ("fix_fractionation", "app.fix_fractionation", "register_fix_fractionation"),
-        ("fix_oar", "app.fix_oar", "register_fix_oar"),
-        ("fix_calc", "app.fix_calc", "register_fix_calc"),
-        ("qa_routes", "app.qa_routes", "register_qa_routes"),
         ("users_routes", "app.users_routes", "register_users_routes"),
     ]:
         try:
@@ -116,3 +126,10 @@ def _startup_rebind():
             print(label, "startup OK")
         except Exception as e:
             print(label, "startup:", e)
+    # QA again after other startup hooks
+    try:
+        from app.qa_mount import mount_qa
+        mount_qa(app, templates)
+        print("qa_mount startup final OK")
+    except Exception as e:
+        print("qa_mount startup final:", e)
