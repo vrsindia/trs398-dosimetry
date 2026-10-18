@@ -1,6 +1,6 @@
 """Professional PDF report generation for DOSE pro / GARUDA."""
 from __future__ import annotations
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
 from io import BytesIO
 
@@ -10,43 +10,80 @@ from app.models import (
 )
 
 
-def create_report_from_date(linac_id: str, report_date: str, created_by: str,
-                            notes: str = "", modality: str = "mixed") -> Optional[Report]:
-    linac = get_linac(linac_id)
+def create_report_from_date(
+    linac_id: str,
+    report_date: str,
+    created_by: str,
+    notes: str = "",
+    modality: str = "mixed",
+) -> Optional[Report]:
+    linac = None
+    try:
+        linac = get_linac(linac_id)
+    except Exception:
+        linac = None
     if not linac:
-        return None
-    records = list_output_records(linac_id=linac_id, report_date=report_date, saved_only=True)
-    if not records:
-        records = list_output_records(linac_id=linac_id, report_date=report_date)
-    title = f"Absolute Dosimetry — {linac.name} — {report_date}"
+        try:
+            from app.models import list_linacs
+            for m in list_linacs() or []:
+                if str(getattr(m, "id", "")) == str(linac_id):
+                    linac = m
+                    break
+        except Exception:
+            pass
+    if not linac:
+        # minimal stub so report can still be created
+        class _Stub:
+            id = linac_id
+            name = linac_id
+        linac = _Stub()
+
+    records: List[Any] = []
+    try:
+        records = list_output_records(
+            linac_id=linac_id, report_date=report_date, saved_only=True,
+        ) or []
+        if not records:
+            records = list_output_records(
+                linac_id=linac_id, report_date=report_date,
+            ) or []
+    except Exception as e:
+        print("create_report_from_date list:", e)
+        records = []
+
+    title = "Absolute Dosimetry — %s — %s" % (
+        getattr(linac, "name", linac_id), report_date,
+    )
     rep = Report(
         id=_new_id(),
-        linac_id=linac_id,
-        linac_name=linac.name,
+        linac_id=str(linac_id),
+        linac_name=getattr(linac, "name", linac_id) or str(linac_id),
         report_date=report_date,
         created_at=datetime.utcnow().isoformat(),
-        created_by=created_by,
+        created_by=created_by or "",
         title=title,
-        modality=modality,
-        measurement_ids=[r.id for r in records],
-        notes=notes,
+        modality=modality or "mixed",
+        measurement_ids=[getattr(r, "id", "") for r in records if getattr(r, "id", None)],
+        notes=notes or "",
         summary={"count": len(records)},
     )
     return add_report(rep)
 
 
-def build_report_pdf(report: Report, records: List[OutputRecord]) -> bytes:
+def build_report_pdf(report: Report, records: List[Any]) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import mm
     from reportlab.platypus import (
-        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-        HRFlowable, KeepTogether,
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable,
     )
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.lib.enums import TA_CENTER
 
-    dept = get_department()
+    try:
+        dept = get_department()
+    except Exception:
+        dept = None
     buf = BytesIO()
 
     def _footer(canvas, doc):
@@ -60,7 +97,7 @@ def build_report_pdf(report: Report, records: List[OutputRecord]) -> bytes:
             18 * mm, 9 * mm,
             'DOSE pro · Project "GARUDA" · VRS DOSIMETRY SOLUTIONS',
         )
-        canvas.drawRightString(A4[0] - 18 * mm, 9 * mm, f"Page {doc.page}")
+        canvas.drawRightString(A4[0] - 18 * mm, 9 * mm, "Page %d" % doc.page)
         canvas.restoreState()
 
     doc = SimpleDocTemplate(
@@ -90,81 +127,76 @@ def build_report_pdf(report: Report, records: List[OutputRecord]) -> bytes:
         fontSize=10, textColor=navy, fontName="Helvetica-Bold",
         spaceBefore=8, spaceAfter=4,
     )
-    normal = ParagraphStyle("Body", parent=styles["Normal"], fontSize=9, textColor=colors.HexColor("#2d3748"))
-    small = ParagraphStyle("Small", parent=normal, fontSize=7.5, textColor=colors.HexColor("#718096"))
+    normal = ParagraphStyle(
+        "Body", parent=styles["Normal"], fontSize=9, textColor=colors.HexColor("#2d3748"),
+    )
+    small = ParagraphStyle(
+        "Small", parent=normal, fontSize=7.5, textColor=colors.HexColor("#718096"),
+    )
 
     story = []
-
-    hospital = dept.hospital or "Hospital / Cancer Centre"
-    dept_name = dept.name or "Department of Radiation Oncology"
-    story.append(Paragraph(hospital, title_style))
-    story.append(Paragraph(dept_name, sub_style))
-    addr_parts = [p for p in [dept.address, dept.city, dept.country] if p]
+    hospital = getattr(dept, "hospital", None) or "Hospital / Cancer Centre"
+    dept_name = getattr(dept, "name", None) or "Department of Radiation Oncology"
+    story.append(Paragraph(str(hospital), title_style))
+    story.append(Paragraph(str(dept_name), sub_style))
+    addr_parts = [
+        p for p in [
+            getattr(dept, "address", None),
+            getattr(dept, "city", None),
+            getattr(dept, "country", None),
+        ] if p
+    ]
     if addr_parts:
-        story.append(Paragraph(", ".join(addr_parts), sub_style))
-    contact = []
-    if dept.phone:
-        contact.append(f"Tel: {dept.phone}")
-    if dept.email:
-        contact.append(dept.email)
-    if contact:
-        story.append(Paragraph(" · ".join(contact), sub_style))
-
+        story.append(Paragraph(", ".join(str(x) for x in addr_parts), sub_style))
     story.append(Spacer(1, 4))
-    story.append(Paragraph('DOSE pro · Project "GARUDA" · VRS DOSIMETRY SOLUTIONS', brand_style))
+    story.append(Paragraph(
+        'DOSE pro · Project "GARUDA" · VRS DOSIMETRY SOLUTIONS', brand_style,
+    ))
     story.append(HRFlowable(width="100%", thickness=2, color=navy))
     story.append(Spacer(1, 6))
     story.append(Paragraph("ABSOLUTE DOSIMETRY REPORT", title_style))
-    story.append(Paragraph("TRS-398 photon / electron output calibration", sub_style))
+    story.append(Paragraph("TRS-398 / clinical output documentation", sub_style))
     story.append(Spacer(1, 8))
 
     meta = [
-        ["Machine", report.linac_name or "—", "Report date", report.report_date or "—"],
-        ["Prepared by", report.created_by or "—", "Generated", (report.created_at or "")[:19].replace("T", " ")],
-        ["Modality", report.modality or "mixed", "Measurements", str(len(records))],
+        ["Machine", getattr(report, "linac_name", "") or "—"],
+        ["Report date", getattr(report, "report_date", "") or "—"],
+        ["Created", (getattr(report, "created_at", "") or "")[:19].replace("T", " ")],
+        ["Created by", getattr(report, "created_by", "") or "—"],
+        ["Measurements", str((getattr(report, "summary", None) or {}).get("count", len(records or [])))],
     ]
-    meta_table = Table(meta, colWidths=[28 * mm, 58 * mm, 28 * mm, 58 * mm])
-    meta_table.setStyle(TableStyle([
+    t = Table(meta, colWidths=[40 * mm, 120 * mm])
+    t.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-        ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
         ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#2d3748")),
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f7fafc")),
-        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e0")),
-        ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#e2e8f0")),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
     ]))
-    story.append(meta_table)
+    story.append(t)
     story.append(Spacer(1, 10))
-
     story.append(Paragraph("Measurement results", section))
-    header = ["Energy", "Mod.", "Avg (nC)", "Measured", "Final", "Nominal", "TPR", "Status", "Physicist"]
-    data = [header]
-    for r in records:
-        final = r.tuned_output_cGy_MU if r.tuning_performed and r.tuned_output_cGy_MU else r.measured_output_cGy_MU
-        status = {"pass": "PASS", "warning": "BORDER", "fail": "FAIL"}.get(r.status, "—")
-        avg = f"{r.average_reading_nC:.3f}" if r.average_reading_nC else "—"
-        tpr = f"{r.tpr20_10:.3f}" if r.tpr20_10 else "—"
+
+    data = [["#", "Energy", "Modality", "Measured", "Tuned", "Nominal", "Physicist", "Status"]]
+    for i, r in enumerate(records or [], 1):
+        measured = getattr(r, "measured_output_cGy_MU", None)
+        tuned = getattr(r, "tuned_output_cGy_MU", None)
+        nominal = getattr(r, "nominal_output_cGy_MU", None)
+        st = (getattr(r, "status", "") or "").lower()
+        st_label = {"pass": "PASS", "ok": "PASS", "fail": "FAIL", "border": "BORDER"}.get(st, (st or "—").upper())
         data.append([
-            r.energy or "—",
-            (r.modality or "—")[:6],
-            avg,
-            f"{r.measured_output_cGy_MU:.3f}",
-            f"{final:.3f}",
-            f"{r.nominal_output_cGy_MU:.3f}",
-            tpr,
-            status,
-            (r.physicist or "—")[:14],
+            str(i),
+            str(getattr(r, "energy", "") or "—"),
+            str(getattr(r, "modality", "") or "—"),
+            ("%.3f" % measured) if measured is not None else "—",
+            ("%.3f" % tuned) if tuned is not None else "—",
+            ("%.3f" % nominal) if nominal is not None else "—",
+            str(getattr(r, "physicist", "") or "—")[:18],
+            st_label,
         ])
     if len(data) == 1:
-        data.append(["—"] * 8 + ["No measurements"])
+        data.append(["—", "No measurements for this date", "—", "—", "—", "—", "—", "—"])
 
-    col_w = [20 * mm, 16 * mm, 18 * mm, 18 * mm, 16 * mm, 16 * mm, 16 * mm, 16 * mm, 28 * mm]
-    tbl = Table(data, colWidths=col_w, repeatRows=1)
+    tbl = Table(data, colWidths=[10*mm, 22*mm, 22*mm, 22*mm, 22*mm, 22*mm, 28*mm, 20*mm])
     style_cmds = [
         ("BACKGROUND", (0, 0), (-1, 0), navy),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -177,7 +209,6 @@ def build_report_pdf(report: Report, records: List[OutputRecord]) -> bytes:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#edf2f7")]),
     ]
-    # Colour status column
     for i, row in enumerate(data[1:], start=1):
         st = row[7] if len(row) > 7 else ""
         if st == "PASS":
@@ -192,9 +223,9 @@ def build_report_pdf(report: Report, records: List[OutputRecord]) -> bytes:
     tbl.setStyle(TableStyle(style_cmds))
     story.append(tbl)
 
-    if report.notes:
+    if getattr(report, "notes", None):
         story.append(Spacer(1, 8))
-        story.append(Paragraph(f"<b>Notes:</b> {report.notes}", normal))
+        story.append(Paragraph("<b>Notes:</b> %s" % report.notes, normal))
 
     story.append(Spacer(1, 22))
     sign = Table(
@@ -210,7 +241,6 @@ def build_report_pdf(report: Report, records: List[OutputRecord]) -> bytes:
         ("TEXTCOLOR", (0, 1), (-1, -1), muted),
     ]))
     story.append(sign)
-
     story.append(Spacer(1, 14))
     story.append(HRFlowable(width="100%", thickness=0.6, color=colors.HexColor("#cbd5e0")))
     story.append(Paragraph(
