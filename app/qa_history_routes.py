@@ -1,22 +1,20 @@
-"""QA history, reports, session PDF, weekly Daily QA PDF."""
+"""QA session PDF, delete, weekly Daily QA PDF only (list pages live on /history and /reports)."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-
 from fastapi import APIRouter, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import RedirectResponse, Response
 
 COOKIE = "dosepro_session"
 
 
 def mount_qa_history(app, templates):
-    from app.auth import get_user_by_token, PERM_HISTORY_VIEW
+    from app.auth import get_user_by_token
     from app.qa_results_store import (
         list_qa_results, get_qa_result, delete_qa_result, week_bounds,
     )
     from app.qa_pdf import build_qa_session_pdf, build_weekly_daily_qa_pdf
 
-    router = APIRouter(tags=["qa-history"])
+    router = APIRouter(tags=["qa-pdf"])
 
     def _user(request: Request):
         try:
@@ -26,13 +24,6 @@ def mount_qa_history(app, templates):
 
     def _login():
         return RedirectResponse("/login", status_code=303)
-
-    def _tpl(request, name, **ctx):
-        ctx["request"] = request
-        try:
-            return templates.TemplateResponse(request=request, name=name, context=ctx)
-        except TypeError:
-            return templates.TemplateResponse(name, ctx)
 
     def _machines():
         out = []
@@ -44,55 +35,12 @@ def mount_qa_history(app, templates):
             pass
         return out
 
-    paths = {
-        "/qa-history", "/qa-reports",
-        "/qa-history/{rid}/pdf", "/qa-history/{rid}/delete",
-        "/qa-reports/weekly", "/qa-reports/weekly.pdf",
-    }
-    # strip old
+    # Remove only list pages; keep PDFs re-bound below
+    drop = {"/qa-history", "/qa-reports", "/qa-reports/weekly"}
     app.router.routes[:] = [
         r for r in list(app.router.routes)
-        if getattr(r, "path", None) not in (
-            "/qa-history", "/qa-reports", "/qa-reports/weekly", "/qa-reports/weekly.pdf",
-        )
-        and not str(getattr(r, "path", "")).startswith("/qa-history/")
+        if getattr(r, "path", None) not in drop
     ]
-
-    @router.get("/qa-history", response_class=HTMLResponse)
-    async def qa_history(request: Request):
-        user = _user(request)
-        if not user:
-            return _login()
-        kind = (request.query_params.get("kind") or "").strip() or None
-        linac_id = (request.query_params.get("linac_id") or "").strip() or None
-        rows = list_qa_results(kind=kind, linac_id=linac_id)
-        return _tpl(
-            request, "qa_history.html",
-            current_user=user,
-            rows=rows,
-            kind=kind or "",
-            linac_id=linac_id or "",
-            machines=_machines(),
-            message=(request.query_params.get("msg") or "").replace("+", " "),
-        )
-
-    @router.get("/qa-reports", response_class=HTMLResponse)
-    async def qa_reports(request: Request):
-        user = _user(request)
-        if not user:
-            return _login()
-        rows = list_qa_results()
-        today = datetime.utcnow().strftime("%Y-%m-%d")
-        mon, sun = week_bounds(today)
-        return _tpl(
-            request, "qa_reports.html",
-            current_user=user,
-            rows=rows[:50],
-            machines=_machines(),
-            week_start=mon,
-            week_end=sun,
-            message=(request.query_params.get("msg") or "").replace("+", " "),
-        )
 
     @router.get("/qa-history/{rid}/pdf")
     async def qa_session_pdf(request: Request, rid: str):
@@ -119,11 +67,7 @@ def mount_qa_history(app, templates):
         if (getattr(user, "role", "") or "").lower() not in ("developer", "admin"):
             raise HTTPException(403, "Only developer or admin can delete")
         delete_qa_result(rid)
-        return RedirectResponse("/qa-history?msg=Deleted", status_code=303)
-
-    @router.get("/qa-reports/weekly", response_class=HTMLResponse)
-    async def weekly_form(request: Request):
-        return RedirectResponse("/qa-reports", status_code=303)
+        return RedirectResponse("/history?section=daily_qa&msg=Deleted", status_code=303)
 
     @router.post("/qa-reports/weekly.pdf")
     async def weekly_pdf(
@@ -137,12 +81,9 @@ def mount_qa_history(app, templates):
         week_start, week_end = week_bounds(week_day.strip()[:10])
         lid = (linac_id or "").strip() or None
         sessions = list_qa_results(
-            kind="daily",
-            linac_id=lid,
-            date_from=week_start,
-            date_to=week_end,
+            kind="daily", linac_id=lid,
+            date_from=week_start, date_to=week_end,
         )
-        # chronological for report
         sessions = list(reversed(sessions))
         name = None
         if lid:
@@ -150,9 +91,7 @@ def mount_qa_history(app, templates):
                 if m["id"] == lid:
                     name = m["name"]
                     break
-        pdf = build_weekly_daily_qa_pdf(
-            sessions, week_start, week_end, linac_name=name,
-        )
+        pdf = build_weekly_daily_qa_pdf(sessions, week_start, week_end, linac_name=name)
         fname = "daily_qa_week_%s_%s.pdf" % (week_start, week_end)
         return Response(
             content=pdf,
@@ -160,6 +99,17 @@ def mount_qa_history(app, templates):
             headers={"Content-Disposition": "attachment; filename=%s" % fname},
         )
 
+    # Redirect old list URLs if hit via this module alone
+    @router.get("/qa-history")
+    async def qa_hist_redir(request: Request):
+        kind = (request.query_params.get("kind") or "daily").strip()
+        sec = "mechanical_qa" if kind == "mechanical" else "daily_qa"
+        return RedirectResponse("/history?section=" + sec, status_code=303)
+
+    @router.get("/qa-reports")
+    async def qa_rep_redir():
+        return RedirectResponse("/reports?section=daily_qa", status_code=303)
+
     app.include_router(router)
-    print("qa_history_routes: history + reports + PDFs mounted")
+    print("qa_history_routes: PDF + redirects only")
     return True

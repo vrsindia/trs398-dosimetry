@@ -1,15 +1,17 @@
-"""Unified History and Reports hubs — 4 subsections each."""
+"""Unified History and Reports hubs — 4 subsections each. Always last."""
 from __future__ import annotations
 
 from datetime import datetime
 
 from fastapi import Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 COOKIE = "dosepro_session"
 
 HISTORY_SECTIONS = ("linac", "brachy", "daily_qa", "mechanical_qa")
 REPORT_SECTIONS = ("linac", "brachy", "daily_qa", "mechanical_qa")
+
+HUB_PATHS = ("/history", "/output-history", "/qa-history", "/reports", "/qa-reports", "/hub-ping")
 
 
 def register_unified_hubs(app, templates):
@@ -29,10 +31,12 @@ def register_unified_hubs(app, templates):
         try:
             return templates.TemplateResponse(request=request, name=name, context=ctx)
         except TypeError:
-            return templates.TemplateResponse(name, ctx)
+            try:
+                return templates.TemplateResponse(name, ctx)
+            except TypeError:
+                return templates.TemplateResponse(name, context=ctx)
 
     def _machine_meta():
-        """id -> {name, category, is_brachy}"""
         meta = {}
         try:
             from app.models import list_linacs
@@ -43,8 +47,8 @@ def register_unified_hubs(app, templates):
                     "category": cat,
                     "is_brachy": cat == "brachy" or "brachy" in cat,
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            print("hub machine meta:", e)
         return meta
 
     def _machines_list(brachy_only=None):
@@ -94,7 +98,7 @@ def register_unified_hubs(app, templates):
         meta = _machine_meta()
         want_brachy = section == "brachy"
         enriched = []
-        for r in records:
+        for r in records or []:
             is_b = _is_brachy_record(r, meta)
             if want_brachy and not is_b:
                 continue
@@ -122,7 +126,7 @@ def register_unified_hubs(app, templates):
         meta = _machine_meta()
         want_brachy = section == "brachy"
         out = []
-        for r in rows:
+        for r in rows or []:
             lid = str(getattr(r, "linac_id", "") or "")
             is_b = False
             if lid in meta:
@@ -143,14 +147,22 @@ def register_unified_hubs(app, templates):
             from app.qa_results_store import list_qa_results
             return list_qa_results(kind=kind, linac_id=linac_id)
         except Exception as e:
-            print("qa list:", e)
+            print("hub qa list:", e)
             return []
 
-    for path in ("/history", "/output-history", "/qa-history", "/reports", "/qa-reports"):
-        app.router.routes[:] = [
-            r for r in list(app.router.routes)
-            if getattr(r, "path", None) != path
-        ]
+    # Drop previous hub pages so we own them
+    app.router.routes[:] = [
+        r for r in list(app.router.routes)
+        if getattr(r, "path", None) not in HUB_PATHS
+    ]
+
+    @app.get("/hub-ping")
+    async def hub_ping():
+        return JSONResponse({
+            "ok": True,
+            "history_sections": list(HISTORY_SECTIONS),
+            "report_sections": list(REPORT_SECTIONS),
+        })
 
     @app.get("/history", response_class=HTMLResponse)
     async def history_hub(request: Request):
@@ -159,7 +171,6 @@ def register_unified_hubs(app, templates):
             return _login()
         section = (request.query_params.get("section") or "linac").strip().lower()
         if section not in HISTORY_SECTIONS:
-            # map legacy
             if section in ("output", "dosimetry"):
                 section = "linac"
             elif section == "qa":
@@ -167,8 +178,7 @@ def register_unified_hubs(app, templates):
             else:
                 section = "linac"
         linac_id = (request.query_params.get("linac_id") or "").strip() or None
-        records = []
-        qa_rows = []
+        records, qa_rows = [], []
         if section in ("linac", "brachy"):
             records = _output_records(section)
         elif section == "daily_qa":
@@ -216,10 +226,7 @@ def register_unified_hubs(app, templates):
             else:
                 section = "linac"
 
-        reports = []
-        linacs = []
-        qa_rows = []
-        machines = []
+        reports, linacs, qa_rows, machines = [], [], [], []
         week_start = datetime.utcnow().strftime("%Y-%m-%d")
 
         if section in ("linac", "brachy"):
@@ -254,5 +261,5 @@ def register_unified_hubs(app, templates):
     async def qa_reports_redir(request: Request):
         return RedirectResponse("/reports?section=daily_qa", status_code=303)
 
-    print("unified_hub_routes: 4-section History + Reports")
+    print("unified_hub_routes: /history + /reports (4 sections) registered")
     return True
