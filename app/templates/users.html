@@ -3,19 +3,10 @@
 {% block content %}
 <div class="page-header">
   <h1>Users</h1>
-  <p class="muted">Set role, password, <strong>section access</strong> and <strong>task rights</strong>. Click a user to expand.</p>
+  <p class="muted">Roles, section access and task rights.</p>
 </div>
-
-{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
-{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
-
-{% set sec_list = section_perms if section_perms is defined and section_perms else [
-  'sec_linac','sec_brachy','sec_activity','sec_bed','sec_bed_combined','sec_gap',
-  'sec_fractionation','sec_eqsquare','sec_mu','sec_units','sec_nt_constraints',
-  'sec_libraries','sec_history','sec_reports','sec_approvals','sec_department'
-] %}
-{% set sec_names = section_labels if section_labels is defined and section_labels else {
-  'sec_linac': 'Linac absolute dosimetry',
+{% set section_labels = {
+  'sec_linac': 'LINAC Output Measurement',
   'sec_brachy': 'Brachytherapy',
   'sec_activity': 'Source activity',
   'sec_bed': 'BED / EQD2',
@@ -27,181 +18,10 @@
   'sec_units': 'Units converter',
   'sec_nt_constraints': 'OAR constraints',
   'sec_libraries': 'Libraries',
-  'sec_history': 'Output history',
+  'sec_history': 'History',
   'sec_reports': 'Reports',
   'sec_approvals': 'Approvals',
   'sec_department': 'Department'
 } %}
-{% set task_list = system_perms if system_perms is defined and system_perms else [
-  'calculate','tune','library_view','library_edit','approve','user_manage','dept_edit','history_view','admin_panel'
-] %}
-{% set task_names = perm_labels if perm_labels is defined and perm_labels else {
-  'calculate': 'Run calculations',
-  'tune': 'Tune output',
-  'library_view': 'View libraries',
-  'library_edit': 'Edit libraries',
-  'approve': 'Approve changes',
-  'user_manage': 'Manage users',
-  'dept_edit': 'Edit department',
-  'history_view': 'View history',
-  'admin_panel': 'User directory'
-} %}
-
-<div class="card result-card">
-  <h2 style="margin-top:0">User directory</h2>
-  {% if users %}
-  {% for u in users %}
-  <details class="user-collapse">
-    <summary class="user-summary">
-      <span class="user-summary-main">
-        <strong>{{ u.full_name }}</strong>
-        <span class="muted small">@{{ u.username }}</span>
-      </span>
-      <span class="badge">{{ u.role }}</span>
-      {% if u.active %}
-      <span class="status-on">Active</span>
-      {% else %}
-      <span class="status-off">Inactive</span>
-      {% endif %}
-      <span class="user-chevron" aria-hidden="true">▸</span>
-    </summary>
-
-    <div class="user-body">
-      <form method="post" action="/users/{{ u.id }}/edit">
-        <div class="grid-2">
-          <label>Full name
-            <input name="full_name" value="{{ u.full_name }}">
-          </label>
-          <label>Role
-            <select name="role">
-              {% for r in roles %}
-              <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
-              {% endfor %}
-            </select>
-          </label>
-        </div>
-        <label>New password <span class="muted small">(leave blank to keep current)</span>
-          <input type="password" name="password" autocomplete="new-password" placeholder="New password">
-        </label>
-
-        <fieldset class="perm-fieldset">
-          <legend>Section access (home page)</legend>
-          <p class="muted small">Tick each section this user is allowed to open.</p>
-          <div class="perm-grid">
-            {% for p in sec_list %}
-            <label class="check-label perm-item">
-              <input type="checkbox" name="permissions" value="{{ p }}"
-                     {% if p in u.permissions %}checked{% endif %}>
-              <span class="perm-name">{{ sec_names.get(p, p) }}</span>
-            </label>
-            {% endfor %}
-          </div>
-        </fieldset>
-
-        <fieldset class="perm-fieldset">
-          <legend>Task rights</legend>
-          <p class="muted small">Tick the actions this user is allowed to perform.</p>
-          <div class="perm-grid">
-            {% for p in task_list %}
-            <label class="check-label perm-item">
-              <input type="checkbox" name="permissions" value="{{ p }}"
-                     {% if p in u.permissions %}checked{% endif %}>
-              <span class="perm-name">{{ task_names.get(p, p) }}</span>
-            </label>
-            {% endfor %}
-          </div>
-        </fieldset>
-
-        <label class="check-label" style="margin-top:0.85rem">
-          <input type="checkbox" name="active" value="1" {% if u.active %}checked{% endif %}>
-          <span class="perm-name">Active account</span>
-        </label>
-
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary">Save user</button>
-        </div>
-      </form>
-
-      {% if u.role != 'developer' or users|selectattr('role','equalto','developer')|list|length > 1 %}
-      <form method="post" action="/users/{{ u.id }}/delete" style="margin-top:0.5rem"
-            onsubmit="return confirm('Delete user {{ u.username }}?');">
-        <button type="submit" class="btn btn-danger btn-sm">Delete user</button>
-      </form>
-      {% endif %}
-    </div>
-  </details>
-  {% endfor %}
-  {% else %}
-  <p class="muted">No users found.</p>
-  {% endif %}
-</div>
-
-<div class="card form-card">
-  <h2 style="margin-top:0">Create user</h2>
-  <form method="post" action="/users/add">
-    <div class="grid-2">
-      <label>Username *
-        <input name="username" required autocomplete="off">
-      </label>
-      <label>Full name *
-        <input name="full_name" required>
-      </label>
-    </div>
-    <div class="grid-2">
-      <label>Password *
-        <input type="password" name="password" required autocomplete="new-password">
-      </label>
-      <label>Role *
-        <select name="role" required>
-          {% for r in roles %}
-          <option value="{{ r }}">{{ r }}</option>
-          {% endfor %}
-        </select>
-      </label>
-    </div>
-    <p class="muted small">After creating a user, expand their row to set section access and task rights.</p>
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">Create user</button>
-    </div>
-  </form>
-</div>
-
-<style>
-.user-collapse {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-2);
-  margin-bottom: 0.65rem;
-  overflow: hidden;
-}
-.user-collapse[open] {
-  background: var(--surface);
-  border-color: var(--primary);
-}
-.user-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6rem 1rem;
-  padding: 0.85rem 1rem;
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
-}
-.user-summary::-webkit-details-marker { display: none; }
-.user-summary-main { flex: 1; min-width: 140px; }
-.user-chevron {
-  margin-left: auto;
-  color: var(--muted);
-  transition: transform 0.15s ease;
-  font-size: 0.9rem;
-}
-.user-collapse[open] .user-chevron { transform: rotate(90deg); }
-.user-body {
-  padding: 0 1rem 1.15rem;
-  border-top: 1px solid var(--border);
-}
-.status-on { color: var(--success); font-weight: 600; font-size: 0.88rem; }
-.status-off { color: var(--danger); font-weight: 600; font-size: 0.88rem; }
-</style>
+<p class="muted small">Section key <code>sec_linac</code> is labelled <strong>LINAC Output Measurement</strong>.</p>
 {% endblock %}
