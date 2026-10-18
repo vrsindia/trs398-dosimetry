@@ -1,5 +1,10 @@
 """Render entrypoint: uvicorn app.bootstrap:app --host 0.0.0.0 --port $PORT"""
 import traceback
+from datetime import datetime
+from io import BytesIO
+
+from fastapi import Request, Form
+from fastapi.responses import Response, RedirectResponse, JSONResponse, HTMLResponse
 
 from app.main import app, templates
 
@@ -104,36 +109,210 @@ except Exception as e:
     print("qa_history FAILED:", e)
     traceback.print_exc()
 
-
-def _mount_hubs():
+try:
     from app.unified_hub_routes import register_unified_hubs
     register_unified_hubs(app, templates)
-    hub_paths = {
-        "/history", "/output-history", "/qa-history",
-        "/reports", "/qa-reports", "/hub-ping",
-    }
-    hub, rest = [], []
-    for r in list(app.router.routes):
-        p = getattr(r, "path", None)
-        (hub if p in hub_paths else rest).append(r)
-    app.router.routes[:] = hub + rest
-    print("unified_hubs OK (routes prepended)")
-
-
-try:
-    _mount_hubs()
+    print("unified_hubs OK")
 except Exception as e:
     print("unified_hubs FAILED:", e)
     traceback.print_exc()
 
-# PDF generate — last, dedicated path, no storage
-try:
-    from app.report_generate import register_report_generate
-    register_report_generate(app, templates)
-    print("report_generate OK")
-except Exception as e:
-    print("report_generate FAILED:", e)
-    traceback.print_exc()
+# ---------------------------------------------------------------------------
+# INLINE PDF generate — always registered here (no separate import required)
+# Does NOT store anything in Supabase.
+# ---------------------------------------------------------------------------
+COOKIE = "dosepro_session"
+
+
+def _pdf_user(request: Request):
+    try:
+        from app.auth import get_user_by_token
+        return get_user_by_token(request.cookies.get(COOKIE))
+    except Exception:
+        return None
+
+
+def _pdf_machine_name(linac_id: str) -> str:
+    try:
+        from app.models import get_linac, list_linacs
+        m = get_linac(linac_id)
+        if m:
+            return getattr(m, "name", None) or linac_id
+        for m in list_linacs() or []:
+            if str(getattr(m, "id", "")) == str(linac_id):
+                return getattr(m, "name", None) or linac_id
+    except Exception:
+        pass
+    return linac_id or "Machine"
+
+
+def _pdf_records(linac_id: str, report_date: str):
+    rows = []
+    try:
+        from app.models import list_output_records
+        rows = list(list_output_records(linac_id=linac_id, report_date=report_date) or [])
+        if not rows:
+            for r in list_output_records(linac_id=linac_id) or []:
+                if (getattr(r, "date_time", "") or "").startswith(report_date):
+                    rows.append(r)
+    except Exception as e:
+        print("inline pdf records:", e)
+    return rows
+
+
+def _build_simple_pdf(machine_name, report_date, created_by, notes, records):
+    try:
+        from app.reports import build_report_pdf
+        from app.models import Report
+        rep = Report(
+            id="tmp",
+            linac_id="",
+            linac_name=machine_name,
+            report_date=report_date,
+            created_at=datetime.utcnow().isoformat(),
+            created_by=created_by or "",
+            title="Absolute Dosimetry — %s — %s" % (machine_name, report_date),
+            modality="mixed",
+            measurement_ids=[],
+            notes=notes or "",
+            summary={"count": len(records)},
+        )
+        return build_report_pdf(rep, records)
+    except Exception as e:
+        print("full PDF failed, simple:", e)
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A4
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, 800, "ABSOLUTE DOSIMETRY REPORT")
+    c.setFont("Helvetica", 10)
+    y = 770
+    for line in [
+        "Machine: %s" % machine_name,
+        "Date: %s" % report_date,
+        "By: %s" % (created_by or "—"),
+        "Notes: %s" % (notes or "—"),
+        "Measurements: %d" % len(records),
+    ]:
+        c.drawString(50, y, line[:100])
+        y -= 16
+    y -= 8
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(50, y, "Energy | Modality | Measured | Status")
+    y -= 14
+    c.setFont("Helvetica", 9)
+    for r in records[:40]:
+        c.drawString(50, y, "%s | %s | %s | %s" % (
+            getattr(r, "energy", "—"),
+            getattr(r, "modality", "—"),
+            getattr(r, "measured_output_cGy_MU", "—"),
+            getattr(r, "status", "—"),
+        )[:100])
+        y -= 12
+        if y < 50:
+            break
+    c.setFont("Helvetica", 8)
+    c.drawString(50, 36, 'DOSE pro · Project "GARUDA" · VRS DOSIMETRY SOLUTIONS')
+    c.save()
+    return buf.getvalue()
+
+
+async def _do_generate_pdf(request: Request, linac_id: str, report_date: str, notes: str, report_section: str):
+    user = _pdf_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    linac_id = str(linac_id or "").strip()
+    report_date = str(report_date or "").strip()[:10]
+    notes = str(notes or "")
+    section = str(report_section or "linac").strip() or "linac"
+    if not linac_id or not report_date:
+        return RedirectResponse(
+            "/reports?section=%s&msg=Machine+and+date+required" % section, 303,
+        )
+    name = _pdf_machine_name(linac_id)
+    by = getattr(user, "full_name", None) or getattr(user, "username", "") or ""
+    records = _pdf_records(linac_id, report_date)
+    try:
+        pdf = _build_simple_pdf(name, report_date, by, notes, records)
+    except Exception as e:
+        return RedirectResponse(
+            "/reports?section=%s&msg=PDF+error:+%s" % (section, str(e).replace(" ", "+")[:50]),
+            303,
+        )
+    fname = "dosimetry_%s_%s.pdf" % (
+        "".join(ch if ch.isalnum() else "_" for ch in name)[:30],
+        report_date,
+    )
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "attachment; filename=%s" % fname,
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+# Strip any previous copies then register
+for _p in (
+    "/generate-dosimetry-pdf",
+    "/reports/generate",
+    "/api/generate-pdf",
+    "/generate-pdf-ping",
+):
+    app.router.routes[:] = [
+        r for r in list(app.router.routes) if getattr(r, "path", None) != _p
+    ]
+
+
+@app.post("/generate-dosimetry-pdf")
+async def generate_dosimetry_pdf(
+    request: Request,
+    linac_id: str = Form(""),
+    report_date: str = Form(""),
+    notes: str = Form(""),
+    report_section: str = Form("linac"),
+):
+    return await _do_generate_pdf(request, linac_id, report_date, notes, report_section)
+
+
+@app.post("/reports/generate")
+async def reports_generate_alias(
+    request: Request,
+    linac_id: str = Form(""),
+    report_date: str = Form(""),
+    notes: str = Form(""),
+    report_section: str = Form("linac"),
+):
+    return await _do_generate_pdf(request, linac_id, report_date, notes, report_section)
+
+
+@app.post("/api/generate-pdf")
+async def api_generate_pdf(
+    request: Request,
+    linac_id: str = Form(""),
+    report_date: str = Form(""),
+    notes: str = Form(""),
+    report_section: str = Form("linac"),
+):
+    return await _do_generate_pdf(request, linac_id, report_date, notes, report_section)
+
+
+@app.get("/generate-pdf-ping")
+async def generate_pdf_ping():
+    return JSONResponse({
+        "ok": True,
+        "paths": [
+            "/generate-dosimetry-pdf",
+            "/reports/generate",
+            "/api/generate-pdf",
+        ],
+        "stores_in_supabase": False,
+        "inline": True,
+    })
+
+print("INLINE PDF generate routes registered")
 
 
 @app.on_event("startup")
@@ -149,15 +328,23 @@ def _startup_rebind():
     except Exception as e:
         print("qa_history startup:", e)
     try:
-        _mount_hubs()
+        from app.unified_hub_routes import register_unified_hubs
+        register_unified_hubs(app, templates)
         print("unified_hubs startup OK")
     except Exception as e:
-        print("unified_hubs startup FAILED:", e)
-        traceback.print_exc()
+        print("unified_hubs startup:", e)
+    # Re-assert generate routes after hubs (in case something cleared them)
     try:
-        from app.report_generate import register_report_generate
-        register_report_generate(app, templates)
-        print("report_generate startup OK")
+        paths = {
+            "/generate-dosimetry-pdf",
+            "/reports/generate",
+            "/api/generate-pdf",
+            "/generate-pdf-ping",
+        }
+        existing = {getattr(r, "path", None) for r in app.router.routes}
+        if "/generate-dosimetry-pdf" not in existing:
+            print("WARNING: generate route missing after startup hub — re-import")
+            # routes already defined above stay if not stripped; hubs should not strip these
+        print("generate paths present:", paths & existing)
     except Exception as e:
-        print("report_generate startup:", e)
-        traceback.print_exc()
+        print("startup generate check:", e)
