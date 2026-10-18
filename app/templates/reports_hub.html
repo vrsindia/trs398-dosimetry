@@ -3,11 +3,11 @@
 {% block content %}
 <div class="page-header">
   <h1>Reports</h1>
-  <p class="muted">Linac, brachytherapy, Daily QA and Mechanical QA PDFs.</p>
+  <p class="muted">Linac, brachytherapy, Daily QA and Mechanical QA PDFs. Dosimetry PDFs are generated on demand and are <strong>not</strong> stored.</p>
 </div>
 
 {% if message %}
-<div class="alert {% if 'fail' in (message|lower) or 'error' in (message|lower) or 'not found' in (message|lower) or 'could not' in (message|lower) %}alert-error{% else %}alert-ok{% endif %}">
+<div class="alert {% if 'fail' in (message|lower) or 'error' in (message|lower) or 'not found' in (message|lower) or 'required' in (message|lower) or 'could not' in (message|lower) %}alert-error{% else %}alert-ok{% endif %}">
   {{ message }}
 </div>
 {% endif %}
@@ -28,10 +28,10 @@
 {% if section in ['linac', 'brachy'] %}
 <div class="card form-card">
   <h2 style="margin-top:0">
-    Generate {% if section == 'linac' %}linac{% else %}brachytherapy{% endif %} report
+    Generate {% if section == 'linac' %}linac{% else %}brachytherapy{% endif %} PDF
   </h2>
-  <p class="muted small">Select machine and date. PDF downloads immediately. Measurements for that date are included when available.</p>
-  <form method="post" action="/reports/generate">
+  <p class="muted small">Select machine and date, then download. The PDF is not saved to the server or Supabase.</p>
+  <form method="post" action="/generate-dosimetry-pdf">
     <input type="hidden" name="report_section" value="{{ section }}">
     <div class="grid-2">
       <label>Machine *
@@ -52,34 +52,7 @@
     </div>
   </form>
   {% if not linacs %}
-  <p class="muted small" style="margin-top:0.75rem">No machines in this category. Add machines under <a href="/linacs">Libraries → Machines</a>.</p>
-  {% endif %}
-</div>
-
-<div class="card result-card">
-  <h2 style="margin-top:0">Stored reports</h2>
-  {% if reports %}
-  <table class="data-table">
-    <thead>
-      <tr><th>Date</th><th>Machine</th><th>Title</th><th>By</th><th></th></tr>
-    </thead>
-    <tbody>
-      {% for r in reports %}
-      <tr>
-        <td>{{ r.report_date }}</td>
-        <td>{{ r.linac_name }}</td>
-        <td>{{ r.title }}</td>
-        <td>{{ r.created_by }}</td>
-        <td style="white-space:nowrap">
-          <a class="btn btn-secondary btn-sm" href="/reports/{{ r.id }}/view">View</a>
-          <a class="btn btn-primary btn-sm" href="/reports/{{ r.id }}/pdf">PDF</a>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="muted">No reports in this section yet. Generate one above.</p>
+  <p class="muted small" style="margin-top:0.75rem">No machines listed. Add machines under <a href="/linacs">Libraries → Machines</a>.</p>
   {% endif %}
 </div>
 

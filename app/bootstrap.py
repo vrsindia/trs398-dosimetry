@@ -126,12 +126,13 @@ except Exception as e:
     print("unified_hubs FAILED:", e)
     traceback.print_exc()
 
+# PDF generate — last, dedicated path, no storage
 try:
-    from app.report_fix import register_report_fix
-    register_report_fix(app, templates)
-    print("report_fix OK")
+    from app.report_generate import register_report_generate
+    register_report_generate(app, templates)
+    print("report_generate OK")
 except Exception as e:
-    print("report_fix FAILED:", e)
+    print("report_generate FAILED:", e)
     traceback.print_exc()
 
 
@@ -154,9 +155,9 @@ def _startup_rebind():
         print("unified_hubs startup FAILED:", e)
         traceback.print_exc()
     try:
-        from app.report_fix import register_report_fix
-        register_report_fix(app, templates)
-        print("report_fix startup OK")
+        from app.report_generate import register_report_generate
+        register_report_generate(app, templates)
+        print("report_generate startup OK")
     except Exception as e:
-        print("report_fix startup:", e)
+        print("report_generate startup:", e)
         traceback.print_exc()
