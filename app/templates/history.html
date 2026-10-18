@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header">
   <h1>History</h1>
-  <p class="muted">Linac dosimetry, brachytherapy, Daily QA and Mechanical QA records.</p>
+  <p class="muted">LINAC output measurement, brachytherapy, Daily QA and Mechanical QA records.</p>
 </div>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
@@ -11,7 +11,7 @@
 <div class="card" style="padding:0.75rem 1rem;margin-bottom:1.25rem">
   <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
     <a class="btn btn-sm {% if section == 'linac' %}btn-primary{% else %}btn-secondary{% endif %}"
-       href="/history?section=linac">Linac absolute dosimetry</a>
+       href="/history?section=linac">LINAC Output Measurement</a>
     <a class="btn btn-sm {% if section == 'brachy' %}btn-primary{% else %}btn-secondary{% endif %}"
        href="/history?section=brachy">Brachytherapy</a>
     <a class="btn btn-sm {% if section == 'daily_qa' %}btn-primary{% else %}btn-secondary{% endif %}"
@@ -24,7 +24,7 @@
 {% if section in ['linac', 'brachy'] %}
 <div class="card result-card">
   <h2 style="margin-top:0">
-    {% if section == 'linac' %}Linac absolute dosimetry{% else %}Brachytherapy{% endif %}
+    {% if section == 'linac' %}LINAC Output Measurement{% else %}Brachytherapy{% endif %}
   </h2>
   <p class="muted small">
     {% if section == 'linac' %}
@@ -87,7 +87,6 @@
 </div>
 
 {% else %}
-{# Daily QA or Mechanical QA #}
 <div class="card form-card">
   <form method="get" action="/history" class="grid-2">
     <input type="hidden" name="section" value="{{ section }}">
