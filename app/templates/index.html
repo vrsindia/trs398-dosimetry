@@ -14,7 +14,7 @@
   <div class="home-grid">
     {% if u and (u.has('sec_linac') or u.has('calculate') or u.role in ['developer','admin']) %}
     <a class="home-card card-blue" href="/linac">
-      <h2>Linac absolute dosimetry</h2>
+      <h2>LINAC Output Measurement</h2>
       <p>TRS-398 photon and electron output calibration.</p>
     </a>
     {% endif %}
@@ -27,11 +27,11 @@
     {% if u %}
     <a class="home-card card-sky" href="/daily-qa">
       <h2>Daily QA checklist</h2>
-      <p>Daily checks with pass / borderline / fail colour coding.</p>
+      <p>Quick checklist</p>
     </a>
     <a class="home-card card-indigo" href="/mechanical-qa">
       <h2>Mechanical QA</h2>
-      <p>Mechanical geometry and safety checks.</p>
+      <p>Mechanical QA checklist</p>
     </a>
     {% endif %}
   </div>
@@ -133,7 +133,7 @@
     {% if u %}
     <a class="home-card card-orange" href="/history">
       <h2>History</h2>
-      <p>Output history and QA history — switch subsections inside.</p>
+      <p>History by Output and QA history</p>
     </a>
     <a class="home-card card-sky" href="/reports">
       <h2>Reports</h2>
