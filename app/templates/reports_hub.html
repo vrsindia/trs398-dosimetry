@@ -6,7 +6,11 @@
   <p class="muted">Linac, brachytherapy, Daily QA and Mechanical QA PDFs.</p>
 </div>
 
-{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if message %}
+<div class="alert {% if 'fail' in (message|lower) or 'error' in (message|lower) or 'not found' in (message|lower) or 'could not' in (message|lower) %}alert-error{% else %}alert-ok{% endif %}">
+  {{ message }}
+</div>
+{% endif %}
 
 <div class="card" style="padding:0.75rem 1rem;margin-bottom:1.25rem">
   <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
@@ -26,27 +30,29 @@
   <h2 style="margin-top:0">
     Generate {% if section == 'linac' %}linac{% else %}brachytherapy{% endif %} report
   </h2>
+  <p class="muted small">Select machine and date. PDF downloads immediately. Measurements for that date are included when available.</p>
   <form method="post" action="/reports/generate">
     <input type="hidden" name="report_section" value="{{ section }}">
     <div class="grid-2">
-      <label>Machine
+      <label>Machine *
         <select name="linac_id" required>
+          <option value="">— Select machine —</option>
           {% for m in linacs %}
           <option value="{{ m.id }}">{{ m.name }}</option>
           {% endfor %}
         </select>
       </label>
-      <label>Report date
+      <label>Report date *
         <input type="date" name="report_date" required>
       </label>
     </div>
-    <label>Notes <input name="notes"></label>
+    <label>Notes <input name="notes" placeholder="Optional"></label>
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary">Generate report</button>
+      <button type="submit" class="btn btn-primary">Generate PDF report</button>
     </div>
   </form>
   {% if not linacs %}
-  <p class="muted small" style="margin-top:0.5rem">No machines in this category. Add machines under Libraries.</p>
+  <p class="muted small" style="margin-top:0.75rem">No machines in this category. Add machines under <a href="/linacs">Libraries → Machines</a>.</p>
   {% endif %}
 </div>
 
@@ -73,7 +79,7 @@
     </tbody>
   </table>
   {% else %}
-  <p class="muted">No reports in this section yet.</p>
+  <p class="muted">No reports in this section yet. Generate one above.</p>
   {% endif %}
 </div>
 
@@ -125,17 +131,14 @@
       {% endfor %}
     </tbody>
   </table>
-  <p class="muted small" style="margin-top:0.75rem"><a href="/history?section=daily_qa">Full Daily QA history →</a></p>
   {% else %}
   <p class="muted">No Daily QA sessions yet.</p>
   {% endif %}
 </div>
 
 {% else %}
-{# mechanical_qa #}
 <div class="card result-card">
   <h2 style="margin-top:0">Mechanical QA session PDFs</h2>
-  <p class="muted small">Download a PDF for each saved Mechanical QA evaluation.</p>
   {% if qa_rows %}
   <table class="data-table">
     <thead>
@@ -158,7 +161,6 @@
       {% endfor %}
     </tbody>
   </table>
-  <p class="muted small" style="margin-top:0.75rem"><a href="/history?section=mechanical_qa">Full Mechanical QA history →</a></p>
   {% else %}
   <p class="muted">No Mechanical QA sessions yet.</p>
   {% endif %}

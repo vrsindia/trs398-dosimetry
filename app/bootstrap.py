@@ -106,23 +106,16 @@ except Exception as e:
 
 
 def _mount_hubs():
-    """Register History/Reports hubs and move them to the front of the route table."""
     from app.unified_hub_routes import register_unified_hubs
     register_unified_hubs(app, templates)
-
-    # Starlette matches first-wins: move hub paths to the front
     hub_paths = {
         "/history", "/output-history", "/qa-history",
         "/reports", "/qa-reports", "/hub-ping",
     }
-    hub = []
-    rest = []
+    hub, rest = [], []
     for r in list(app.router.routes):
         p = getattr(r, "path", None)
-        if p in hub_paths:
-            hub.append(r)
-        else:
-            rest.append(r)
+        (hub if p in hub_paths else rest).append(r)
     app.router.routes[:] = hub + rest
     print("unified_hubs OK (routes prepended)")
 
@@ -132,60 +125,14 @@ try:
 except Exception as e:
     print("unified_hubs FAILED:", e)
     traceback.print_exc()
-    # Absolute fallback so /history is never missing
-    try:
-        from fastapi import Request
-        from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-        from app.auth import get_user_by_token
 
-        @app.get("/hub-ping")
-        async def _hub_ping_fb():
-            return JSONResponse({"ok": True, "fallback": True})
-
-        @app.get("/history", response_class=HTMLResponse)
-        async def _history_fb(request: Request):
-            user = get_user_by_token(request.cookies.get("dosepro_session"))
-            if not user:
-                return RedirectResponse("/login", 303)
-            try:
-                return templates.TemplateResponse(
-                    request=request, name="history.html",
-                    context={
-                        "request": request, "current_user": user,
-                        "section": "linac", "records": [], "qa_rows": [],
-                        "linac_id": "", "machines": [], "message": "",
-                    },
-                )
-            except Exception:
-                return HTMLResponse(
-                    "<h1>History</h1><p><a href='/history?section=linac'>Linac</a> | "
-                    "<a href='/history?section=brachy'>Brachy</a> | "
-                    "<a href='/history?section=daily_qa'>Daily QA</a> | "
-                    "<a href='/history?section=mechanical_qa'>Mechanical QA</a></p>"
-                )
-
-        @app.get("/reports", response_class=HTMLResponse)
-        async def _reports_fb(request: Request):
-            user = get_user_by_token(request.cookies.get("dosepro_session"))
-            if not user:
-                return RedirectResponse("/login", 303)
-            try:
-                return templates.TemplateResponse(
-                    request=request, name="reports_hub.html",
-                    context={
-                        "request": request, "current_user": user,
-                        "section": "linac", "reports": [], "linacs": [],
-                        "qa_rows": [], "machines": [], "week_start": "",
-                        "message": "",
-                    },
-                )
-            except Exception:
-                return HTMLResponse("<h1>Reports</h1><p>Hub loading…</p>")
-
-        print("unified_hubs FALLBACK routes registered")
-    except Exception as e2:
-        print("unified_hubs FALLBACK failed:", e2)
-        traceback.print_exc()
+try:
+    from app.report_fix import register_report_fix
+    register_report_fix(app, templates)
+    print("report_fix OK")
+except Exception as e:
+    print("report_fix FAILED:", e)
+    traceback.print_exc()
 
 
 @app.on_event("startup")
@@ -205,4 +152,11 @@ def _startup_rebind():
         print("unified_hubs startup OK")
     except Exception as e:
         print("unified_hubs startup FAILED:", e)
+        traceback.print_exc()
+    try:
+        from app.report_fix import register_report_fix
+        register_report_fix(app, templates)
+        print("report_fix startup OK")
+    except Exception as e:
+        print("report_fix startup:", e)
         traceback.print_exc()
