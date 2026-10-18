@@ -156,6 +156,23 @@ def mount_qa(app, templates):
             status_code=303,
         )
 
+    def _save_session(kind, linac_id, machine, overall, results, user):
+        try:
+            from app.qa_results_store import save_qa_result
+            name = machine.get("name") if isinstance(machine, dict) else getattr(machine, "name", linac_id)
+            by = getattr(user, "full_name", None) or getattr(user, "username", "") or ""
+            return save_qa_result(
+                kind=kind,
+                linac_id=linac_id,
+                linac_name=name or linac_id,
+                overall=overall,
+                results=results,
+                performed_by=by,
+            )
+        except Exception as e:
+            print("save qa session:", e)
+            return None
+
     @router.get("/qa-ping")
     async def qa_ping():
         try:
@@ -182,7 +199,7 @@ def mount_qa(app, templates):
             request, "daily_qa.html",
             current_user=user, machines=machines, linac_id=linac_id,
             machine=machine, items=items, results=None, overall=None,
-            can_edit=_can_edit(user), error=None,
+            can_edit=_can_edit(user), error=None, saved=None,
         )
 
     @router.post("/daily-qa", response_class=HTMLResponse)
@@ -199,15 +216,16 @@ def mount_qa(app, templates):
                 request, "daily_qa.html",
                 current_user=user, machines=machines, linac_id="",
                 machine=None, items=[], results=None, overall=None,
-                can_edit=_can_edit(user), error="Please select a machine first.",
+                can_edit=_can_edit(user), error="Please select a machine first.", saved=None,
             )
         items = load_daily_items(linac_id)
         results, overall = _run_qa(items, form)
+        saved = _save_session("daily", linac_id, machine, overall, results, user)
         return _tpl(
             request, "daily_qa.html",
             current_user=user, machines=machines, linac_id=linac_id,
             machine=machine, items=items, results=results, overall=overall,
-            can_edit=_can_edit(user), error=None,
+            can_edit=_can_edit(user), error=None, saved=saved,
         )
 
     @router.get("/mechanical-qa", response_class=HTMLResponse)
@@ -223,7 +241,7 @@ def mount_qa(app, templates):
             request, "mechanical_qa.html",
             current_user=user, machines=machines, linac_id=linac_id,
             machine=machine, items=items, results=None, overall=None,
-            can_edit=_can_edit(user), error=None,
+            can_edit=_can_edit(user), error=None, saved=None,
         )
 
     @router.post("/mechanical-qa", response_class=HTMLResponse)
@@ -240,15 +258,16 @@ def mount_qa(app, templates):
                 request, "mechanical_qa.html",
                 current_user=user, machines=machines, linac_id="",
                 machine=None, items=[], results=None, overall=None,
-                can_edit=_can_edit(user), error="Please select a machine first.",
+                can_edit=_can_edit(user), error="Please select a machine first.", saved=None,
             )
         items = load_mech_items(linac_id)
         results, overall = _run_qa(items, form)
+        saved = _save_session("mechanical", linac_id, machine, overall, results, user)
         return _tpl(
             request, "mechanical_qa.html",
             current_user=user, machines=machines, linac_id=linac_id,
             machine=machine, items=items, results=results, overall=overall,
-            can_edit=_can_edit(user), error=None,
+            can_edit=_can_edit(user), error=None, saved=saved,
         )
 
     def _editor(request, kind):
@@ -365,7 +384,6 @@ def mount_qa(app, templates):
         save_mech_items(lid, rows)
         return _redir_editor("mech", lid, "Item deleted")
 
-    # Remove prior QA paths so we do not stack duplicates that shadow
     qa_paths = {
         "/daily-qa", "/mechanical-qa", "/qa-ping",
         "/library/edit-checklist", "/library/edit-mechanical-qa",
@@ -380,5 +398,5 @@ def mount_qa(app, templates):
     ]
 
     app.include_router(router)
-    print("qa_mount: Daily QA + Mechanical QA included")
+    print("qa_mount: Daily QA + Mechanical QA included (with save)")
     return True
