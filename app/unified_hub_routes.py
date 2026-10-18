@@ -150,7 +150,6 @@ def register_unified_hubs(app, templates):
             print("hub qa list:", e)
             return []
 
-    # Drop previous hub pages so we own them
     app.router.routes[:] = [
         r for r in list(app.router.routes)
         if getattr(r, "path", None) not in HUB_PATHS
@@ -232,6 +231,8 @@ def register_unified_hubs(app, templates):
         if section in ("linac", "brachy"):
             reports = _reports(section)
             linacs = _linac_objects(brachy_only=(section == "brachy"))
+            if not linacs:
+                linacs = _linac_objects(brachy_only=None)
         elif section == "daily_qa":
             qa_rows = _qa_rows("daily")[:80]
             machines = _machines_list()
