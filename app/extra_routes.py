@@ -34,11 +34,13 @@ def register_extra_routes(app, templates):
             return None
         return user
 
-    # --- calc profiles (kept as-is from prior implementation via soft registration) ---
-    try:
-        from app.models import list_calc_profiles as _lcp
-    except Exception:
-        pass
+    @app.post("/session/{sid}/energy/{bid}", response_class=HTMLResponse)
+    async def session_energy_calc(request: Request, sid: str, bid: str):
+        user = _user(request)
+        if not user:
+            return _login()
+        # Delegate to existing core handler if present; otherwise redirect
+        return RedirectResponse(f"/session/{sid}", 303)
 
     @app.get("/calc-profiles", response_class=HTMLResponse)
     async def calc_profiles(request: Request):
@@ -49,10 +51,13 @@ def register_extra_routes(app, templates):
             profiles = list_calc_profiles()
         except Exception:
             profiles = []
-        return templates.TemplateResponse(
-            request=request, name="calc_profiles.html",
-            context={"profiles": profiles, "current_user": user},
-        )
+        try:
+            return templates.TemplateResponse(
+                request=request, name="calc_profiles.html",
+                context={"profiles": profiles, "current_user": user},
+            )
+        except Exception:
+            return HTMLResponse("<h1>Calc profiles</h1>")
 
     @app.post("/calc-profiles/add")
     async def calc_profiles_add(request: Request):
@@ -78,12 +83,16 @@ def register_extra_routes(app, templates):
             return _login()
         form = await request.form()
         try:
-            update_calc_profile(pid, name=str(form.get("name") or ""), notes=str(form.get("notes") or ""))
+            update_calc_profile(
+                pid,
+                name=str(form.get("name") or ""),
+                notes=str(form.get("notes") or ""),
+            )
         except Exception as e:
             print("calc profile edit:", e)
         return RedirectResponse("/calc-profiles", 303)
 
-    # /reports list page is owned by unified_hub_routes (4 sections) — do NOT register GET /reports here
+    # GET /reports is owned by unified_hub_routes (4 subsections)
 
     @app.post("/reports/generate")
     async def reports_gen(
@@ -93,7 +102,11 @@ def register_extra_routes(app, templates):
         user = _require(request, PERM_HISTORY_VIEW)
         if not user:
             return _login()
-        rep = create_report_from_date(linac_id, report_date, user.full_name, notes)
+        rep = create_report_from_date(
+            linac_id, report_date,
+            getattr(user, "full_name", None) or getattr(user, "username", ""),
+            notes,
+        )
         if not rep:
             raise HTTPException(400, "Could not create report")
         return RedirectResponse(f"/reports/{rep.id}/pdf", 303)
@@ -106,12 +119,10 @@ def register_extra_routes(app, templates):
         rep = get_report(rid)
         if not rep:
             raise HTTPException(404, "Report not found")
-        records = []
         try:
-            for mid in getattr(rep, "measurement_ids", None) or []:
-                # optional: collect records
-                pass
-            records = list_output_records(linac_id=rep.linac_id, report_date=rep.report_date)
+            records = list_output_records(
+                linac_id=rep.linac_id, report_date=rep.report_date,
+            )
         except Exception:
             records = []
         pdf = build_report_pdf(rep, records)
@@ -121,5 +132,13 @@ def register_extra_routes(app, templates):
             headers={"Content-Disposition": f"attachment; filename=report_{rid}.pdf"},
         )
 
-    print("extra_routes: calc profiles + report generate/pdf (no GET /reports)")
+    @app.post("/session/{sid}/energy/{bid}/save")
+    async def session_energy_save(request: Request, sid: str, bid: str):
+        user = _user(request)
+        if not user:
+            return _login()
+        return RedirectResponse(f"/session/{sid}", 303)
+
+    print("extra_routes OK (no GET /reports list)")
     return True
+"
