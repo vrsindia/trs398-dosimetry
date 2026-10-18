@@ -1,0 +1,1 @@
+Use SEC labels from auth.SECTION_LABELS — sec_linac is LINAC Output Measurement
