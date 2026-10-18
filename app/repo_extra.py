@@ -1,7 +1,6 @@
 """Supabase persistence for tolerances and app users."""
 from __future__ import annotations
-from typing import List, Optional, Set
-import json
+from typing import List, Optional
 
 from app.db import use_db, sb_select, sb_get, sb_upsert, sb_delete
 from app.models import (
@@ -73,32 +72,16 @@ def delete_tolerance(tid: str) -> bool:
 
 
 def save_user_row(user) -> None:
-    """Persist a User dataclass to Supabase app_users."""
-    if not use_db():
-        return
-    perms = list(getattr(user, "permissions", set()) or [])
-    sb_upsert("app_users", {
-        "id": user.id,
-        "username": user.username,
-        "full_name": user.full_name,
-        "role": user.role,
-        "password_hash": user.password_hash,
-        "salt": user.salt,
-        "active": bool(user.active),
-        "permissions": perms,
-        "created_at": getattr(user, "created_at", "") or "",
-        "created_by": getattr(user, "created_by", "") or "",
-    })
+    from app.user_store import persist_user
+    persist_user(user)
 
 
 def load_users_from_db():
-    """Return list of dicts from app_users (or empty)."""
-    if not use_db():
-        return []
-    return sb_select("app_users", order="username")
+    from app.user_store import load_all_user_rows
+    return load_all_user_rows()
 
 
 def delete_user_row(user_id: str) -> bool:
-    if not use_db():
-        return False
-    return sb_delete("app_users", user_id)
+    from app.user_store import remove_user
+    remove_user(user_id)
+    return True
