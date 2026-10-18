@@ -67,31 +67,31 @@
     {% if u and (u.has('sec_fractionation') or u.has('calculate') or u.role in ['developer','admin']) %}
     <a class="home-card card-rose" href="/fractionation">
       <h2>Fractionation pattern</h2>
-      <p>Equivalent schedules for the same BED.</p>
+      <p>Alternative schedules for the same BED.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_eqsquare') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-lime" href="/eqsquare">
+      <h2>Equivalent square</h2>
+      <p>Sterling formula field equivalence.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_mu') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-orange" href="/mu">
+      <h2>MU calculator</h2>
+      <p>Photon and electron monitor units.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('sec_units') or u.has('calculate') or u.role in ['developer','admin']) %}
+    <a class="home-card card-green" href="/units">
+      <h2>Units converter</h2>
+      <p>Gy ↔ cGy, Ci ↔ Bq and related units.</p>
     </a>
     {% endif %}
     {% if u and (u.has('sec_nt_constraints') or u.has('calculate') or u.role in ['developer','admin']) %}
     <a class="home-card card-fuchsia" href="/nt-constraints">
       <h2>OAR constraints</h2>
-      <p>Planning limits — conventional, 1 / 2 / 3 / 5 fractions.</p>
-    </a>
-    {% endif %}
-    {% if u and (u.has('sec_eqsquare') or u.has('calculate') or u.role in ['developer','admin']) %}
-    <a class="home-card card-sky" href="/eqsquare">
-      <h2>Equivalent square</h2>
-      <p>Sterling formula for rectangular and circular fields.</p>
-    </a>
-    {% endif %}
-    {% if u and (u.has('sec_mu') or u.has('calculate') or u.role in ['developer','admin']) %}
-    <a class="home-card card-lime" href="/mu">
-      <h2>MU calculator</h2>
-      <p>Photon SSD/SAD and electron MU estimate.</p>
-    </a>
-    {% endif %}
-    {% if u and (u.has('sec_units') or u.has('calculate') or u.role in ['developer','admin']) %}
-    <a class="home-card card-orange" href="/units">
-      <h2>Units converter</h2>
-      <p>Dose, activity, length and time units.</p>
+      <p>Organ-at-risk limits by fractionation.</p>
     </a>
     {% endif %}
   </div>
@@ -101,25 +101,27 @@
   <h3 class="section-label">Libraries</h3>
   <div class="home-grid">
     {% if u and (u.has('sec_libraries') or u.has('library_view') or u.role in ['developer','admin']) %}
-    <a class="home-card card-green" href="/detectors">
-      <h2>Libraries</h2>
-      <p>Detectors, machines and tolerances.</p>
+    <a class="home-card card-blue" href="/linacs">
+      <h2>Machines</h2>
+      <p>Linacs and brachytherapy units.</p>
+    </a>
+    <a class="home-card card-teal" href="/detectors">
+      <h2>Detectors</h2>
+      <p>Chamber library and calibration factors.</p>
+    </a>
+    <a class="home-card card-amber" href="/tolerances">
+      <h2>Tolerances</h2>
+      <p>Output and TPR tolerance tables.</p>
     </a>
     {% endif %}
     {% if is_staff %}
-    <a class="home-card card-amber" href="/library/edit-checklist">
+    <a class="home-card card-indigo" href="/library/edit-checklist">
       <h2>Edit checklist</h2>
       <p>Configure Daily QA items, tolerances and Yes/No questions.</p>
     </a>
-    <a class="home-card card-rose" href="/library/edit-mechanical-qa">
+    <a class="home-card card-violet" href="/library/edit-mechanical-qa">
       <h2>Edit mechanical QA</h2>
-      <p>Configure Mechanical QA items and tolerances.</p>
-    </a>
-    {% endif %}
-    {% if u and (u.has('sec_department') or u.has('dept_edit') or u.role in ['developer','admin']) %}
-    <a class="home-card card-emerald" href="/department">
-      <h2>Department</h2>
-      <p>Department details and settings.</p>
+      <p>Configure Mechanical QA items for each machine.</p>
     </a>
     {% endif %}
   </div>
@@ -137,7 +139,17 @@
     {% if u and (u.has('sec_reports') or u.role in ['developer','admin']) %}
     <a class="home-card card-sky" href="/reports">
       <h2>Reports</h2>
-      <p>PDF and printable reports.</p>
+      <p>PDF and printable dosimetry reports.</p>
+    </a>
+    {% endif %}
+    {% if u %}
+    <a class="home-card card-teal" href="/qa-history">
+      <h2>QA history</h2>
+      <p>Saved Daily and Mechanical QA sessions.</p>
+    </a>
+    <a class="home-card card-violet" href="/qa-reports">
+      <h2>QA reports</h2>
+      <p>Session PDFs and weekly Daily QA reports.</p>
     </a>
     {% endif %}
     {% if u and (u.has('sec_approvals') or u.has('approve') or u.role in ['developer','admin']) %}
@@ -146,10 +158,16 @@
       <p>Pending library and department changes.</p>
     </a>
     {% endif %}
-    {% if u and (u.has('user_manage') or u.role in ['developer','admin']) %}
-    <a class="home-card card-fuchsia" href="/users">
+    {% if u and (u.has('sec_department') or u.has('dept_edit') or u.role in ['developer','admin']) %}
+    <a class="home-card card-emerald" href="/department">
+      <h2>Department</h2>
+      <p>Hospital details and logo.</p>
+    </a>
+    {% endif %}
+    {% if u and (u.has('admin_panel') or u.has('user_manage') or u.role in ['developer','admin']) %}
+    <a class="home-card card-rose" href="/users">
       <h2>Users</h2>
-      <p>User directory, roles and section access.</p>
+      <p>Roles, section access and task rights.</p>
     </a>
     {% endif %}
   </div>
