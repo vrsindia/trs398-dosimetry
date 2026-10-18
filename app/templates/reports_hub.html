@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Reports — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Reports</h1>
+  <p class="muted">Dosimetry PDFs and QA reports (session and weekly Daily QA) in one place.</p>
+</div>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+
+<div class="card" style="padding:0.75rem 1rem;margin-bottom:1.25rem">
+  <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
+    <a class="btn {% if section != 'qa' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm"
+       href="/reports?section=dosimetry">Dosimetry reports</a>
+    <a class="btn {% if section == 'qa' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm"
+       href="/reports?section=qa">QA reports</a>
+  </div>
+</div>
+
+{% if section != 'qa' %}
+{# -------- Dosimetry reports -------- #}
+<div class="card form-card">
+  <h2 style="margin-top:0">Generate dosimetry report</h2>
+  <form method="post" action="/reports/generate">
+    <div class="grid-2">
+      <label>Machine
+        <select name="linac_id" required>
+          {% for m in linacs %}
+          <option value="{{ m.id }}">{{ m.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Report date
+        <input type="date" name="report_date" required>
+      </label>
+    </div>
+    <label>Notes <input name="notes"></label>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Generate report</button>
+    </div>
+  </form>
+</div>
+
+<div class="card result-card">
+  <h2 style="margin-top:0">Stored dosimetry reports</h2>
+  {% if reports %}
+  <table class="data-table">
+    <thead>
+      <tr><th>Date</th><th>Machine</th><th>Title</th><th>By</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for r in reports %}
+      <tr>
+        <td>{{ r.report_date }}</td>
+        <td>{{ r.linac_name }}</td>
+        <td>{{ r.title }}</td>
+        <td>{{ r.created_by }}</td>
+        <td style="white-space:nowrap">
+          <a class="btn btn-secondary btn-sm" href="/reports/{{ r.id }}/view">View</a>
+          <a class="btn btn-primary btn-sm" href="/reports/{{ r.id }}/pdf">PDF</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No dosimetry reports yet. Save measurements during a session, then generate.</p>
+  {% endif %}
+</div>
+
+{% else %}
+{# -------- QA reports -------- #}
+<div class="card form-card">
+  <h2 style="margin-top:0">Weekly Daily QA PDF</h2>
+  <p class="muted small">Pick any date in the week. All Daily QA sessions from Monday–Sunday are combined into one PDF.</p>
+  <form method="post" action="/qa-reports/weekly.pdf">
+    <div class="grid-2">
+      <label>Any day in the week *
+        <input type="date" name="week_day" value="{{ week_start }}" required>
+      </label>
+      <label>Machine (optional)
+        <select name="linac_id">
+          <option value="">All machines</option>
+          {% for m in machines %}
+          <option value="{{ m.id }}">{{ m.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Download weekly Daily QA PDF</button>
+    </div>
+  </form>
+</div>
+
+<div class="card result-card">
+  <h2 style="margin-top:0">Recent QA sessions (single PDF)</h2>
+  {% if qa_rows %}
+  <table class="data-table">
+    <thead>
+      <tr><th>Date</th><th>Type</th><th>Machine</th><th>Overall</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for r in qa_rows %}
+      <tr>
+        <td class="small">{{ (r.performed_at or '')[:16].replace('T',' ') }}</td>
+        <td>{% if r.kind == 'daily' %}Daily QA{% else %}Mechanical QA{% endif %}</td>
+        <td>{{ r.linac_name or r.linac_id }}</td>
+        <td>
+          {% if r.overall == 'green' %}<span style="color:var(--success);font-weight:700">PASS</span>
+          {% elif r.overall == 'yellow' %}<span style="color:#fbbf24;font-weight:700">BORDERLINE</span>
+          {% elif r.overall == 'red' %}<span style="color:var(--danger);font-weight:700">FAIL</span>
+          {% else %}{{ r.overall }}{% endif %}
+        </td>
+        <td><a class="btn btn-primary btn-sm" href="/qa-history/{{ r.id }}/pdf">PDF</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small" style="margin-top:0.75rem">
+    <a href="/history?section=qa">Full QA history →</a>
+  </p>
+  {% else %}
+  <p class="muted">No QA sessions yet.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
