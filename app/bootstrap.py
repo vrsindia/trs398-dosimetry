@@ -95,13 +95,6 @@ try:
 except Exception as e:
     print("qa_mount FAILED:", e)
     traceback.print_exc()
-    try:
-        from app.qa_routes import register_qa_routes
-        register_qa_routes(app, templates)
-        print("qa_routes fallback OK")
-    except Exception as e2:
-        print("qa_routes fallback FAILED:", e2)
-        traceback.print_exc()
 
 try:
     from app.qa_history_routes import mount_qa_history
@@ -111,22 +104,34 @@ except Exception as e:
     print("qa_history FAILED:", e)
     traceback.print_exc()
 
+# Unified History + Reports hubs (override list pages, keep PDF endpoints)
+try:
+    from app.unified_hub_routes import register_unified_hubs
+    register_unified_hubs(app, templates)
+    print("unified_hubs OK")
+except Exception as e:
+    print("unified_hubs FAILED:", e)
+    traceback.print_exc()
+
 
 @app.on_event("startup")
 def _startup_rebind():
     try:
         from app.qa_mount import mount_qa
         mount_qa(app, templates)
-        print("qa_mount startup OK")
     except Exception as e:
         print("qa_mount startup:", e)
-        traceback.print_exc()
     try:
         from app.qa_history_routes import mount_qa_history
         mount_qa_history(app, templates)
-        print("qa_history startup OK")
     except Exception as e:
         print("qa_history startup:", e)
+    try:
+        from app.unified_hub_routes import register_unified_hubs
+        register_unified_hubs(app, templates)
+        print("unified_hubs startup OK")
+    except Exception as e:
+        print("unified_hubs startup:", e)
     for label, mod_name, fn_name in [
         ("department", "app.department_routes", "register_department_routes"),
         ("users_routes", "app.users_routes", "register_users_routes"),
@@ -134,7 +139,6 @@ def _startup_rebind():
         try:
             mod = __import__(mod_name, fromlist=[fn_name])
             getattr(mod, fn_name)(app, templates)
-            print(label, "startup OK")
         except Exception as e:
             print(label, "startup:", e)
     try:
@@ -142,6 +146,8 @@ def _startup_rebind():
         mount_qa(app, templates)
         from app.qa_history_routes import mount_qa_history
         mount_qa_history(app, templates)
-        print("qa final startup OK")
+        from app.unified_hub_routes import register_unified_hubs
+        register_unified_hubs(app, templates)
+        print("hubs final startup OK")
     except Exception as e:
-        print("qa final startup:", e)
+        print("hubs final startup:", e)

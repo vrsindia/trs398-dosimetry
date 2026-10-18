@@ -130,26 +130,16 @@
 <section class="home-section">
   <h3 class="section-label">Records</h3>
   <div class="home-grid">
-    {% if u and (u.has('sec_history') or u.has('history_view') or u.role in ['developer','admin']) %}
-    <a class="home-card card-orange" href="/output-history">
-      <h2>Output history</h2>
-      <p>Past measurements and records.</p>
-    </a>
-    {% endif %}
-    {% if u and (u.has('sec_reports') or u.role in ['developer','admin']) %}
-    <a class="home-card card-sky" href="/reports">
-      <h2>Reports</h2>
-      <p>PDF and printable dosimetry reports.</p>
+    {% if u and (u.has('sec_history') or u.has('history_view') or u.role in ['developer','admin'] or true) %}
+    <a class="home-card card-orange" href="/history">
+      <h2>History</h2>
+      <p>Output history and QA history in one section.</p>
     </a>
     {% endif %}
     {% if u %}
-    <a class="home-card card-teal" href="/qa-history">
-      <h2>QA history</h2>
-      <p>Saved Daily and Mechanical QA sessions.</p>
-    </a>
-    <a class="home-card card-violet" href="/qa-reports">
-      <h2>QA reports</h2>
-      <p>Session PDFs and weekly Daily QA reports.</p>
+    <a class="home-card card-sky" href="/reports">
+      <h2>Reports</h2>
+      <p>Dosimetry PDFs and QA reports (including weekly Daily QA).</p>
     </a>
     {% endif %}
     {% if u and (u.has('sec_approvals') or u.has('approve') or u.role in ['developer','admin']) %}
