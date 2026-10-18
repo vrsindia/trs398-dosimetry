@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}QA history — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>QA history</h1>
+  <p class="muted">Saved Daily QA and Mechanical QA evaluations. Open PDF from the Reports section or the PDF link below.</p>
+</div>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+
+<div class="card form-card">
+  <form method="get" action="/qa-history" class="grid-2">
+    <label>Type
+      <select name="kind">
+        <option value="" {% if not kind %}selected{% endif %}>All</option>
+        <option value="daily" {% if kind == 'daily' %}selected{% endif %}>Daily QA</option>
+        <option value="mechanical" {% if kind == 'mechanical' %}selected{% endif %}>Mechanical QA</option>
+      </select>
+    </label>
+    <label>Machine
+      <select name="linac_id">
+        <option value="">All machines</option>
+        {% for m in machines %}
+        <option value="{{ m.id }}" {% if linac_id == m.id %}selected{% endif %}>{{ m.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-secondary">Filter</button>
+      <a class="btn btn-primary" href="/qa-reports">QA reports / weekly PDF</a>
+    </div>
+  </form>
+</div>
+
+<div class="card result-card">
+  <h2 style="margin-top:0">Sessions</h2>
+  {% if rows %}
+  <div style="overflow-x:auto">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Date</th><th>Type</th><th>Machine</th><th>By</th><th>Overall</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="small">{{ (r.performed_at or '')[:16].replace('T',' ') }}</td>
+        <td>{% if r.kind == 'daily' %}Daily QA{% else %}Mechanical QA{% endif %}</td>
+        <td>{{ r.linac_name or r.linac_id }}</td>
+        <td>{{ r.performed_by or '—' }}</td>
+        <td>
+          {% if r.overall == 'green' %}<span style="color:var(--success);font-weight:700">PASS</span>
+          {% elif r.overall == 'yellow' %}<span style="color:#fbbf24;font-weight:700">BORDERLINE</span>
+          {% elif r.overall == 'red' %}<span style="color:var(--danger);font-weight:700">FAIL</span>
+          {% else %}{{ r.overall or '—' }}{% endif %}
+        </td>
+        <td style="white-space:nowrap">
+          <a class="btn btn-primary btn-sm" href="/qa-history/{{ r.id }}/pdf">PDF</a>
+          {% if current_user.role in ['developer','admin'] %}
+          <form method="post" action="/qa-history/{{ r.id }}/delete" style="display:inline"
+                onsubmit="return confirm('Delete this QA session?');">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">No QA sessions saved yet. Complete a Daily or Mechanical QA evaluation to store one.</p>
+  {% endif %}
+</div>
+{% endblock %}
