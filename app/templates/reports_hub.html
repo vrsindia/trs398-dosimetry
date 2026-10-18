@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header">
   <h1>Reports</h1>
-  <p class="muted">PDFs are generated on demand and are <strong>not stored</strong> (not in Supabase).</p>
+  <p class="muted">PDFs are generated on demand and are <strong>not stored</strong>.</p>
 </div>
 
 {% if message %}
@@ -12,7 +12,7 @@
 
 <div class="card" style="padding:0.75rem 1rem;margin-bottom:1.25rem">
   <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
-    <a class="btn btn-sm {% if section == 'linac' %}btn-primary{% else %}btn-secondary{% endif %}" href="/reports?section=linac">Linac absolute dosimetry</a>
+    <a class="btn btn-sm {% if section == 'linac' %}btn-primary{% else %}btn-secondary{% endif %}" href="/reports?section=linac">LINAC Output Measurement</a>
     <a class="btn btn-sm {% if section == 'brachy' %}btn-primary{% else %}btn-secondary{% endif %}" href="/reports?section=brachy">Brachytherapy</a>
     <a class="btn btn-sm {% if section == 'daily_qa' %}btn-primary{% else %}btn-secondary{% endif %}" href="/reports?section=daily_qa">Daily QA checklist</a>
     <a class="btn btn-sm {% if section == 'mechanical_qa' %}btn-primary{% else %}btn-secondary{% endif %}" href="/reports?section=mechanical_qa">Mechanical QA</a>
@@ -21,10 +21,8 @@
 
 {% if section in ['linac', 'brachy'] %}
 <div class="card form-card">
-  <h2 style="margin-top:0">Generate {% if section == 'linac' %}linac{% else %}brachytherapy{% endif %} PDF</h2>
+  <h2 style="margin-top:0">Generate {% if section == 'linac' %}LINAC output{% else %}brachytherapy{% endif %} PDF</h2>
   <p class="muted small">Choose machine and date. PDF downloads immediately — nothing is saved on the server.</p>
-
-  {# Three actions point to the same handler so one of them always works after deploy #}
   <form method="post" action="/api/generate-pdf" id="pdf-form">
     <input type="hidden" name="report_section" value="{{ section }}">
     <div class="grid-2">
@@ -45,7 +43,6 @@
       <button type="submit" class="btn btn-primary">Generate PDF report</button>
     </div>
   </form>
-
   {% if not linacs %}
   <p class="muted small" style="margin-top:0.75rem">No machines listed. Add under <a href="/linacs">Libraries → Machines</a>.</p>
   {% endif %}
