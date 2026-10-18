@@ -88,7 +88,6 @@ except Exception as e:
     print("users_routes FAILED:", e)
     traceback.print_exc()
 
-# QA must be last — include_router so paths are live
 try:
     from app.qa_mount import mount_qa
     mount_qa(app, templates)
@@ -96,7 +95,6 @@ try:
 except Exception as e:
     print("qa_mount FAILED:", e)
     traceback.print_exc()
-    # Fallback: still try legacy register
     try:
         from app.qa_routes import register_qa_routes
         register_qa_routes(app, templates)
@@ -105,10 +103,17 @@ except Exception as e:
         print("qa_routes fallback FAILED:", e2)
         traceback.print_exc()
 
+try:
+    from app.qa_history_routes import mount_qa_history
+    mount_qa_history(app, templates)
+    print("qa_history OK")
+except Exception as e:
+    print("qa_history FAILED:", e)
+    traceback.print_exc()
+
 
 @app.on_event("startup")
 def _startup_rebind():
-    # Re-mount QA last so nothing shadows /daily-qa etc.
     try:
         from app.qa_mount import mount_qa
         mount_qa(app, templates)
@@ -116,6 +121,12 @@ def _startup_rebind():
     except Exception as e:
         print("qa_mount startup:", e)
         traceback.print_exc()
+    try:
+        from app.qa_history_routes import mount_qa_history
+        mount_qa_history(app, templates)
+        print("qa_history startup OK")
+    except Exception as e:
+        print("qa_history startup:", e)
     for label, mod_name, fn_name in [
         ("department", "app.department_routes", "register_department_routes"),
         ("users_routes", "app.users_routes", "register_users_routes"),
@@ -126,10 +137,11 @@ def _startup_rebind():
             print(label, "startup OK")
         except Exception as e:
             print(label, "startup:", e)
-    # QA again after other startup hooks
     try:
         from app.qa_mount import mount_qa
         mount_qa(app, templates)
-        print("qa_mount startup final OK")
+        from app.qa_history_routes import mount_qa_history
+        mount_qa_history(app, templates)
+        print("qa final startup OK")
     except Exception as e:
-        print("qa_mount startup final:", e)
+        print("qa final startup:", e)

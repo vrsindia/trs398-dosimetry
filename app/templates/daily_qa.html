@@ -3,16 +3,23 @@
 {% block content %}
 <div class="page-header">
   <h1>Daily QA checklist</h1>
-  <p class="muted">Machine-specific daily checks. Values are graded green / yellow / red.
+  <p class="muted">Machine-specific daily checks. Results are saved to history and can be exported as PDF.
     {% if can_edit and linac_id %}
-    <a href="/library/edit-checklist?linac_id={{ linac_id }}">Edit checklist for this machine</a>
-    {% elif can_edit %}
-    <a href="/library/edit-checklist">Edit checklists</a>
+    <a href="/library/edit-checklist?linac_id={{ linac_id }}">Edit checklist</a>
     {% endif %}
+    · <a href="/qa-history?kind=daily">QA history</a>
+    · <a href="/qa-reports">QA reports</a>
   </p>
 </div>
 
 {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+{% if saved %}
+<div class="alert alert-ok">
+  Session saved.
+  <a href="/qa-history/{{ saved.id }}/pdf">Download PDF</a>
+  · <a href="/qa-history?kind=daily">View history</a>
+</div>
+{% endif %}
 
 <div class="card form-card">
   <form method="get" action="/daily-qa">
@@ -77,7 +84,7 @@
   </div>
   {% endfor %}
   <div class="form-actions">
-    <button type="submit" class="btn btn-primary">Evaluate checklist</button>
+    <button type="submit" class="btn btn-primary">Evaluate &amp; save</button>
   </div>
   {% else %}
   <p class="muted">No checklist items for this machine.
@@ -106,6 +113,11 @@
       {% endfor %}
     </tbody>
   </table>
+  {% if saved %}
+  <div class="form-actions">
+    <a class="btn btn-primary" href="/qa-history/{{ saved.id }}/pdf">Download session PDF</a>
+  </div>
+  {% endif %}
 </div>
 {% endif %}
 {% endif %}
