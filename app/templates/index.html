@@ -130,16 +130,14 @@
 <section class="home-section">
   <h3 class="section-label">Records</h3>
   <div class="home-grid">
-    {% if u and (u.has('sec_history') or u.has('history_view') or u.role in ['developer','admin'] or true) %}
+    {% if u %}
     <a class="home-card card-orange" href="/history">
       <h2>History</h2>
-      <p>Output history and QA history in one section.</p>
+      <p>Output history and QA history — switch subsections inside.</p>
     </a>
-    {% endif %}
-    {% if u %}
     <a class="home-card card-sky" href="/reports">
       <h2>Reports</h2>
-      <p>Dosimetry PDFs and QA reports (including weekly Daily QA).</p>
+      <p>Dosimetry PDFs and QA reports (session + weekly Daily QA).</p>
     </a>
     {% endif %}
     {% if u and (u.has('sec_approvals') or u.has('approve') or u.role in ['developer','admin']) %}
