@@ -1,4 +1,4 @@
-"""DOSE pro — load core from known-good commit, then register utilities + QA."""
+"""DOSE pro — load core from known-good commit, then register utilities + hubs."""
 import urllib.request
 from pathlib import Path
 
@@ -26,10 +26,16 @@ try:
 except Exception as e:
     print("force_utils:", e)
 
-# Always try to mount QA when main is imported (covers wrong startCommand)
 try:
     from app.qa_mount import mount_qa
     mount_qa(app, templates)
     print("main: qa_mount OK")
 except Exception as e:
     print("main: qa_mount:", e)
+
+try:
+    from app.unified_hub_routes import register_unified_hubs
+    register_unified_hubs(app, templates)
+    print("main: unified_hubs OK")
+except Exception as e:
+    print("main: unified_hubs:", e)
