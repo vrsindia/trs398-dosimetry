@@ -3,26 +3,36 @@
 {% block content %}
 <div class="page-header">
   <h1>History</h1>
-  <p class="muted">Output measurements and QA checklist sessions in one place.</p>
+  <p class="muted">Linac dosimetry, brachytherapy, Daily QA and Mechanical QA records.</p>
 </div>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 
-{# Subsection navigation #}
 <div class="card" style="padding:0.75rem 1rem;margin-bottom:1.25rem">
   <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
-    <a class="btn {% if section != 'qa' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm"
-       href="/history?section=output">Output history</a>
-    <a class="btn {% if section == 'qa' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm"
-       href="/history?section=qa">QA history</a>
+    <a class="btn btn-sm {% if section == 'linac' %}btn-primary{% else %}btn-secondary{% endif %}"
+       href="/history?section=linac">Linac absolute dosimetry</a>
+    <a class="btn btn-sm {% if section == 'brachy' %}btn-primary{% else %}btn-secondary{% endif %}"
+       href="/history?section=brachy">Brachytherapy</a>
+    <a class="btn btn-sm {% if section == 'daily_qa' %}btn-primary{% else %}btn-secondary{% endif %}"
+       href="/history?section=daily_qa">Daily QA checklist</a>
+    <a class="btn btn-sm {% if section == 'mechanical_qa' %}btn-primary{% else %}btn-secondary{% endif %}"
+       href="/history?section=mechanical_qa">Mechanical QA</a>
   </div>
 </div>
 
-{% if section != 'qa' %}
-{# -------- Output history -------- #}
+{% if section in ['linac', 'brachy'] %}
 <div class="card result-card">
-  <h2 style="margin-top:0">Output history</h2>
-  <p class="muted small">Saved absolute dosimetry measurements by machine and energy.</p>
+  <h2 style="margin-top:0">
+    {% if section == 'linac' %}Linac absolute dosimetry{% else %}Brachytherapy{% endif %}
+  </h2>
+  <p class="muted small">
+    {% if section == 'linac' %}
+    Saved TRS-398 photon / electron output measurements.
+    {% else %}
+    Saved well-chamber / source-strength related measurements.
+    {% endif %}
+  </p>
   {% if records %}
   <div style="overflow-x:auto">
   <table class="data-table">
@@ -61,7 +71,7 @@
         {% if current_user and current_user.role in ['developer', 'admin'] %}
         <td>
           <form method="post" action="/output-history/{{ r.id }}/delete"
-                onsubmit="return confirm('Delete this output record?');">
+                onsubmit="return confirm('Delete this record?');">
             <button type="submit" class="btn btn-danger btn-sm">Delete</button>
           </form>
         </td>
@@ -72,22 +82,15 @@
   </table>
   </div>
   {% else %}
-  <p class="muted">No output records yet.</p>
+  <p class="muted">No records in this section yet.</p>
   {% endif %}
 </div>
 
 {% else %}
-{# -------- QA history -------- #}
+{# Daily QA or Mechanical QA #}
 <div class="card form-card">
   <form method="get" action="/history" class="grid-2">
-    <input type="hidden" name="section" value="qa">
-    <label>Type
-      <select name="kind">
-        <option value="" {% if not kind %}selected{% endif %}>All</option>
-        <option value="daily" {% if kind == 'daily' %}selected{% endif %}>Daily QA</option>
-        <option value="mechanical" {% if kind == 'mechanical' %}selected{% endif %}>Mechanical QA</option>
-      </select>
-    </label>
+    <input type="hidden" name="section" value="{{ section }}">
     <label>Machine
       <select name="linac_id">
         <option value="">All machines</option>
@@ -96,29 +99,29 @@
         {% endfor %}
       </select>
     </label>
-    <div class="form-actions">
+    <div class="form-actions" style="align-self:end">
       <button type="submit" class="btn btn-secondary">Filter</button>
-      <a class="btn btn-primary" href="/reports?section=qa">QA reports / weekly PDF</a>
+      <a class="btn btn-primary" href="/reports?section={{ section }}">Open reports</a>
     </div>
   </form>
 </div>
 
 <div class="card result-card">
-  <h2 style="margin-top:0">QA history</h2>
-  <p class="muted small">Saved Daily QA and Mechanical QA evaluations.</p>
+  <h2 style="margin-top:0">
+    {% if section == 'daily_qa' %}Daily QA checklist{% else %}Mechanical QA{% endif %}
+  </h2>
   {% if qa_rows %}
   <div style="overflow-x:auto">
   <table class="data-table">
     <thead>
       <tr>
-        <th>Date</th><th>Type</th><th>Machine</th><th>By</th><th>Overall</th><th></th>
+        <th>Date</th><th>Machine</th><th>By</th><th>Overall</th><th></th>
       </tr>
     </thead>
     <tbody>
       {% for r in qa_rows %}
       <tr>
         <td class="small">{{ (r.performed_at or '')[:16].replace('T',' ') }}</td>
-        <td>{% if r.kind == 'daily' %}Daily QA{% else %}Mechanical QA{% endif %}</td>
         <td>{{ r.linac_name or r.linac_id }}</td>
         <td>{{ r.performed_by or '—' }}</td>
         <td>
@@ -142,7 +145,7 @@
   </table>
   </div>
   {% else %}
-  <p class="muted">No QA sessions saved yet.</p>
+  <p class="muted">No sessions in this section yet.</p>
   {% endif %}
 </div>
 {% endif %}

@@ -3,25 +3,31 @@
 {% block content %}
 <div class="page-header">
   <h1>Reports</h1>
-  <p class="muted">Dosimetry PDFs and QA reports (session and weekly Daily QA) in one place.</p>
+  <p class="muted">Linac, brachytherapy, Daily QA and Mechanical QA PDFs.</p>
 </div>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 
 <div class="card" style="padding:0.75rem 1rem;margin-bottom:1.25rem">
   <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
-    <a class="btn {% if section != 'qa' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm"
-       href="/reports?section=dosimetry">Dosimetry reports</a>
-    <a class="btn {% if section == 'qa' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm"
-       href="/reports?section=qa">QA reports</a>
+    <a class="btn btn-sm {% if section == 'linac' %}btn-primary{% else %}btn-secondary{% endif %}"
+       href="/reports?section=linac">Linac absolute dosimetry</a>
+    <a class="btn btn-sm {% if section == 'brachy' %}btn-primary{% else %}btn-secondary{% endif %}"
+       href="/reports?section=brachy">Brachytherapy</a>
+    <a class="btn btn-sm {% if section == 'daily_qa' %}btn-primary{% else %}btn-secondary{% endif %}"
+       href="/reports?section=daily_qa">Daily QA checklist</a>
+    <a class="btn btn-sm {% if section == 'mechanical_qa' %}btn-primary{% else %}btn-secondary{% endif %}"
+       href="/reports?section=mechanical_qa">Mechanical QA</a>
   </div>
 </div>
 
-{% if section != 'qa' %}
-{# -------- Dosimetry reports -------- #}
+{% if section in ['linac', 'brachy'] %}
 <div class="card form-card">
-  <h2 style="margin-top:0">Generate dosimetry report</h2>
+  <h2 style="margin-top:0">
+    Generate {% if section == 'linac' %}linac{% else %}brachytherapy{% endif %} report
+  </h2>
   <form method="post" action="/reports/generate">
+    <input type="hidden" name="report_section" value="{{ section }}">
     <div class="grid-2">
       <label>Machine
         <select name="linac_id" required>
@@ -39,10 +45,13 @@
       <button type="submit" class="btn btn-primary">Generate report</button>
     </div>
   </form>
+  {% if not linacs %}
+  <p class="muted small" style="margin-top:0.5rem">No machines in this category. Add machines under Libraries.</p>
+  {% endif %}
 </div>
 
 <div class="card result-card">
-  <h2 style="margin-top:0">Stored dosimetry reports</h2>
+  <h2 style="margin-top:0">Stored reports</h2>
   {% if reports %}
   <table class="data-table">
     <thead>
@@ -64,15 +73,14 @@
     </tbody>
   </table>
   {% else %}
-  <p class="muted">No dosimetry reports yet. Save measurements during a session, then generate.</p>
+  <p class="muted">No reports in this section yet.</p>
   {% endif %}
 </div>
 
-{% else %}
-{# -------- QA reports -------- #}
+{% elif section == 'daily_qa' %}
 <div class="card form-card">
   <h2 style="margin-top:0">Weekly Daily QA PDF</h2>
-  <p class="muted small">Pick any date in the week. All Daily QA sessions from Monday–Sunday are combined into one PDF.</p>
+  <p class="muted small">Pick any date in the week. Monday–Sunday Daily QA sessions are combined into one PDF.</p>
   <form method="post" action="/qa-reports/weekly.pdf">
     <div class="grid-2">
       <label>Any day in the week *
@@ -94,17 +102,16 @@
 </div>
 
 <div class="card result-card">
-  <h2 style="margin-top:0">Recent QA sessions (single PDF)</h2>
+  <h2 style="margin-top:0">Daily QA session PDFs</h2>
   {% if qa_rows %}
   <table class="data-table">
     <thead>
-      <tr><th>Date</th><th>Type</th><th>Machine</th><th>Overall</th><th></th></tr>
+      <tr><th>Date</th><th>Machine</th><th>Overall</th><th>By</th><th></th></tr>
     </thead>
     <tbody>
       {% for r in qa_rows %}
       <tr>
         <td class="small">{{ (r.performed_at or '')[:16].replace('T',' ') }}</td>
-        <td>{% if r.kind == 'daily' %}Daily QA{% else %}Mechanical QA{% endif %}</td>
         <td>{{ r.linac_name or r.linac_id }}</td>
         <td>
           {% if r.overall == 'green' %}<span style="color:var(--success);font-weight:700">PASS</span>
@@ -112,16 +119,48 @@
           {% elif r.overall == 'red' %}<span style="color:var(--danger);font-weight:700">FAIL</span>
           {% else %}{{ r.overall }}{% endif %}
         </td>
+        <td>{{ r.performed_by or '—' }}</td>
         <td><a class="btn btn-primary btn-sm" href="/qa-history/{{ r.id }}/pdf">PDF</a></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p class="muted small" style="margin-top:0.75rem">
-    <a href="/history?section=qa">Full QA history →</a>
-  </p>
+  <p class="muted small" style="margin-top:0.75rem"><a href="/history?section=daily_qa">Full Daily QA history →</a></p>
   {% else %}
-  <p class="muted">No QA sessions yet.</p>
+  <p class="muted">No Daily QA sessions yet.</p>
+  {% endif %}
+</div>
+
+{% else %}
+{# mechanical_qa #}
+<div class="card result-card">
+  <h2 style="margin-top:0">Mechanical QA session PDFs</h2>
+  <p class="muted small">Download a PDF for each saved Mechanical QA evaluation.</p>
+  {% if qa_rows %}
+  <table class="data-table">
+    <thead>
+      <tr><th>Date</th><th>Machine</th><th>Overall</th><th>By</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for r in qa_rows %}
+      <tr>
+        <td class="small">{{ (r.performed_at or '')[:16].replace('T',' ') }}</td>
+        <td>{{ r.linac_name or r.linac_id }}</td>
+        <td>
+          {% if r.overall == 'green' %}<span style="color:var(--success);font-weight:700">PASS</span>
+          {% elif r.overall == 'yellow' %}<span style="color:#fbbf24;font-weight:700">BORDERLINE</span>
+          {% elif r.overall == 'red' %}<span style="color:var(--danger);font-weight:700">FAIL</span>
+          {% else %}{{ r.overall }}{% endif %}
+        </td>
+        <td>{{ r.performed_by or '—' }}</td>
+        <td><a class="btn btn-primary btn-sm" href="/qa-history/{{ r.id }}/pdf">PDF</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small" style="margin-top:0.75rem"><a href="/history?section=mechanical_qa">Full Mechanical QA history →</a></p>
+  {% else %}
+  <p class="muted">No Mechanical QA sessions yet.</p>
   {% endif %}
 </div>
 {% endif %}
