@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header">
   <h1>Users</h1>
-  <p class="muted">Click a user row to expand. Set section access and task rights with tick boxes.</p>
+  <p class="muted">Expand a user to edit section access and task rights.</p>
 </div>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
@@ -12,55 +12,22 @@
 <div class="card" style="padding:0.75rem 1rem;margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center">
   <a class="btn btn-secondary btn-sm" href="/users-db-status" target="_blank">Check Supabase status</a>
   <a class="btn btn-primary btn-sm" href="/users/sync-to-supabase">Sync all users to Supabase</a>
-  <span class="muted small">Use Sync if a user is missing in the Supabase table.</span>
 </div>
 
-{% set sec_list = section_perms if section_perms is defined and section_perms else [
-  'sec_linac','sec_brachy','sec_activity','sec_bed','sec_bed_combined','sec_gap',
-  'sec_fractionation','sec_eqsquare','sec_mu','sec_units','sec_nt_constraints',
-  'sec_libraries','sec_history','sec_reports','sec_approvals','sec_department'
-] %}
-{% set sec_names = section_labels if section_labels is defined and section_labels else {
-  'sec_linac': 'LINAC Output Measurement',
-  'sec_brachy': 'Brachytherapy',
-  'sec_activity': 'Source activity',
-  'sec_bed': 'BED / EQD2',
-  'sec_bed_combined': 'EBRT + brachy BED',
-  'sec_gap': 'Gap correction',
-  'sec_fractionation': 'Fractionation pattern',
-  'sec_eqsquare': 'Equivalent square',
-  'sec_mu': 'MU calculator',
-  'sec_units': 'Units converter',
-  'sec_nt_constraints': 'OAR constraints',
-  'sec_libraries': 'Libraries',
-  'sec_history': 'Output history',
-  'sec_reports': 'Reports',
-  'sec_approvals': 'Approvals',
-  'sec_department': 'Department'
-} %}
-{% set task_list = system_perms if system_perms is defined and system_perms else [
-  'calculate','tune','library_view','library_edit','approve','user_manage','dept_edit','history_view','admin_panel'
-] %}
-{% set task_names = perm_labels if perm_labels is defined and perm_labels else {
-  'calculate': 'Run calculations',
-  'tune': 'Tune output',
-  'library_view': 'View libraries',
-  'library_edit': 'Edit libraries',
-  'approve': 'Approve changes',
-  'user_manage': 'Manage users',
-  'dept_edit': 'Edit department',
-  'history_view': 'View history',
-  'admin_panel': 'User directory'
-} %}
+{% set sec_list = section_perms if section_perms is defined else [] %}
+{% set sec_names = section_labels if section_labels is defined else {} %}
+{% set task_list = system_perms if system_perms is defined else [] %}
+{% set task_names = perm_labels if perm_labels is defined else {} %}
 
 <div class="card result-card">
   <h2 style="margin-top:0">User directory</h2>
+
   {% if users %}
   {% for u in users %}
-  <div class="ucard" data-uid="{{ u.id }}">
-    <button type="button" class="ucard-head" aria-expanded="false">
+  <details class="ucard">
+    <summary class="ucard-head">
       <span class="ucard-title">
-        <strong>{{ u.full_name }}</strong>
+        <strong>{{ u.full_name or u.username }}</strong>
         <span class="muted small">@{{ u.username }}</span>
       </span>
       <span class="badge">{{ u.role }}</span>
@@ -69,12 +36,14 @@
       {% else %}
       <span style="color:var(--danger);font-weight:600;font-size:0.88rem">Inactive</span>
       {% endif %}
-      <span class="ucard-arrow">▸</span>
-    </button>
-    <div class="ucard-body" hidden>
+    </summary>
+
+    <div class="ucard-body">
       <form method="post" action="/users/{{ u.id }}/edit">
         <div class="grid-2">
-          <label>Full name<input name="full_name" value="{{ u.full_name }}" required></label>
+          <label>Full name
+            <input name="full_name" value="{{ u.full_name or '' }}" required>
+          </label>
           <label>Role
             <select name="role">
               {% for r in roles %}
@@ -86,42 +55,55 @@
         <label>New password <span class="muted small">(leave blank to keep)</span>
           <input type="password" name="password" autocomplete="new-password">
         </label>
+
         <fieldset class="perm-fieldset">
           <legend>Section access</legend>
           <div class="perm-grid">
             {% for p in sec_list %}
             <div class="perm-item">
               <label class="check-label">
-                <input type="checkbox" name="permissions" value="{{ p }}" {% if p in u.permissions %}checked{% endif %}>
-                <span class="perm-name">{{ sec_names.get(p, p) }}</span>
+                <input type="checkbox" name="permissions" value="{{ p }}"
+                  {% if u.permissions is defined and p in u.permissions %}checked{% endif %}>
+                <span class="perm-name">{{ sec_names.get(p, p) if sec_names else p }}</span>
               </label>
             </div>
             {% endfor %}
           </div>
         </fieldset>
+
         <fieldset class="perm-fieldset">
           <legend>Task rights</legend>
           <div class="perm-grid">
             {% for p in task_list %}
             <div class="perm-item">
               <label class="check-label">
-                <input type="checkbox" name="permissions" value="{{ p }}" {% if p in u.permissions %}checked{% endif %}>
-                <span class="perm-name">{{ task_names.get(p, p) }}</span>
+                <input type="checkbox" name="permissions" value="{{ p }}"
+                  {% if u.permissions is defined and p in u.permissions %}checked{% endif %}>
+                <span class="perm-name">{{ task_names.get(p, p) if task_names else p }}</span>
               </label>
             </div>
             {% endfor %}
           </div>
         </fieldset>
+
         <label class="check-label" style="margin-top:0.85rem">
           <input type="checkbox" name="active" value="1" {% if u.active %}checked{% endif %}>
           <span>Active account</span>
         </label>
+
         <div class="form-actions" style="margin-top:1rem">
           <button type="submit" class="btn btn-primary">Save user</button>
         </div>
       </form>
+
+      {% if u.role != 'developer' %}
+      <form method="post" action="/users/{{ u.id }}/delete" style="margin-top:0.5rem"
+            onsubmit="return confirm('Delete user {{ u.username }}?');">
+        <button type="submit" class="btn btn-danger btn-sm">Delete user</button>
+      </form>
+      {% endif %}
     </div>
-  </div>
+  </details>
   {% endfor %}
   {% else %}
   <p class="muted">No users yet.</p>
@@ -150,23 +132,62 @@
 </div>
 
 <style>
-.ucard{border:1px solid var(--border);border-radius:10px;background:var(--surface-2);margin-bottom:0.65rem;overflow:hidden}
-.ucard.open{background:var(--surface);border-color:var(--primary)}
-.ucard-head{display:flex;flex-wrap:wrap;align-items:center;gap:0.6rem 1rem;width:100%;padding:0.9rem 1rem;border:0;background:transparent;color:var(--text);font:inherit;text-align:left;cursor:pointer}
+.ucard{
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:var(--surface-2);
+  margin-bottom:0.65rem;
+  overflow:hidden;
+}
+.ucard[open]{
+  background:var(--surface);
+  border-color:var(--primary);
+}
+.ucard-head{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:0.6rem 1rem;
+  padding:0.9rem 1rem;
+  cursor:pointer;
+  list-style:none;
+}
+.ucard-head::-webkit-details-marker{display:none}
 .ucard-head:hover{background:rgba(59,130,246,0.08)}
 .ucard-title{flex:1;min-width:140px}
-.ucard-arrow{margin-left:auto;color:var(--muted);transition:transform .15s ease}
-.ucard.open .ucard-arrow{transform:rotate(90deg)}
-.ucard-body{padding:0 1rem 1.15rem;border-top:1px solid var(--border)}
-.perm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.45rem 0.75rem;margin-top:0.5rem}
-.perm-item{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.65rem}
-.check-label{display:flex;align-items:center;gap:0.5rem;margin:0;cursor:pointer;font-weight:500}
+.ucard-body{
+  padding:0 1rem 1.15rem;
+  border-top:1px solid var(--border);
+}
+.perm-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  gap:0.45rem 0.75rem;
+  margin-top:0.5rem;
+}
+.perm-item{
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:0.5rem 0.65rem;
+}
+.check-label{
+  display:flex;
+  align-items:center;
+  gap:0.5rem;
+  margin:0;
+  cursor:pointer;
+  font-weight:500;
+}
 .check-label input{width:auto;margin:0}
 .perm-name{font-size:0.88rem}
-.perm-fieldset{margin-top:1rem;border:1px solid var(--border);border-radius:10px;padding:0.85rem 1rem;background:var(--surface-2)}
+.perm-fieldset{
+  margin-top:1rem;
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:0.85rem 1rem;
+  background:var(--surface-2);
+}
 .perm-fieldset legend{font-weight:650;padding:0 0.35rem}
 </style>
-<script>
-(function(){document.querySelectorAll('.ucard-head').forEach(function(btn){btn.addEventListener('click',function(){var card=btn.closest('.ucard');var body=card.querySelector('.ucard-body');var open=card.classList.toggle('open');body.hidden=!open;btn.setAttribute('aria-expanded',open?'true':'false');});});})();
-</script>
 {% endblock %}

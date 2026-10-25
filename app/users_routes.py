@@ -1,7 +1,6 @@
-"""User directory — collapsible cards with section + task tick boxes.
-Always persist create/update/delete to Supabase + JSON (do not rely on import-time patch).
-"""
+"""User directory — safe collapsible cards, always persist to Supabase."""
 from __future__ import annotations
+
 from fastapi import Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
@@ -22,33 +21,57 @@ SYSTEM_PERMS = [
     PERM_APPROVE, PERM_USER_MANAGE, PERM_DEPT_EDIT, PERM_HISTORY_VIEW,
     PERM_ADMIN_PANEL,
 ]
-
 SECTION_PERMS = list(ALL_SECTION_PERMS)
+
+# Paths owned by user_sync_routes — never remove these
+_KEEP_PATHS = {"/users-db-status", "/users/sync-to-supabase"}
 
 
 def _persist(user) -> str:
-    """Force-save user; return short status for UI."""
     try:
         from app.user_store import persist_user, save_user_supabase
-        from app.db import use_db, status as db_status
+        from app.db import status as db_status
         persist_user(user)
         st = db_status()
         if st.get("using_database"):
             ok = save_user_supabase(user)
-            if ok:
-                return "saved_to_supabase"
-            return "supabase_save_failed"
+            return "saved_to_supabase" if ok else "supabase_save_failed"
         return "saved_json_only_no_supabase_env"
     except Exception as e:
         print("users_routes _persist:", e)
-        return "persist_error:%s" % e
+        return "persist_error"
+
+
+def _norm_perms(raw) -> set:
+    if raw is None:
+        return set()
+    if isinstance(raw, set):
+        return {str(x) for x in raw}
+    if isinstance(raw, (list, tuple)):
+        return {str(x) for x in raw}
+    if isinstance(raw, str):
+        try:
+            import json
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return {str(x) for x in parsed}
+        except Exception:
+            pass
+        return {raw} if raw else set()
+    try:
+        return {str(x) for x in raw}
+    except Exception:
+        return set()
 
 
 def register_users_routes(app, templates):
     kept = []
-    for r in app.router.routes:
+    for r in list(app.router.routes):
         path = getattr(r, "path", None)
-        if path in ("/users", "/users/add", "/users-db-status") or (
+        if path in _KEEP_PATHS:
+            kept.append(r)
+            continue
+        if path in ("/users", "/users/add") or (
             isinstance(path, str) and path.startswith("/users/")
         ):
             continue
@@ -76,36 +99,62 @@ def register_users_routes(app, templates):
         return None
 
     def _ctx(request, user, message="", error=""):
-        users = list_users()
+        users = []
+        try:
+            users = list(list_users() or [])
+        except Exception as e:
+            print("list_users:", e)
+            error = (error or "") + (" list_users error: " + str(e))
+
+        safe_users = []
         for u in users:
-            perms = getattr(u, "permissions", None)
-            if not isinstance(perms, set):
+            try:
+                u.permissions = _norm_perms(getattr(u, "permissions", None))
+                # expose plain attributes for template safety
+                safe_users.append({
+                    "id": str(getattr(u, "id", "") or ""),
+                    "username": str(getattr(u, "username", "") or ""),
+                    "full_name": str(getattr(u, "full_name", "") or getattr(u, "username", "") or ""),
+                    "role": str(getattr(u, "role", "observer") or "observer"),
+                    "active": bool(getattr(u, "active", True)),
+                    "permissions": set(u.permissions),
+                })
+                # keep original object permissions normalized too
+            except Exception as e:
+                print("user normalize:", e)
+
+        # Prefer object list with normalized perms for form actions (ids must match)
+        for u in users:
+            try:
+                u.permissions = _norm_perms(getattr(u, "permissions", None))
+            except Exception:
                 try:
-                    u.permissions = set(perms or [])
-                except Exception:
                     u.permissions = set()
+                except Exception:
+                    pass
+
         db_msg = ""
         try:
             from app.db import status as db_status
             st = db_status()
             if not st.get("using_database"):
                 db_msg = (
-                    " Warning: Supabase is not connected (set SUPABASE_URL and "
-                    "SUPABASE_KEY=service_role on Render). Users will disappear after restart."
+                    " Warning: Supabase not connected — users may be lost on restart."
                 )
         except Exception:
             pass
+
         return {
             "request": request,
             "current_user": user,
             "users": users,
             "roles": list(ROLES),
-            "section_perms": SECTION_PERMS,
+            "section_perms": list(SECTION_PERMS),
             "section_labels": dict(SECTION_LABELS),
             "system_perms": list(SYSTEM_PERMS),
             "perm_labels": dict(PERM_LABELS),
-            "message": (message or "") + db_msg,
-            "error": error,
+            "message": ((message or "") + db_msg).strip(),
+            "error": error or "",
         }
 
     def _tpl(request, **ctx):
@@ -117,30 +166,16 @@ def register_users_routes(app, templates):
             ctx["request"] = request
             try:
                 return templates.TemplateResponse(TEMPLATE, ctx)
-            except TypeError:
-                return templates.TemplateResponse(TEMPLATE, context=ctx)
-
-    @app.get("/users-db-status")
-    async def users_db_status(request: Request):
-        user = _require_admin(request)
-        if not user:
-            return RedirectResponse("/login", 303)
-        try:
-            from app.db import status as db_status, use_db
-            from app.user_store import load_users_supabase, load_users_json
-            st = db_status()
-            sb_rows = load_users_supabase() if use_db() else []
-            js_rows = load_users_json()
-            return JSONResponse({
-                **st,
-                "memory_users": [u.username for u in list_users()],
-                "supabase_users": [r.get("username") for r in (sb_rows or [])],
-                "json_users": [r.get("username") for r in (js_rows or [])],
-                "supabase_count": len(sb_rows or []),
-                "json_count": len(js_rows or []),
-            })
-        except Exception as e:
-            return JSONResponse({"error": str(e)}, status_code=500)
+            except Exception:
+                try:
+                    return templates.TemplateResponse(TEMPLATE, context=ctx)
+                except Exception as e:
+                    print("users template error:", e)
+                    html = (
+                        "<h1>Users</h1><p>Template error: %s</p>"
+                        "<p><a href='/'>Home</a></p>" % e
+                    )
+                    return HTMLResponse(html, status_code=500)
 
     @app.get("/users", response_class=HTMLResponse)
     async def users_page(request: Request):
@@ -148,32 +183,42 @@ def register_users_routes(app, templates):
         if not user:
             return RedirectResponse("/login", 303)
         msg = (request.query_params.get("msg") or "").replace("+", " ")
-        return _tpl(request, **_ctx(request, user, message=msg))
+        try:
+            return _tpl(request, **_ctx(request, user, message=msg))
+        except Exception as e:
+            print("users_page error:", e)
+            import traceback
+            traceback.print_exc()
+            return HTMLResponse(
+                "<h1>Users error</h1><pre>%s</pre><a href='/'>Home</a>" % e,
+                status_code=500,
+            )
 
     @app.post("/users/add")
     async def users_add(
         request: Request,
-        username: str = Form(...),
-        full_name: str = Form(...),
-        password: str = Form(...),
-        role: str = Form(...),
+        username: str = Form(""),
+        full_name: str = Form(""),
+        password: str = Form(""),
+        role: str = Form("physicist"),
     ):
         user = _require_admin(request)
         if not user:
             return RedirectResponse("/login", 303)
         try:
-            # Use module attribute so persistence patch (if any) is always used
             new_u = auth_mod.create_user(
-                username, password, full_name, role,
+                str(username).strip(),
+                str(password),
+                str(full_name).strip() or str(username).strip(),
+                str(role).strip() or "physicist",
                 created_by=getattr(user, "username", "") or "",
             )
             status = _persist(new_u)
+            msg = "User+created"
             if status == "saved_to_supabase":
                 msg = "User+created+and+saved+to+Supabase"
-            elif status == "saved_json_only_no_supabase_env":
-                msg = "User+created+but+Supabase+not+configured+will+be+lost+on+restart"
-            else:
-                msg = "User+created+persist=" + status.replace(" ", "+")
+            elif "json_only" in status:
+                msg = "User+created+but+Supabase+not+configured"
             return RedirectResponse("/users?msg=" + msg, 303)
         except Exception as e:
             return _tpl(request, **_ctx(request, user, error=str(e)))
@@ -183,30 +228,33 @@ def register_users_routes(app, templates):
         user = _require_admin(request)
         if not user:
             return RedirectResponse("/login", 303)
-        form = await request.form()
-        full_name = str(form.get("full_name") or "")
-        role = str(form.get("role") or "physicist")
-        password = str(form.get("password") or "")
-        active = form.get("active") == "1"
-        if hasattr(form, "getlist"):
-            perms = form.getlist("permissions")
-        else:
-            raw = form.get("permissions")
-            perms = raw if isinstance(raw, list) else ([raw] if raw else [])
-        kwargs = {
-            "full_name": full_name,
-            "role": role,
-            "active": active,
-            "permissions": set(str(p) for p in perms if p),
-        }
-        if password.strip():
-            kwargs["password"] = password.strip()
         try:
+            form = await request.form()
+            full_name = str(form.get("full_name") or "")
+            role = str(form.get("role") or "physicist")
+            password = str(form.get("password") or "")
+            active = str(form.get("active") or "") in ("1", "on", "true", "True")
+            if hasattr(form, "getlist"):
+                perms = form.getlist("permissions")
+            else:
+                raw = form.get("permissions")
+                perms = raw if isinstance(raw, list) else ([raw] if raw else [])
+            kwargs = {
+                "full_name": full_name,
+                "role": role,
+                "active": active,
+                "permissions": _norm_perms(perms),
+            }
+            if password.strip():
+                kwargs["password"] = password.strip()
             updated = auth_mod.update_user(uid, **kwargs)
             if updated:
                 _persist(updated)
             return RedirectResponse("/users?msg=User+updated", 303)
         except Exception as e:
+            print("users_edit error:", e)
+            import traceback
+            traceback.print_exc()
             return _tpl(request, **_ctx(request, user, error=str(e)))
 
     @app.post("/users/{uid}/delete")
@@ -225,5 +273,5 @@ def register_users_routes(app, templates):
         except Exception as e:
             return _tpl(request, **_ctx(request, user, error=str(e)))
 
-    print("users_routes: collapsible users + explicit Supabase persist")
+    print("users_routes: safe users page registered")
     return True
