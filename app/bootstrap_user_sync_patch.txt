@@ -1,0 +1,3 @@
+After users_routes registration, bootstrap must call:
+from app.user_sync_routes import register_user_sync_routes
+register_user_sync_routes(app, templates)
