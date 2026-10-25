@@ -1,17 +1,10 @@
-"""Persistent user store: Supabase (preferred) + local JSON backup.
-
-Render free tier wipes memory on sleep/redeploy. Without Supabase env vars,
-users only live until the process restarts. With SUPABASE_URL + SUPABASE_KEY
-and an app_users table, users survive.
-"""
+"""Persistent user store: Supabase (preferred) + local JSON backup."""
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List
 
-# Prefer a writable path under the app; fall back to /tmp
 _DATA_DIRS = [
     Path(__file__).resolve().parent / "data",
     Path("/tmp/dosepro"),
@@ -24,7 +17,6 @@ def _json_path() -> Path:
         try:
             d.mkdir(parents=True, exist_ok=True)
             p = d / _JSON_NAME
-            # touch test
             if not p.exists():
                 p.write_text("[]", encoding="utf-8")
             return p
@@ -38,21 +30,20 @@ def _user_to_dict(user) -> dict:
     if not isinstance(perms, (list, set, tuple)):
         perms = []
     return {
-        "id": user.id,
-        "username": user.username,
-        "full_name": getattr(user, "full_name", "") or user.username,
-        "role": getattr(user, "role", "observer") or "observer",
-        "password_hash": user.password_hash,
-        "salt": user.salt,
+        "id": str(user.id),
+        "username": str(user.username),
+        "full_name": str(getattr(user, "full_name", "") or user.username),
+        "role": str(getattr(user, "role", "observer") or "observer"),
+        "password_hash": str(user.password_hash),
+        "salt": str(user.salt),
         "active": bool(getattr(user, "active", True)),
         "permissions": sorted(list(perms)),
-        "created_at": getattr(user, "created_at", "") or "",
-        "created_by": getattr(user, "created_by", "") or "",
+        "created_at": str(getattr(user, "created_at", "") or ""),
+        "created_by": str(getattr(user, "created_by", "") or ""),
     }
 
 
 def save_user_json(user) -> None:
-    """Upsert one user into local JSON file."""
     try:
         path = _json_path()
         rows: List[dict] = []
@@ -102,14 +93,44 @@ def load_users_json() -> List[dict]:
 
 
 def save_user_supabase(user) -> bool:
+    """Upsert user into public.app_users. Returns True on success."""
     try:
-        from app.db import use_db, sb_upsert
+        from app.db import use_db, client
         if not use_db():
+            print("save_user_supabase: use_db() is False — check SUPABASE_URL and SUPABASE_KEY")
+            return False
+        sb = client()
+        if not sb:
+            print("save_user_supabase: no client")
             return False
         row = _user_to_dict(user)
-        # permissions as JSON list for jsonb column
-        sb_upsert("app_users", row)
-        return True
+        # Try upsert first
+        try:
+            res = sb.table("app_users").upsert(row).execute()
+            print("save_user_supabase upsert OK:", row.get("username"), "data=", bool(res.data))
+            return True
+        except Exception as e1:
+            print("save_user_supabase upsert failed:", e1)
+            # Fallback: insert
+            try:
+                res = sb.table("app_users").insert(row).execute()
+                print("save_user_supabase insert OK:", row.get("username"))
+                return True
+            except Exception as e2:
+                print("save_user_supabase insert failed:", e2)
+                # Fallback: update by username
+                try:
+                    res = (
+                        sb.table("app_users")
+                        .update(row)
+                        .eq("username", row["username"])
+                        .execute()
+                    )
+                    print("save_user_supabase update OK:", row.get("username"))
+                    return True
+                except Exception as e3:
+                    print("save_user_supabase all methods failed:", e3)
+                    return False
     except Exception as e:
         print("save_user_supabase:", e)
         return False
@@ -138,13 +159,15 @@ def load_users_supabase() -> List[dict]:
 
 
 def persist_user(user) -> None:
-    """Save user to Supabase (if configured) and always to JSON backup."""
     ok = save_user_supabase(user)
     save_user_json(user)
     if ok:
-        print("persist_user: saved %s to Supabase + JSON" % user.username)
+        print("persist_user: %s → Supabase + JSON" % user.username)
     else:
-        print("persist_user: saved %s to JSON only (set SUPABASE_URL/KEY for permanent store)" % user.username)
+        print(
+            "persist_user: %s → JSON only (Supabase not saving — check env + logs)"
+            % user.username
+        )
 
 
 def remove_user(user_id: str) -> None:
@@ -153,7 +176,6 @@ def remove_user(user_id: str) -> None:
 
 
 def load_all_user_rows() -> List[dict]:
-    """Prefer Supabase; fall back to JSON."""
     rows = load_users_supabase()
     if rows:
         print("load_all_user_rows: %d from Supabase" % len(rows))
@@ -165,7 +187,6 @@ def load_all_user_rows() -> List[dict]:
 
 
 def hydrate_auth_users() -> int:
-    """Load persisted users into app.auth memory store. Returns count."""
     from app import auth
 
     rows = load_all_user_rows()
@@ -202,7 +223,6 @@ def hydrate_auth_users() -> int:
 
 
 def patch_auth_persistence() -> None:
-    """Wrap create/update/delete so every change is persisted."""
     from app import auth
 
     if getattr(auth, "_persistence_patched", False):
