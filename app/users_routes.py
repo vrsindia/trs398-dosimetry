@@ -23,7 +23,6 @@ SYSTEM_PERMS = [
 ]
 SECTION_PERMS = list(ALL_SECTION_PERMS)
 
-# Paths owned by user_sync_routes — never remove these
 _KEEP_PATHS = {"/users-db-status", "/users/sync-to-supabase"}
 
 
@@ -98,7 +97,8 @@ def register_users_routes(app, templates):
             pass
         return None
 
-    def _ctx(request, user, message="", error=""):
+    def _ctx(user, message="", error=""):
+        """Build template context. Do NOT include request here."""
         users = []
         try:
             users = list(list_users() or [])
@@ -106,24 +106,6 @@ def register_users_routes(app, templates):
             print("list_users:", e)
             error = (error or "") + (" list_users error: " + str(e))
 
-        safe_users = []
-        for u in users:
-            try:
-                u.permissions = _norm_perms(getattr(u, "permissions", None))
-                # expose plain attributes for template safety
-                safe_users.append({
-                    "id": str(getattr(u, "id", "") or ""),
-                    "username": str(getattr(u, "username", "") or ""),
-                    "full_name": str(getattr(u, "full_name", "") or getattr(u, "username", "") or ""),
-                    "role": str(getattr(u, "role", "observer") or "observer"),
-                    "active": bool(getattr(u, "active", True)),
-                    "permissions": set(u.permissions),
-                })
-                # keep original object permissions normalized too
-            except Exception as e:
-                print("user normalize:", e)
-
-        # Prefer object list with normalized perms for form actions (ids must match)
         for u in users:
             try:
                 u.permissions = _norm_perms(getattr(u, "permissions", None))
@@ -145,7 +127,6 @@ def register_users_routes(app, templates):
             pass
 
         return {
-            "request": request,
             "current_user": user,
             "users": users,
             "roles": list(ROLES),
@@ -157,25 +138,33 @@ def register_users_routes(app, templates):
             "error": error or "",
         }
 
-    def _tpl(request, **ctx):
+    def _tpl(request: Request, ctx: dict):
+        """Render users template. request only once."""
+        context = dict(ctx)
+        context.pop("request", None)
         try:
             return templates.TemplateResponse(
-                request=request, name=TEMPLATE, context=ctx,
+                request=request, name=TEMPLATE, context=context,
             )
         except TypeError:
-            ctx["request"] = request
+            context["request"] = request
             try:
-                return templates.TemplateResponse(TEMPLATE, ctx)
-            except Exception:
+                return templates.TemplateResponse(TEMPLATE, context)
+            except TypeError:
                 try:
-                    return templates.TemplateResponse(TEMPLATE, context=ctx)
+                    return templates.TemplateResponse(TEMPLATE, context=context)
                 except Exception as e:
                     print("users template error:", e)
-                    html = (
-                        "<h1>Users</h1><p>Template error: %s</p>"
-                        "<p><a href='/'>Home</a></p>" % e
+                    return HTMLResponse(
+                        "<h1>Users</h1><p>Template error: %s</p><p><a href='/'>Home</a></p>" % e,
+                        status_code=500,
                     )
-                    return HTMLResponse(html, status_code=500)
+        except Exception as e:
+            print("users template error:", e)
+            return HTMLResponse(
+                "<h1>Users</h1><p>Template error: %s</p><p><a href='/'>Home</a></p>" % e,
+                status_code=500,
+            )
 
     @app.get("/users", response_class=HTMLResponse)
     async def users_page(request: Request):
@@ -184,7 +173,7 @@ def register_users_routes(app, templates):
             return RedirectResponse("/login", 303)
         msg = (request.query_params.get("msg") or "").replace("+", " ")
         try:
-            return _tpl(request, **_ctx(request, user, message=msg))
+            return _tpl(request, _ctx(user, message=msg))
         except Exception as e:
             print("users_page error:", e)
             import traceback
@@ -221,7 +210,7 @@ def register_users_routes(app, templates):
                 msg = "User+created+but+Supabase+not+configured"
             return RedirectResponse("/users?msg=" + msg, 303)
         except Exception as e:
-            return _tpl(request, **_ctx(request, user, error=str(e)))
+            return _tpl(request, _ctx(user, error=str(e)))
 
     @app.post("/users/{uid}/edit")
     async def users_edit(request: Request, uid: str):
@@ -255,7 +244,7 @@ def register_users_routes(app, templates):
             print("users_edit error:", e)
             import traceback
             traceback.print_exc()
-            return _tpl(request, **_ctx(request, user, error=str(e)))
+            return _tpl(request, _ctx(user, error=str(e)))
 
     @app.post("/users/{uid}/delete")
     async def users_delete(request: Request, uid: str):
@@ -271,7 +260,7 @@ def register_users_routes(app, templates):
                 print("delete persist:", e)
             return RedirectResponse("/users?msg=User+deleted", 303)
         except Exception as e:
-            return _tpl(request, **_ctx(request, user, error=str(e)))
+            return _tpl(request, _ctx(user, error=str(e)))
 
     print("users_routes: safe users page registered")
     return True
