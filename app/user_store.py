@@ -1,9 +1,10 @@
-"""Persistent user store: Supabase (preferred) + local JSON backup."""
+"""Persistent user store: Supabase REST (reliable) + JSON backup."""
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 _DATA_DIRS = [
     Path(__file__).resolve().parent / "data",
@@ -41,6 +42,22 @@ def _user_to_dict(user) -> dict:
         "created_at": str(getattr(user, "created_at", "") or ""),
         "created_by": str(getattr(user, "created_by", "") or ""),
     }
+
+
+def _supabase_creds():
+    url = (
+        os.environ.get("SUPABASE_URL")
+        or os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+        or ""
+    ).strip().rstrip("/")
+    key = (
+        os.environ.get("SUPABASE_KEY")
+        or os.environ.get("SUPABASE_SERVICE_KEY")
+        or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        or os.environ.get("SUPABASE_ANON_KEY")
+        or ""
+    ).strip()
+    return url, key
 
 
 def save_user_json(user) -> None:
@@ -93,69 +110,120 @@ def load_users_json() -> List[dict]:
 
 
 def save_user_supabase(user) -> bool:
-    """Upsert user into public.app_users. Returns True on success."""
+    """Write user via PostgREST (works even when supabase-py path is flaky)."""
+    url, key = _supabase_creds()
+    if not url or not key:
+        print("save_user_supabase: missing SUPABASE_URL or SUPABASE_KEY")
+        return False
+
+    row = _user_to_dict(user)
+    endpoint = url + "/rest/v1/app_users"
+    headers = {
+        "apikey": key,
+        "Authorization": "Bearer " + key,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates,return=representation",
+    }
+
+    # Prefer httpx, fall back to urllib
+    try:
+        import httpx
+        r = httpx.post(endpoint, headers=headers, json=row, timeout=20.0)
+        if r.status_code in (200, 201):
+            print("save_user_supabase REST OK:", row["username"], r.status_code)
+            return True
+        # retry with upsert on conflict via on_conflict=username
+        r2 = httpx.post(
+            endpoint + "?on_conflict=username",
+            headers=headers,
+            json=row,
+            timeout=20.0,
+        )
+        if r2.status_code in (200, 201):
+            print("save_user_supabase REST on_conflict OK:", row["username"])
+            return True
+        print(
+            "save_user_supabase REST failed:",
+            r.status_code, r.text[:300],
+            "|", r2.status_code, r2.text[:300],
+        )
+    except Exception as e:
+        print("save_user_supabase httpx:", e)
+        try:
+            import urllib.request
+
+            req = urllib.request.Request(
+                endpoint,
+                data=json.dumps(row).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                print("save_user_supabase urllib OK:", row["username"], resp.status)
+                return True
+        except Exception as e2:
+            print("save_user_supabase urllib:", e2)
+
+    # Last resort: supabase-py client
     try:
         from app.db import use_db, client
-        if not use_db():
-            print("save_user_supabase: use_db() is False — check SUPABASE_URL and SUPABASE_KEY")
-            return False
-        sb = client()
-        if not sb:
-            print("save_user_supabase: no client")
-            return False
-        row = _user_to_dict(user)
-        # Try upsert first
-        try:
-            res = sb.table("app_users").upsert(row).execute()
-            print("save_user_supabase upsert OK:", row.get("username"), "data=", bool(res.data))
+        if use_db():
+            sb = client()
+            sb.table("app_users").upsert(row).execute()
+            print("save_user_supabase py client OK:", row["username"])
             return True
-        except Exception as e1:
-            print("save_user_supabase upsert failed:", e1)
-            # Fallback: insert
-            try:
-                res = sb.table("app_users").insert(row).execute()
-                print("save_user_supabase insert OK:", row.get("username"))
-                return True
-            except Exception as e2:
-                print("save_user_supabase insert failed:", e2)
-                # Fallback: update by username
-                try:
-                    res = (
-                        sb.table("app_users")
-                        .update(row)
-                        .eq("username", row["username"])
-                        .execute()
-                    )
-                    print("save_user_supabase update OK:", row.get("username"))
-                    return True
-                except Exception as e3:
-                    print("save_user_supabase all methods failed:", e3)
-                    return False
     except Exception as e:
-        print("save_user_supabase:", e)
-        return False
+        print("save_user_supabase py client:", e)
+    return False
 
 
 def delete_user_supabase(user_id: str) -> bool:
+    url, key = _supabase_creds()
+    if not url or not key:
+        return False
+    endpoint = url + "/rest/v1/app_users?id=eq." + str(user_id)
+    headers = {
+        "apikey": key,
+        "Authorization": "Bearer " + key,
+    }
     try:
-        from app.db import use_db, sb_delete
-        if not use_db():
-            return False
-        return bool(sb_delete("app_users", user_id))
+        import httpx
+        r = httpx.delete(endpoint, headers=headers, timeout=15.0)
+        return r.status_code in (200, 204)
     except Exception as e:
         print("delete_user_supabase:", e)
-        return False
+        try:
+            from app.db import sb_delete
+            return bool(sb_delete("app_users", user_id))
+        except Exception:
+            return False
 
 
 def load_users_supabase() -> List[dict]:
+    url, key = _supabase_creds()
+    if not url or not key:
+        return []
+    endpoint = url + "/rest/v1/app_users?select=*&order=username"
+    headers = {
+        "apikey": key,
+        "Authorization": "Bearer " + key,
+    }
     try:
-        from app.db import use_db, sb_select
-        if not use_db():
-            return []
-        return sb_select("app_users", order="username") or []
+        import httpx
+        r = httpx.get(endpoint, headers=headers, timeout=20.0)
+        if r.status_code == 200:
+            data = r.json()
+            return data if isinstance(data, list) else []
+        print("load_users_supabase REST:", r.status_code, r.text[:200])
     except Exception as e:
         print("load_users_supabase:", e)
-        return []
+    try:
+        from app.db import use_db, sb_select
+        if use_db():
+            return sb_select("app_users", order="username") or []
+    except Exception as e:
+        print("load_users_supabase py:", e)
+    return []
 
 
 def persist_user(user) -> None:
@@ -164,10 +232,7 @@ def persist_user(user) -> None:
     if ok:
         print("persist_user: %s → Supabase + JSON" % user.username)
     else:
-        print(
-            "persist_user: %s → JSON only (Supabase not saving — check env + logs)"
-            % user.username
-        )
+        print("persist_user: %s → JSON only (Supabase write failed)" % user.username)
 
 
 def remove_user(user_id: str) -> None:
@@ -222,6 +287,20 @@ def hydrate_auth_users() -> int:
     return len(auth._USERS)
 
 
+def sync_all_memory_users_to_supabase() -> dict:
+    """Push every in-memory user to Supabase. Returns counts."""
+    from app.auth import list_users
+
+    ok, fail = [], []
+    for u in list_users():
+        if save_user_supabase(u):
+            save_user_json(u)
+            ok.append(u.username)
+        else:
+            fail.append(u.username)
+    return {"saved": ok, "failed": fail, "saved_count": len(ok), "failed_count": len(fail)}
+
+
 def patch_auth_persistence() -> None:
     from app import auth
 
@@ -262,4 +341,4 @@ def patch_auth_persistence() -> None:
     auth.update_user = update_user
     auth.delete_user = delete_user
     auth._persistence_patched = True
-    print("user_store: create/update/delete persistence enabled")
+    print("user_store: persistence enabled")
