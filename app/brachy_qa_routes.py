@@ -1,13 +1,15 @@
-"""Brachytherapy Source QA — library tolerances, multi-trial, save only if satisfactory."""
+"""Brachytherapy Source QA — library tolerances, multi-trial, multi-location survey/leakage."""
 from __future__ import annotations
 
-from fastapi import Request, Form
+from fastapi import Request, Form, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from typing import List, Optional
 
 from app.auth import get_user_by_token
 from app.calculations import brachy_source_qa as bsq
 from app.brachy_qa_tolerances import ensure_brachy_tolerances, get_brachy_tol
 from app import brachy_qa_cache as _qa_cache
+from app.brachy_qa_uploads import save_upload
 
 COOKIE = "dosepro_session"
 TEMPLATE = "brachy_source_qa.html"
@@ -89,6 +91,7 @@ def register_brachy_qa_routes(app, templates):
         ctx.setdefault("can_save", False)
         ctx.setdefault("sources", bsq.list_sources())
         ctx.setdefault("tol_display", None)
+        ctx.setdefault("images", [])
         try:
             return templates.TemplateResponse(request=request, name=TEMPLATE, context=ctx)
         except TypeError:
@@ -323,15 +326,53 @@ def register_brachy_qa_routes(app, templates):
             return RedirectResponse("/login", 303)
         form = await request.form()
         section = str(form.get("section") or "contamination")
-        title_map = {"contamination": "Contamination test", "position": "Positioning accuracy", "leakage": "Unit leakage", "survey": "Installation survey"}
+        title_map = {
+            "contamination": "Contamination test",
+            "position": "Positioning accuracy",
+            "leakage": "Unit leakage",
+            "survey": "Installation survey",
+        }
         title = title_map.get(section, section)
-        tol = get_brachy_tol("brachy_contamination") if section == "contamination" else (get_brachy_tol("brachy_position") if section == "position" else None)
-        rows = [
-            ("Measured", str(form.get("measured") or "")),
-            ("Background", str(form.get("background") or "")),
-            ("Tolerance [library]", (str(tol["percent"]) + " " + (tol.get("notes") or "")) if tol else "—"),
-            ("Result", str(form.get("result_text") or form.get("notes") or "")),
-        ]
+
+        rows = []
+        images = []
+
+        if section in ("leakage", "survey"):
+            # Multi-location: location_1, measured_1, image_1, ...
+            for i in range(1, 31):
+                loc = str(form.get("location_%d" % i) or "").strip()
+                if not loc and not str(form.get("measured_%d" % i) or "").strip():
+                    continue
+                measured = str(form.get("measured_%d" % i) or "").strip()
+                bg = str(form.get("background_%d" % i) or "").strip()
+                note = str(form.get("note_%d" % i) or "").strip()
+                img = form.get("image_%d" % i)
+                img_path = None
+                if img is not None and getattr(img, "filename", None):
+                    img_path = save_upload(img, prefix=section)
+                    if img_path:
+                        images.append({"location": loc or ("Location %d" % i), "url": img_path})
+                label = loc or ("Location %d" % i)
+                rows.append(("%s — measured" % label, measured))
+                if bg:
+                    rows.append(("%s — background" % label, bg))
+                if note:
+                    rows.append(("%s — note" % label, note))
+                if img_path:
+                    rows.append(("%s — image" % label, img_path))
+            if not rows:
+                return _tpl(request, current_user=user, section=section, error="Add at least one location")
+        else:
+            tol = get_brachy_tol("brachy_contamination") if section == "contamination" else (
+                get_brachy_tol("brachy_position") if section == "position" else None
+            )
+            rows = [
+                ("Measured", str(form.get("measured") or "")),
+                ("Background", str(form.get("background") or "")),
+                ("Tolerance [library]", (str(tol["percent"]) + " " + (tol.get("notes") or "")) if tol else "—"),
+                ("Result", str(form.get("result_text") or form.get("notes") or "")),
+            ]
+
         ok = str(form.get("satisfactory") or "") in ("1", "on", "true", "yes")
         status = bsq.status_label(ok)
         rows.append(("Status", status))
@@ -339,12 +380,18 @@ def register_brachy_qa_routes(app, templates):
         saved_id, msg = "", ""
         if str(form.get("action") or "save") == "save":
             if not ok:
-                msg = "Cannot save — mark satisfactory only when within tolerance"
+                msg = "Cannot save — result is outside tolerance (uncheck only when not ok)"
             else:
-                saved = _save_session(user, section, title, rows, overall=status, notes=str(form.get("notes") or ""))
+                notes = str(form.get("notes") or "")
+                if images:
+                    notes = (notes + " | images: " + ", ".join(i["url"] for i in images)).strip(" |")
+                saved = _save_session(user, section, title, rows, overall=status, notes=notes)
                 saved_id = saved.get("id") or ""
                 msg = "Saved to history" if saved_id else "Save failed"
-        return _tpl(request, current_user=user, section=section, result=result, can_save=ok, saved_id=saved_id, message=msg, tol_display=tol)
+        return _tpl(
+            request, current_user=user, section=section, result=result,
+            can_save=ok, saved_id=saved_id, message=msg, images=images,
+        )
 
-    print("brachy_qa_routes: library tol + multi-trial + cache + save-if-PASS")
+    print("brachy_qa_routes: multi-location survey/leakage + images")
     return True
