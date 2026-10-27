@@ -26,11 +26,9 @@
       </p>
     </div>
     {% if current_user.has('library_edit') %}
-    <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
-      <form method="post" action="/linacs/{{ linac.id }}/delete" onsubmit="return confirm('Delete machine?');">
-        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-      </form>
-    </div>
+    <form method="post" action="/linacs/{{ linac.id }}/delete" onsubmit="return confirm('Delete machine?');">
+      <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+    </form>
     {% endif %}
   </div>
 
@@ -86,13 +84,53 @@
         <td>{{ b.k_Q }}</td>
         <td>{{ b.nominal_output_cGy_MU }}</td>
         {% if current_user.has('library_edit') %}
-        <td>
-          <form method="post" action="/beams/{{ b.id }}/delete" onsubmit="return confirm('Delete beam?');">
+        <td style="white-space:nowrap">
+          <form method="post" action="/beams/{{ b.id }}/delete" style="display:inline" onsubmit="return confirm('Delete beam?');">
             <button type="submit" class="btn btn-danger btn-sm">Delete</button>
           </form>
         </td>
         {% endif %}
       </tr>
+      {% if current_user.has('library_edit') %}
+      <tr>
+        <td colspan="7" style="padding:0.5rem 0.75rem;background:var(--surface-2)">
+          <details>
+            <summary style="cursor:pointer;color:var(--accent);font-weight:600">Edit beam {{ b.nominal_energy }}</summary>
+            <form method="post" action="/beams/{{ b.id }}/edit" style="margin-top:0.75rem">
+              <div class="grid-3">
+                <label>Modality
+                  <select name="modality">
+                    <option value="photon" {% if b.modality == 'photon' %}selected{% endif %}>Photon</option>
+                    {% if cat != 'mr_linac' %}
+                    <option value="electron" {% if b.modality == 'electron' %}selected{% endif %}>Electron</option>
+                    {% endif %}
+                  </select>
+                </label>
+                <label>Energy <input name="nominal_energy" value="{{ b.nominal_energy }}" required></label>
+                <label>Depth (cm) <input type="number" step="any" name="measurement_depth_cm" value="{{ b.measurement_depth_cm }}"></label>
+              </div>
+              <div class="grid-3">
+                <label>PDD <input type="number" step="any" name="pdd" value="{{ b.pdd }}"></label>
+                <label>k<sub>Q</sub> <input type="number" step="any" name="k_Q" value="{{ b.k_Q }}"></label>
+                <label>Nominal (cGy/MU) <input type="number" step="any" name="nominal_output_cGy_MU" value="{{ b.nominal_output_cGy_MU }}"></label>
+              </div>
+              <div class="grid-3">
+                <label>SSD (cm) <input type="number" step="any" name="ssd_cm" value="{{ b.ssd_cm if b.ssd_cm is defined else 100 }}"></label>
+                <label>Field size <input name="field_size" value="{{ b.field_size if b.field_size is defined else '10x10' }}"></label>
+                <label>Quality index <input type="number" step="any" name="quality_index" value="{{ b.quality_index if b.quality_index is not none else '' }}"></label>
+              </div>
+              <div class="grid-2">
+                <label>TPR<sub>20,10</sub> baseline <input type="number" step="any" name="tpr20_10_baseline" value="{{ b.tpr20_10_baseline if b.tpr20_10_baseline is not none else '' }}"></label>
+                <label>Notes <input name="notes" value="{{ b.notes if b.notes is defined else '' }}"></label>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-sm">Save beam</button>
+              </div>
+            </form>
+          </details>
+        </td>
+      </tr>
+      {% endif %}
       {% endfor %}
     </tbody>
   </table>
@@ -120,6 +158,15 @@
         <label>PDD <input type="number" step="any" name="pdd" value="1"></label>
         <label>k<sub>Q</sub> <input type="number" step="any" name="k_Q" value="1"></label>
         <label>Nominal (cGy/MU) <input type="number" step="any" name="nominal_output_cGy_MU" value="1"></label>
+      </div>
+      <div class="grid-3">
+        <label>SSD (cm) <input type="number" step="any" name="ssd_cm" value="100"></label>
+        <label>Field size <input name="field_size" value="10x10"></label>
+        <label>Quality index <input type="number" step="any" name="quality_index"></label>
+      </div>
+      <div class="grid-2">
+        <label>TPR<sub>20,10</sub> baseline <input type="number" step="any" name="tpr20_10_baseline"></label>
+        <label>Notes <input name="notes"></label>
       </div>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary btn-sm">Add beam</button>
