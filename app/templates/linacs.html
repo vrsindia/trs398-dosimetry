@@ -6,6 +6,8 @@
   <p class="muted">CT Linac, MR Linac and brachytherapy units with beams and energies.</p>
 </div>
 
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+
 {% for linac in linacs %}
 {% set cat = linac.category if linac.category is defined else 'ct_linac' %}
 <div class="card result-card">
@@ -24,11 +26,43 @@
       </p>
     </div>
     {% if current_user.has('library_edit') %}
-    <form method="post" action="/linacs/{{ linac.id }}/delete" onsubmit="return confirm('Delete machine?');">
-      <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-    </form>
+    <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+      <form method="post" action="/linacs/{{ linac.id }}/delete" onsubmit="return confirm('Delete machine?');">
+        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+      </form>
+    </div>
     {% endif %}
   </div>
+
+  {% if current_user.has('library_edit') %}
+  <details style="margin-top:0.85rem">
+    <summary style="cursor:pointer;color:var(--accent);font-weight:600">Edit machine</summary>
+    <form method="post" action="/linacs/{{ linac.id }}/edit" class="form-card" style="margin-top:0.75rem;box-shadow:none;padding:0.75rem 0 0">
+      <div class="grid-2">
+        <label>Name * <input name="name" value="{{ linac.name }}" required></label>
+        <label>Category
+          <select name="category">
+            <option value="ct_linac" {% if cat == 'ct_linac' %}selected{% endif %}>CT Linac</option>
+            <option value="mr_linac" {% if cat == 'mr_linac' %}selected{% endif %}>MR Linac</option>
+            <option value="brachy" {% if cat == 'brachy' %}selected{% endif %}>Brachytherapy</option>
+          </select>
+        </label>
+      </div>
+      <div class="grid-2">
+        <label>Manufacturer <input name="manufacturer" value="{{ linac.manufacturer or '' }}"></label>
+        <label>Model <input name="model" value="{{ linac.model or '' }}"></label>
+      </div>
+      <div class="grid-2">
+        <label>Serial number <input name="serial_number" value="{{ linac.serial_number or '' }}"></label>
+        <label>Location <input name="location" value="{{ linac.location or '' }}"></label>
+      </div>
+      <label>Notes <input name="notes" value="{{ linac.notes or '' }}"></label>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Save machine</button>
+      </div>
+    </form>
+  </details>
+  {% endif %}
 
   {% if cat != 'brachy' %}
   <h3 style="margin:1.1rem 0 0.5rem;font-size:0.95rem">Beams / energies</h3>

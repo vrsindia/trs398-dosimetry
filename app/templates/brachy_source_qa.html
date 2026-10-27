@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header">
   <h1>Brachytherapy source QA</h1>
-  <p class="muted">Each calculation is saved to History (Brachytherapy). Download PDF per annexure below the result.</p>
+  <p class="muted">Each calculation is saved to History (Brachytherapy). Download PDF below the result.</p>
 </div>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
@@ -11,16 +11,16 @@
 
 <div class="card" style="padding:0.75rem;margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.4rem">
   {% set tabs = [
-    ('ton_toff','2.5/2.6 Transit'),
-    ('timer_error','4.3.1 Timer error'),
-    ('linearity','4.3.2 Linearity'),
+    ('ton_toff','Source transit time'),
+    ('timer_error','Timer error'),
+    ('linearity','Timer linearity'),
     ('decay','Decay factor'),
-    ('single','5.2.5 Single source'),
-    ('multi','5.2.6 Multi source'),
-    ('contamination','4.1 Contamination'),
-    ('position','4.2 Position'),
-    ('leakage','6.3 Unit leakage'),
-    ('survey','6.4 Survey')
+    ('single','Single source vs TPS'),
+    ('multi','Multi source vs TPS'),
+    ('contamination','Contamination test'),
+    ('position','Positioning accuracy'),
+    ('leakage','Unit leakage'),
+    ('survey','Installation survey')
   ] %}
   {% for id, label in tabs %}
   <a class="btn btn-sm {% if section==id %}btn-primary{% else %}btn-secondary{% endif %}"
@@ -56,7 +56,7 @@
 
 {% if section == 'ton_toff' %}
 <div class="card form-card">
-  <h2 style="margin-top:0">2.5 &amp; 2.6 — Time to drive source ON / OFF</h2>
+  <h2 style="margin-top:0">Source transit time (ON / OFF)</h2>
   <p class="muted small">TON/TOFF (s) = (Secondary time − Dwell time) / 2</p>
   <form method="post" action="/brachy-source-qa/ton-toff">
     <div class="grid-2">
@@ -70,7 +70,7 @@
 
 {% if section == 'timer_error' %}
 <div class="card form-card">
-  <h2 style="margin-top:0">4.3.1 — Timer error</h2>
+  <h2 style="margin-top:0">Timer error</h2>
   <form method="post" action="/brachy-source-qa/timer-error">
     <h3 class="muted" style="font-size:0.95rem">R1 — without interruption (µC)</h3>
     <div class="grid-3">
@@ -96,7 +96,7 @@
 
 {% if section == 'linearity' %}
 <div class="card form-card">
-  <h2 style="margin-top:0">4.3.2 — Timer linearity &amp; end error</h2>
+  <h2 style="margin-top:0">Timer linearity</h2>
   <form method="post" action="/brachy-source-qa/timer-linearity">
     <div class="grid-2">
       <label>Time 1 (s)<input type="number" step="any" name="t1" value="30" required></label>
@@ -116,7 +116,7 @@
 
 {% if section == 'decay' %}
 <div class="card form-card">
-  <h2 style="margin-top:0">Decay factor — manual vs TPS</h2>
+  <h2 style="margin-top:0">Decay factor</h2>
   <form method="post" action="/brachy-source-qa/decay">
     <div class="grid-2">
       <label>Calibration date-time<input name="calib_dt" placeholder="YYYY-MM-DD HH:MM:SS" required></label>
@@ -132,7 +132,7 @@
 
 {% if section == 'single' %}
 <div class="card form-card">
-  <h2 style="margin-top:0">5.2.5 — Single source TG-43 vs TPS</h2>
+  <h2 style="margin-top:0">Single source vs TPS</h2>
   <form method="post" action="/brachy-source-qa/single-source">
     <div class="grid-2">
       <label>Activity at calibration (mCi)<input type="number" step="any" name="activity_mci_calib" value="12180" required></label>
@@ -155,7 +155,7 @@
 
 {% if section == 'multi' %}
 <div class="card form-card">
-  <h2 style="margin-top:0">5.2.6 — Multi-source TG-43 vs TPS</h2>
+  <h2 style="margin-top:0">Multi source vs TPS</h2>
   <form method="post" action="/brachy-source-qa/multi-source">
     <div class="grid-2">
       <label>Activity at calibration (mCi)<input type="number" step="any" name="activity_mci_calib" value="12180" required></label>
@@ -175,7 +175,10 @@
 
 {% if section in ['contamination','position','leakage','survey'] %}
 <div class="card form-card">
-  <h2 style="margin-top:0">{{ section|replace('_',' ')|title }} record</h2>
+  {% if section == 'contamination' %}<h2 style="margin-top:0">Contamination test</h2>
+  {% elif section == 'position' %}<h2 style="margin-top:0">Positioning accuracy</h2>
+  {% elif section == 'leakage' %}<h2 style="margin-top:0">Unit leakage</h2>
+  {% else %}<h2 style="margin-top:0">Installation survey</h2>{% endif %}
   <form method="post" action="/brachy-source-qa/record">
     <input type="hidden" name="section" value="{{ section }}">
     <div class="grid-2">
