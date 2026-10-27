@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header">
   <h1>Brachytherapy source QA</h1>
-  <p class="muted">Tolerances come from the Tolerances library (read-only here). Save is allowed only when the result is <strong>Satisfactory</strong>.</p>
+  <p class="muted">Tolerances come from the Tolerances library (read-only here). Save is enabled only when the result is within tolerance.</p>
 </div>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
@@ -34,7 +34,6 @@
   <strong>Tolerance (from library):</strong>
   {{ tol_display.name }} — <strong>{{ tol_display.percent }}</strong>
   {% if tol_display.notes %}<span class="muted small"> · {{ tol_display.notes }}</span>{% endif %}
-  <span class="muted small"> · edit under Libraries → Tolerances</span>
 </div>
 {% endif %}
 
@@ -55,16 +54,30 @@
   {% if can_save %}
   <form method="post" action="/brachy-source-qa/save-last" style="margin-top:1rem">
     <input type="hidden" name="section" value="{{ section }}">
-    <button type="submit" class="btn btn-primary">Save to history (satisfactory)</button>
+    <button type="submit" class="btn btn-primary">Save</button>
   </form>
   {% elif result.pass is defined and result.pass == false %}
-  <p class="muted small" style="margin-top:0.75rem">Save disabled — result is not satisfactory (outside library tolerance).</p>
+  <p class="muted small" style="margin-top:0.75rem">Save disabled — result outside library tolerance.</p>
   {% endif %}
   {% if saved_id %}
   <div class="form-actions" style="margin-top:0.75rem">
     <a class="btn btn-secondary" href="/brachy-source-qa/pdf/{{ saved_id }}">Download PDF</a>
   </div>
   {% endif %}
+</div>
+{% endif %}
+
+{% if images %}
+<div class="card result-card" style="margin-bottom:1rem">
+  <h2 style="margin-top:0">Uploaded images</h2>
+  <div style="display:flex;flex-wrap:wrap;gap:1rem">
+    {% for im in images %}
+    <figure style="margin:0;max-width:220px">
+      <img src="{{ im.url }}" alt="{{ im.location }}" style="max-width:100%;border-radius:8px;border:1px solid var(--border)">
+      <figcaption class="muted small">{{ im.location }}</figcaption>
+    </figure>
+    {% endfor %}
+  </div>
 </div>
 {% endif %}
 
@@ -90,9 +103,6 @@
     function yScale(y){ return H - pad - (y - minY) / (maxY - minY) * (H - 2*pad); }
     ctx.strokeStyle = '#718096'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, H-pad); ctx.lineTo(W-pad, H-pad); ctx.stroke();
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text') || '#e2e8f0';
-    ctx.font = '12px sans-serif';
-    ctx.fillText('Time (s)', W/2 - 20, H - 12);
     ctx.strokeStyle = '#63b3ed'; ctx.lineWidth = 2; ctx.beginPath();
     for (var i=0;i<times.length;i++){ var X=xScale(times[i]), Y=yScale(fitted[i]); if(i===0)ctx.moveTo(X,Y); else ctx.lineTo(X,Y); }
     ctx.stroke();
@@ -100,7 +110,6 @@
     for (var j=0;j<times.length;j++){ var px=xScale(times[j]), py=yScale(charges[j]); ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2); ctx.fill(); }
   })();
   </script>
-  <p class="muted small">Orange = measured; blue = linear fit.</p>
 </div>
 {% endif %}
 
@@ -144,7 +153,6 @@
 {% if section == 'linearity' %}
 <div class="card form-card">
   <h2 style="margin-top:0">Timer linearity</h2>
-  <p class="muted small">Enter points → Calculate → graph + residuals. Save only if Satisfactory.</p>
   <form method="post" action="/brachy-source-qa/timer-linearity">
     <div id="lin-rows">
       <div class="grid-2 trial-row"><label>Point 1 — Time (s)<input type="number" step="any" name="t_1" value="30" required></label><label>Point 1 — Charge<input type="number" step="any" name="c_1" required></label></div>
@@ -168,7 +176,6 @@
       <label>Calibration date &amp; time<input type="datetime-local" name="calib_dt" step="1" required></label>
       <label>QA date &amp; time<input type="datetime-local" name="qa_dt" step="1" required></label>
     </div>
-    <p class="muted small">Calendar picker or type date/time manually.</p>
     <div class="form-actions"><button type="submit" name="action" value="calculate" class="btn btn-primary">Calculate</button></div>
   </form>
 </div>
@@ -210,9 +217,9 @@
 </div>
 {% endif %}
 
-{% if section in ['contamination','position','leakage','survey'] %}
+{% if section in ['contamination','position'] %}
 <div class="card form-card">
-  <h2 style="margin-top:0">{% if section=='contamination' %}Contamination test{% elif section=='position' %}Positioning accuracy{% elif section=='leakage' %}Unit leakage{% else %}Installation survey{% endif %}</h2>
+  <h2 style="margin-top:0">{% if section=='contamination' %}Contamination test{% else %}Positioning accuracy{% endif %}</h2>
   <form method="post" action="/brachy-source-qa/record">
     <input type="hidden" name="section" value="{{ section }}">
     <div class="grid-2">
@@ -221,11 +228,59 @@
       <label>Result note<input name="result_text"></label>
     </div>
     <label>Notes<textarea name="notes" rows="2" style="width:100%"></textarea></label>
-    <label class="check-label" style="margin-top:0.75rem"><input type="checkbox" name="satisfactory" value="1"><span>Result is satisfactory (within library tolerance)</span></label>
-    <div class="form-actions"><button type="submit" name="action" value="save" class="btn btn-primary">Save (if satisfactory)</button></div>
+    <label class="check-label" style="margin-top:0.75rem"><input type="checkbox" name="satisfactory" value="1"><span>Result is within tolerance</span></label>
+    <div class="form-actions"><button type="submit" name="action" value="save" class="btn btn-primary">Save</button></div>
   </form>
 </div>
 {% endif %}
 
-<style>.trial-row{margin-bottom:0.5rem}.check-label{display:flex;align-items:center;gap:0.5rem;cursor:pointer}.check-label input{width:auto;margin:0}</style>
+{% if section in ['leakage','survey'] %}
+<div class="card form-card">
+  <h2 style="margin-top:0">{% if section=='leakage' %}Unit leakage{% else %}Installation survey{% endif %}</h2>
+  <p class="muted small">Add readings for each location. Optional photo per location (JPG/PNG).</p>
+  <form method="post" action="/brachy-source-qa/record" enctype="multipart/form-data">
+    <input type="hidden" name="section" value="{{ section }}">
+    <div id="loc-rows">
+      <div class="card" style="padding:0.75rem;margin-bottom:0.75rem;border:1px solid var(--border)">
+        <strong>Location 1</strong>
+        <div class="grid-2" style="margin-top:0.5rem">
+          <label>Location name<input name="location_1" placeholder="e.g. Console / Door / Maze" required></label>
+          <label>Measured<input name="measured_1"></label>
+          <label>Background<input name="background_1"></label>
+          <label>Note<input name="note_1"></label>
+          <label>Photo<input type="file" name="image_1" accept="image/*"></label>
+        </div>
+      </div>
+    </div>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="addLocation()">+ Add location</button>
+    <label class="check-label" style="margin-top:1rem;display:flex"><input type="checkbox" name="satisfactory" value="1"><span>All locations within tolerance</span></label>
+    <label style="margin-top:0.5rem">Overall notes<textarea name="notes" rows="2" style="width:100%"></textarea></label>
+    <div class="form-actions"><button type="submit" name="action" value="save" class="btn btn-primary">Save</button></div>
+  </form>
+</div>
+<script>
+var locN = 1;
+function addLocation(){
+  locN += 1;
+  var wrap = document.createElement('div');
+  wrap.className = 'card';
+  wrap.style.cssText = 'padding:0.75rem;margin-bottom:0.75rem;border:1px solid var(--border)';
+  wrap.innerHTML = '<strong>Location '+locN+'</strong>'+
+    '<div class="grid-2" style="margin-top:0.5rem">'+
+    '<label>Location name<input name="location_'+locN+'" placeholder="Location name" required></label>'+
+    '<label>Measured<input name="measured_'+locN+'"></label>'+
+    '<label>Background<input name="background_'+locN+'"></label>'+
+    '<label>Note<input name="note_'+locN+'"></label>'+
+    '<label>Photo<input type="file" name="image_'+locN+'" accept="image/*"></label>'+
+    '</div>';
+  document.getElementById('loc-rows').appendChild(wrap);
+}
+</script>
+{% endif %}
+
+<style>
+.trial-row{margin-bottom:0.5rem}
+.check-label{display:flex;align-items:center;gap:0.5rem;cursor:pointer}
+.check-label input{width:auto;margin:0}
+</style>
 {% endblock %}
