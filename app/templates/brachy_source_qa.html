@@ -34,7 +34,7 @@
   <strong>Tolerance (from library):</strong>
   {{ tol_display.name }} — <strong>{{ tol_display.percent }}</strong>
   {% if tol_display.notes %}<span class="muted small"> · {{ tol_display.notes }}</span>{% endif %}
-  <span class="muted small"> · source: {{ tol_display.source }} (edit under Libraries → Tolerances)</span>
+  <span class="muted small"> · edit under Libraries → Tolerances</span>
 </div>
 {% endif %}
 
@@ -52,9 +52,17 @@
     </tr>
     {% endfor %}
   </table>
+  {% if can_save %}
+  <form method="post" action="/brachy-source-qa/save-last" style="margin-top:1rem">
+    <input type="hidden" name="section" value="{{ section }}">
+    <button type="submit" class="btn btn-primary">Save to history (satisfactory)</button>
+  </form>
+  {% elif result.pass is defined and result.pass == false %}
+  <p class="muted small" style="margin-top:0.75rem">Save disabled — result is not satisfactory (outside library tolerance).</p>
+  {% endif %}
   {% if saved_id %}
-  <div class="form-actions" style="margin-top:1rem">
-    <a class="btn btn-primary" href="/brachy-source-qa/pdf/{{ saved_id }}">Download PDF</a>
+  <div class="form-actions" style="margin-top:0.75rem">
+    <a class="btn btn-secondary" href="/brachy-source-qa/pdf/{{ saved_id }}">Download PDF</a>
   </div>
   {% endif %}
 </div>
@@ -72,203 +80,106 @@
     var canvas = document.getElementById('linearityChart');
     if (!canvas) return;
     var ctx = canvas.getContext('2d');
-    var W = canvas.width, H = canvas.height;
-    var pad = 48;
+    var W = canvas.width, H = canvas.height, pad = 48;
     var allY = charges.concat(fitted);
     var minX = Math.min.apply(null, times), maxX = Math.max.apply(null, times);
     var minY = Math.min.apply(null, allY), maxY = Math.max.apply(null, allY);
-    if (maxX === minX) { maxX = minX + 1; }
-    if (maxY === minY) { maxY = minY + 1; }
+    if (maxX === minX) maxX = minX + 1;
+    if (maxY === minY) maxY = minY + 1;
     function xScale(x){ return pad + (x - minX) / (maxX - minX) * (W - 2*pad); }
     function yScale(y){ return H - pad - (y - minY) / (maxY - minY) * (H - 2*pad); }
+    ctx.strokeStyle = '#718096'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, H-pad); ctx.lineTo(W-pad, H-pad); ctx.stroke();
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text') || '#e2e8f0';
-    ctx.strokeStyle = '#718096';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pad, pad); ctx.lineTo(pad, H-pad); ctx.lineTo(W-pad, H-pad);
-    ctx.stroke();
     ctx.font = '12px sans-serif';
     ctx.fillText('Time (s)', W/2 - 20, H - 12);
-    ctx.save(); ctx.translate(14, H/2); ctx.rotate(-Math.PI/2); ctx.fillText('Charge', 0, 0); ctx.restore();
-    // fitted line
-    ctx.strokeStyle = '#63b3ed';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (var i=0;i<times.length;i++){
-      var X = xScale(times[i]), Y = yScale(fitted[i]);
-      if (i===0) ctx.moveTo(X,Y); else ctx.lineTo(X,Y);
-    }
+    ctx.strokeStyle = '#63b3ed'; ctx.lineWidth = 2; ctx.beginPath();
+    for (var i=0;i<times.length;i++){ var X=xScale(times[i]), Y=yScale(fitted[i]); if(i===0)ctx.moveTo(X,Y); else ctx.lineTo(X,Y); }
     ctx.stroke();
-    // measured points
     ctx.fillStyle = '#f6ad55';
-    for (var j=0;j<times.length;j++){
-      var px = xScale(times[j]), py = yScale(charges[j]);
-      ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI*2); ctx.fill();
-    }
+    for (var j=0;j<times.length;j++){ var px=xScale(times[j]), py=yScale(charges[j]); ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2); ctx.fill(); }
   })();
   </script>
-  <p class="muted small">Orange dots = measured charge; blue line = linear fit.</p>
+  <p class="muted small">Orange = measured; blue = linear fit.</p>
 </div>
 {% endif %}
 
-{# ========== TRANSIT ========== #}
 {% if section == 'ton_toff' %}
 <div class="card form-card">
   <h2 style="margin-top:0">Source transit time</h2>
-  <p class="muted small">TON/TOFF = (Secondary − Dwell) / 2. Add as many trials as needed.</p>
-  <form method="post" action="/brachy-source-qa/ton-toff" id="form-transit">
+  <form method="post" action="/brachy-source-qa/ton-toff">
     <div id="transit-rows">
       <div class="grid-2 trial-row">
-        <label>Trial 1 — Secondary time (s)<input type="number" step="any" name="secondary_1" value="20.4" required></label>
-        <label>Trial 1 — Dwell time (s)<input type="number" step="any" name="dwell_1" value="10" required></label>
+        <label>Trial 1 — Secondary (s)<input type="number" step="any" name="secondary_1" value="20.4" required></label>
+        <label>Trial 1 — Dwell (s)<input type="number" step="any" name="dwell_1" value="10" required></label>
       </div>
     </div>
     <button type="button" class="btn btn-secondary btn-sm" onclick="addTransitTrial()">+ Add trial</button>
     <div class="form-actions" style="margin-top:1rem">
       <button type="submit" name="action" value="calculate" class="btn btn-primary">Calculate</button>
-      {% if can_save %}
-      <button type="submit" name="action" value="save" class="btn btn-primary">Save (satisfactory)</button>
-      {% endif %}
     </div>
   </form>
 </div>
-<script>
-var transitN = 1;
-function addTransitTrial(){
-  transitN += 1;
-  var div = document.createElement('div');
-  div.className = 'grid-2 trial-row';
-  div.innerHTML = '<label>Trial '+transitN+' — Secondary time (s)<input type="number" step="any" name="secondary_'+transitN+'" required></label>'+
-    '<label>Trial '+transitN+' — Dwell time (s)<input type="number" step="any" name="dwell_'+transitN+'" required></label>';
-  document.getElementById('transit-rows').appendChild(div);
-}
-</script>
+<script>var transitN=1;function addTransitTrial(){transitN++;var d=document.createElement('div');d.className='grid-2 trial-row';d.innerHTML='<label>Trial '+transitN+' — Secondary (s)<input type="number" step="any" name="secondary_'+transitN+'" required></label><label>Trial '+transitN+' — Dwell (s)<input type="number" step="any" name="dwell_'+transitN+'" required></label>';document.getElementById('transit-rows').appendChild(d);}</script>
 {% endif %}
 
-{# ========== TIMER ERROR ========== #}
 {% if section == 'timer_error' %}
 <div class="card form-card">
   <h2 style="margin-top:0">Timer error</h2>
   <form method="post" action="/brachy-source-qa/timer-error">
-    <p class="muted small">R1 without interruption; R2 with interruption. Add trials as needed.</p>
-    <div id="r1-rows">
-      <label>R1 trial 1 (µC)<input type="number" step="any" name="r1_1" value="2.511" required></label>
-    </div>
+    <div id="r1-rows"><label>R1 trial 1 (µC)<input type="number" step="any" name="r1_1" value="2.511" required></label></div>
     <button type="button" class="btn btn-secondary btn-sm" onclick="addR1()">+ Add R1 trial</button>
-    <div id="r2-rows" style="margin-top:0.75rem">
-      <label>R2 trial 1 (µC)<input type="number" step="any" name="r2_1" value="2.529" required></label>
-    </div>
+    <div id="r2-rows" style="margin-top:0.75rem"><label>R2 trial 1 (µC)<input type="number" step="any" name="r2_1" value="2.529" required></label></div>
     <button type="button" class="btn btn-secondary btn-sm" onclick="addR2()">+ Add R2 trial</button>
     <div class="grid-2" style="margin-top:0.75rem">
       <label>Dwell time t (s)<input type="number" step="any" name="dwell_time" value="60" required></label>
       <label>Interruptions n<input type="number" name="n_interruptions" value="1" required></label>
     </div>
-    <div class="form-actions">
-      <button type="submit" name="action" value="calculate" class="btn btn-primary">Calculate</button>
-      {% if can_save %}
-      <button type="submit" name="action" value="save" class="btn btn-primary">Save (satisfactory)</button>
-      {% elif result and not can_save %}
-      <span class="muted small">Save disabled — result not satisfactory</span>
-      {% endif %}
-    </div>
+    <div class="form-actions"><button type="submit" name="action" value="calculate" class="btn btn-primary">Calculate</button></div>
   </form>
 </div>
-<script>
-var r1n=1,r2n=1;
-function addR1(){ r1n++; var el=document.createElement('label'); el.innerHTML='R1 trial '+r1n+' (µC)<input type="number" step="any" name="r1_'+r1n+'" required>'; document.getElementById('r1-rows').appendChild(el); }
-function addR2(){ r2n++; var el=document.createElement('label'); el.innerHTML='R2 trial '+r2n+' (µC)<input type="number" step="any" name="r2_'+r2n+'" required>'; document.getElementById('r2-rows').appendChild(el); }
-</script>
+<script>var r1n=1,r2n=1;function addR1(){r1n++;var e=document.createElement('label');e.innerHTML='R1 trial '+r1n+' (µC)<input type="number" step="any" name="r1_'+r1n+'" required>';document.getElementById('r1-rows').appendChild(e);}function addR2(){r2n++;var e=document.createElement('label');e.innerHTML='R2 trial '+r2n+' (µC)<input type="number" step="any" name="r2_'+r2n+'" required>';document.getElementById('r2-rows').appendChild(e);}</script>
 {% endif %}
 
-{# ========== LINEARITY ========== #}
 {% if section == 'linearity' %}
 <div class="card form-card">
   <h2 style="margin-top:0">Timer linearity</h2>
-  <p class="muted small">Enter time/charge pairs, then Calculate to see fit, residuals, and graph. Save only if Satisfactory.</p>
+  <p class="muted small">Enter points → Calculate → graph + residuals. Save only if Satisfactory.</p>
   <form method="post" action="/brachy-source-qa/timer-linearity">
     <div id="lin-rows">
-      <div class="grid-2 trial-row">
-        <label>Point 1 — Time (s)<input type="number" step="any" name="t_1" value="30" required></label>
-        <label>Point 1 — Charge<input type="number" step="any" name="c_1" required></label>
-      </div>
-      <div class="grid-2 trial-row">
-        <label>Point 2 — Time (s)<input type="number" step="any" name="t_2" value="60" required></label>
-        <label>Point 2 — Charge<input type="number" step="any" name="c_2" required></label>
-      </div>
-      <div class="grid-2 trial-row">
-        <label>Point 3 — Time (s)<input type="number" step="any" name="t_3" value="90" required></label>
-        <label>Point 3 — Charge<input type="number" step="any" name="c_3" required></label>
-      </div>
+      <div class="grid-2 trial-row"><label>Point 1 — Time (s)<input type="number" step="any" name="t_1" value="30" required></label><label>Point 1 — Charge<input type="number" step="any" name="c_1" required></label></div>
+      <div class="grid-2 trial-row"><label>Point 2 — Time (s)<input type="number" step="any" name="t_2" value="60" required></label><label>Point 2 — Charge<input type="number" step="any" name="c_2" required></label></div>
+      <div class="grid-2 trial-row"><label>Point 3 — Time (s)<input type="number" step="any" name="t_3" value="90" required></label><label>Point 3 — Charge<input type="number" step="any" name="c_3" required></label></div>
     </div>
     <button type="button" class="btn btn-secondary btn-sm" onclick="addLinPoint()">+ Add point</button>
-    <div class="form-actions" style="margin-top:1rem">
-      <button type="submit" name="action" value="calculate" class="btn btn-primary">Calculate</button>
-      {% if can_save %}
-      <button type="submit" name="action" value="save" class="btn btn-primary">Save (satisfactory)</button>
-      {% elif result and not can_save %}
-      <span class="muted small">Save disabled — result not satisfactory</span>
-      {% endif %}
-    </div>
+    <div class="form-actions" style="margin-top:1rem"><button type="submit" name="action" value="calculate" class="btn btn-primary">Calculate</button></div>
   </form>
 </div>
-<script>
-var linN=3;
-function addLinPoint(){
-  linN++;
-  var div=document.createElement('div');
-  div.className='grid-2 trial-row';
-  div.innerHTML='<label>Point '+linN+' — Time (s)<input type="number" step="any" name="t_'+linN+'" required></label>'+
-    '<label>Point '+linN+' — Charge<input type="number" step="any" name="c_'+linN+'" required></label>';
-  document.getElementById('lin-rows').appendChild(div);
-}
-</script>
+<script>var linN=3;function addLinPoint(){linN++;var d=document.createElement('div');d.className='grid-2 trial-row';d.innerHTML='<label>Point '+linN+' — Time (s)<input type="number" step="any" name="t_'+linN+'" required></label><label>Point '+linN+' — Charge<input type="number" step="any" name="c_'+linN+'" required></label>';document.getElementById('lin-rows').appendChild(d);}</script>
 {% endif %}
 
-{# ========== DECAY ========== #}
 {% if section == 'decay' %}
 <div class="card form-card">
   <h2 style="margin-top:0">Decay factor</h2>
   <form method="post" action="/brachy-source-qa/decay">
     <div class="grid-2">
-      <label>Source
-        <select name="source_name" required>
-          {% for s in sources %}
-          <option value="{{ s }}" {% if s=='Ir-192' %}selected{% endif %}>{{ s }}</option>
-          {% endfor %}
-        </select>
-      </label>
+      <label>Source<select name="source_name" required>{% for s in sources %}<option value="{{ s }}" {% if s=='Ir-192' %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
       <label>TPS decay factor<input type="number" step="any" name="tps_decay" required></label>
-      <label>Calibration date &amp; time
-        <input type="datetime-local" name="calib_dt" step="1" required>
-      </label>
-      <label>QA date &amp; time
-        <input type="datetime-local" name="qa_dt" step="1" required>
-      </label>
+      <label>Calibration date &amp; time<input type="datetime-local" name="calib_dt" step="1" required></label>
+      <label>QA date &amp; time<input type="datetime-local" name="qa_dt" step="1" required></label>
     </div>
-    <p class="muted small">Use the calendar picker or type the date/time manually.</p>
-    <div class="form-actions">
-      <button type="submit" name="action" value="calculate" class="btn btn-primary">Calculate</button>
-      {% if can_save %}
-      <button type="submit" name="action" value="save" class="btn btn-primary">Save (satisfactory)</button>
-      {% elif result and not can_save %}
-      <span class="muted small">Save disabled — result not satisfactory</span>
-      {% endif %}
-    </div>
+    <p class="muted small">Calendar picker or type date/time manually.</p>
+    <div class="form-actions"><button type="submit" name="action" value="calculate" class="btn btn-primary">Calculate</button></div>
   </form>
 </div>
 {% endif %}
 
-{# ========== SINGLE ========== #}
 {% if section == 'single' %}
 <div class="card form-card">
   <h2 style="margin-top:0">Single source vs TPS</h2>
   <form method="post" action="/brachy-source-qa/single-source">
     <div class="grid-2">
-      <label>Source
-        <select name="source_name" required>
-          {% for s in sources %}<option value="{{ s }}" {% if s=='Ir-192' %}selected{% endif %}>{{ s }}</option>{% endfor %}
-        </select>
-      </label>
+      <label>Source<select name="source_name" required>{% for s in sources %}<option value="{{ s }}" {% if s=='Ir-192' %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
       <label>Activity at calibration (mCi)<input type="number" step="any" name="activity_mci_calib" value="12180" required></label>
       <label>Calibration date &amp; time<input type="datetime-local" name="calib_dt" step="1" required></label>
       <label>QA date &amp; time<input type="datetime-local" name="qa_dt" step="1" required></label>
@@ -276,60 +187,32 @@ function addLinPoint(){
       <label>TPS time (s)<input type="number" step="any" name="tps_time_s" value="79.7" required></label>
       <label>Air-kerma rate const<input type="number" step="any" name="air_kerma_rate_const" value="4.082"></label>
       <label>Λ<input type="number" step="any" name="dose_rate_constant" value="1.1121"></label>
-      <label>g(r)<input type="number" step="any" name="g_r" value="1"></label>
-      <label>G ratio<input type="number" step="any" name="G_ratio" value="1"></label>
-      <label>F<input type="number" step="any" name="F" value="1"></label>
     </div>
-    <div class="form-actions">
-      <button type="submit" name="action" value="calculate" class="btn btn-primary">Calculate</button>
-      {% if can_save %}
-      <button type="submit" name="action" value="save" class="btn btn-primary">Save (satisfactory)</button>
-      {% elif result and not can_save %}
-      <span class="muted small">Save disabled — result not satisfactory</span>
-      {% endif %}
-    </div>
+    <div class="form-actions"><button type="submit" name="action" value="calculate" class="btn btn-primary">Calculate</button></div>
   </form>
 </div>
 {% endif %}
 
-{# ========== MULTI ========== #}
 {% if section == 'multi' %}
 <div class="card form-card">
   <h2 style="margin-top:0">Multi source vs TPS</h2>
   <form method="post" action="/brachy-source-qa/multi-source">
     <div class="grid-2">
-      <label>Source
-        <select name="source_name" required>
-          {% for s in sources %}<option value="{{ s }}" {% if s=='Ir-192' %}selected{% endif %}>{{ s }}</option>{% endfor %}
-        </select>
-      </label>
+      <label>Source<select name="source_name" required>{% for s in sources %}<option value="{{ s }}" {% if s=='Ir-192' %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
       <label>Activity at calibration (mCi)<input type="number" step="any" name="activity_mci_calib" value="12180" required></label>
       <label>Calibration date &amp; time<input type="datetime-local" name="calib_dt" step="1" required></label>
       <label>QA date &amp; time<input type="datetime-local" name="qa_dt" step="1" required></label>
       <label>Prescription (cGy)<input type="number" step="any" name="prescription_cgy" value="1000"></label>
       <label>TPS time (s)<input type="number" step="any" name="tps_time_s" value="40.3" required></label>
-      <label>Air-kerma rate const<input type="number" step="any" name="air_kerma_rate_const" value="4.082"></label>
-      <label>Λ<input type="number" step="any" name="dose_rate_constant" value="1.1121"></label>
     </div>
-    <div class="form-actions">
-      <button type="submit" name="action" value="calculate" class="btn btn-primary">Calculate</button>
-      {% if can_save %}
-      <button type="submit" name="action" value="save" class="btn btn-primary">Save (satisfactory)</button>
-      {% elif result and not can_save %}
-      <span class="muted small">Save disabled — result not satisfactory</span>
-      {% endif %}
-    </div>
+    <div class="form-actions"><button type="submit" name="action" value="calculate" class="btn btn-primary">Calculate</button></div>
   </form>
 </div>
 {% endif %}
 
-{# ========== RECORD ========== #}
 {% if section in ['contamination','position','leakage','survey'] %}
 <div class="card form-card">
-  {% if section == 'contamination' %}<h2 style="margin-top:0">Contamination test</h2>
-  {% elif section == 'position' %}<h2 style="margin-top:0">Positioning accuracy</h2>
-  {% elif section == 'leakage' %}<h2 style="margin-top:0">Unit leakage</h2>
-  {% else %}<h2 style="margin-top:0">Installation survey</h2>{% endif %}
+  <h2 style="margin-top:0">{% if section=='contamination' %}Contamination test{% elif section=='position' %}Positioning accuracy{% elif section=='leakage' %}Unit leakage{% else %}Installation survey{% endif %}</h2>
   <form method="post" action="/brachy-source-qa/record">
     <input type="hidden" name="section" value="{{ section }}">
     <div class="grid-2">
@@ -338,20 +221,11 @@ function addLinPoint(){
       <label>Result note<input name="result_text"></label>
     </div>
     <label>Notes<textarea name="notes" rows="2" style="width:100%"></textarea></label>
-    <label class="check-label" style="margin-top:0.75rem">
-      <input type="checkbox" name="satisfactory" value="1">
-      <span>Result is satisfactory (within library tolerance)</span>
-    </label>
-    <div class="form-actions">
-      <button type="submit" name="action" value="save" class="btn btn-primary">Save (only if checked satisfactory)</button>
-    </div>
+    <label class="check-label" style="margin-top:0.75rem"><input type="checkbox" name="satisfactory" value="1"><span>Result is satisfactory (within library tolerance)</span></label>
+    <div class="form-actions"><button type="submit" name="action" value="save" class="btn btn-primary">Save (if satisfactory)</button></div>
   </form>
 </div>
 {% endif %}
 
-<style>
-.trial-row{margin-bottom:0.5rem}
-.check-label{display:flex;align-items:center;gap:0.5rem;cursor:pointer}
-.check-label input{width:auto;margin:0}
-</style>
+<style>.trial-row{margin-bottom:0.5rem}.check-label{display:flex;align-items:center;gap:0.5rem;cursor:pointer}.check-label input{width:auto;margin:0}</style>
 {% endblock %}
