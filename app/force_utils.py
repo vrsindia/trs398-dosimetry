@@ -67,6 +67,12 @@ def _install_extras(app, templates=None):
         print("force_utils: tolerances_routes OK")
     except Exception as e:
         print("force_utils: tolerances_routes:", e)
+    # Machines last so they override core main memory-only routes
+    try:
+        from app.boot_machines import install as install_machines
+        install_machines(app, templates)
+    except Exception as e:
+        print("force_utils: boot_machines:", e)
 
 
 register_force_utils = _load()
