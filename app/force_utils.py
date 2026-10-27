@@ -18,7 +18,7 @@ def _load():
             @app.get("/utils-ping")
             def _ping():
                 return {"ok": False, "error": "force_utils parts missing"}
-            _install_user_sync(app)
+            _install_extras(app, templates)
             return app
         return register_force_utils
     raw = zlib.decompress(base64.b64decode("".join(parts)))
@@ -33,13 +33,13 @@ def _load():
             _orig(app, templates)
         except TypeError:
             _orig(app)
-        _install_user_sync(app)
+        _install_extras(app, templates)
         return app
 
     return register_force_utils
 
 
-def _install_user_sync(app):
+def _install_extras(app, templates=None):
     try:
         from app.user_sync_routes import register_user_sync_routes
         register_user_sync_routes(app)
@@ -47,14 +47,18 @@ def _install_user_sync(app):
     except Exception as e:
         print("force_utils: user_sync_routes failed:", e)
     try:
-        from app.users_routes import register_users_routes
-        # templates may be missing; only if already on app
-        templates = getattr(app, "state", None)
         from app.main import templates as tpl
-        register_users_routes(app, tpl)
+        templates = templates or tpl
+        from app.users_routes import register_users_routes
+        register_users_routes(app, templates)
         print("force_utils: users_routes re-registered")
     except Exception as e:
         print("force_utils: users_routes:", e)
+    try:
+        from app.register_brachy_qa import install as install_brachy_qa
+        install_brachy_qa(app, templates)
+    except Exception as e:
+        print("force_utils: brachy_qa:", e)
 
 
 register_force_utils = _load()
