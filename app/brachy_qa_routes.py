@@ -39,7 +39,6 @@ def _save_session(
             performed_by=getattr(user, "username", "") or "",
             notes=(notes or "") + ((" | " + formula) if formula else ""),
         )
-        # stash extra fields on the in-memory row for PDF
         row["annexure"] = annexure
         row["title"] = title
         row["formula"] = formula
@@ -58,7 +57,6 @@ def register_brachy_qa_routes(app, templates):
             r for r in list(app.router.routes)
             if getattr(r, "path", None) != path
         ]
-    # also clear form posts by prefix rebuild below
 
     def _user(request: Request):
         try:
@@ -67,8 +65,7 @@ def register_brachy_qa_routes(app, templates):
             return None
 
     def _require(request: Request):
-        user = _user(request)
-        return user
+        return _user(request)
 
     def _tpl(request: Request, **kwargs):
         ctx = dict(kwargs)
@@ -102,11 +99,9 @@ def register_brachy_qa_routes(app, templates):
         if not user:
             return RedirectResponse("/login", 303)
         try:
-            from app.qa_results_store import get_qa_result
+            from app.qa_results_store import get_qa_result, list_qa_results
             session = get_qa_result(sid)
             if not session:
-                # fallback scan list
-                from app.qa_results_store import list_qa_results
                 for r in list_qa_results(kind="brachy_source") or []:
                     if r.get("id") == sid:
                         session = r
@@ -157,8 +152,8 @@ def register_brachy_qa_routes(app, templates):
                 ("TON/TOFF (s)", round(val, 4)),
             ]
             formula = "TON/TOFF = (Secondary Time − Dwell Time) / 2"
-            result = {"title": "TON / TOFF (2.5 & 2.6)", "rows": rows, "formula": formula}
-            saved = _save_session(user, "2.5_2.6", result["title"], rows, formula)
+            result = {"title": "Source transit time", "rows": rows, "formula": formula}
+            saved = _save_session(user, "source_transit", result["title"], rows, formula)
             return _done(request, user, "ton_toff", result, saved)
         except Exception as e:
             return _tpl(request, current_user=user, section="ton_toff", error=str(e))
@@ -193,8 +188,8 @@ def register_brachy_qa_routes(app, templates):
                 ("Status", status),
             ]
             formula = "Timer error = (R2−R1)·t / ((n+1)·R1 − R2); % = error·100/t"
-            result = {"title": "Timer error (4.3.1)", "rows": rows, "formula": formula, "pass": ok}
-            saved = _save_session(user, "4.3.1", result["title"], rows, formula, overall=status)
+            result = {"title": "Timer error", "rows": rows, "formula": formula, "pass": ok}
+            saved = _save_session(user, "timer_error", result["title"], rows, formula, overall=status)
             return _done(request, user, "timer_error", result, saved)
         except Exception as e:
             return _tpl(request, current_user=user, section="timer_error", error=str(e))
@@ -228,8 +223,8 @@ def register_brachy_qa_routes(app, templates):
                 ("Status", status),
             ]
             formula = "Charge ≈ a·Time + b; end error ≈ b/a"
-            result = {"title": "Timer linearity (4.3.2)", "rows": rows, "formula": formula, "pass": ok}
-            saved = _save_session(user, "4.3.2", result["title"], rows, formula, overall=status)
+            result = {"title": "Timer linearity", "rows": rows, "formula": formula, "pass": ok}
+            saved = _save_session(user, "timer_linearity", result["title"], rows, formula, overall=status)
             return _done(request, user, "linearity", result, saved)
         except Exception as e:
             return _tpl(request, current_user=user, section="linearity", error=str(e))
@@ -305,8 +300,8 @@ def register_brachy_qa_routes(app, templates):
                 ("Status", status),
             ]
             formula = "Ḋ = SK·Λ·g·G·F; t = Dose/Ḋ"
-            result = {"title": "Single-source vs TPS (5.2.5)", "rows": rows, "formula": formula, "pass": ok}
-            saved = _save_session(user, "5.2.5", result["title"], rows, formula, overall=status)
+            result = {"title": "Single source vs TPS", "rows": rows, "formula": formula, "pass": ok}
+            saved = _save_session(user, "single_source", result["title"], rows, formula, overall=status)
             return _done(request, user, "single", result, saved)
         except Exception as e:
             return _tpl(request, current_user=user, section="single", error=str(e))
@@ -347,8 +342,8 @@ def register_brachy_qa_routes(app, templates):
                 ("Status", status),
             ]
             formula = "ΣḊi; t = Dose/ΣḊ"
-            result = {"title": "Multi-source vs TPS (5.2.6)", "rows": rows, "formula": formula, "pass": ok}
-            saved = _save_session(user, "5.2.6", result["title"], rows, formula, overall=status)
+            result = {"title": "Multi source vs TPS", "rows": rows, "formula": formula, "pass": ok}
+            saved = _save_session(user, "multi_source", result["title"], rows, formula, overall=status)
             return _done(request, user, "multi", result, saved)
         except Exception as e:
             return _tpl(request, current_user=user, section="multi", error=str(e))
@@ -367,10 +362,10 @@ def register_brachy_qa_routes(app, templates):
         if not user:
             return RedirectResponse("/login", 303)
         title_map = {
-            "contamination": "4.1 Contamination",
-            "position": "4.2 Positioning",
-            "leakage": "6.3 Unit leakage",
-            "survey": "6.4 Installation survey",
+            "contamination": "Contamination test",
+            "position": "Positioning accuracy",
+            "leakage": "Unit leakage",
+            "survey": "Installation survey",
         }
         title = title_map.get(section, section)
         rows = [
@@ -383,5 +378,5 @@ def register_brachy_qa_routes(app, templates):
         saved = _save_session(user, section, title, rows, notes=notes or result_text)
         return _done(request, user, section, result, saved)
 
-    print("brachy_qa_routes: calculate + save + PDF")
+    print("brachy_qa_routes: calculate + save + PDF (plain names)")
     return True
