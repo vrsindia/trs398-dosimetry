@@ -1,8 +1,8 @@
-"""User directory — safe collapsible cards, always persist to Supabase."""
+"""User directory — always refresh from Supabase before listing."""
 from __future__ import annotations
 
 from fastapi import Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import auth as auth_mod
 from app.auth import (
@@ -22,20 +22,20 @@ SYSTEM_PERMS = [
     PERM_ADMIN_PANEL,
 ]
 SECTION_PERMS = list(ALL_SECTION_PERMS)
-
-_KEEP_PATHS = {"/users-db-status", "/users/sync-to-supabase"}
+_KEEP_PATHS = {"/users-db-status", "/users/sync-to-supabase", "/users/reload-from-supabase"}
 
 
 def _persist(user) -> str:
     try:
-        from app.user_store import persist_user, save_user_supabase
+        from app.user_store import persist_user
         from app.db import status as db_status
-        persist_user(user)
+        ok = persist_user(user)
         st = db_status()
-        if st.get("using_database"):
-            ok = save_user_supabase(user)
-            return "saved_to_supabase" if ok else "supabase_save_failed"
-        return "saved_json_only_no_supabase_env"
+        if st.get("using_database") and ok:
+            return "saved_to_supabase"
+        if ok:
+            return "saved"
+        return "supabase_save_failed"
     except Exception as e:
         print("users_routes _persist:", e)
         return "persist_error"
@@ -61,6 +61,18 @@ def _norm_perms(raw) -> set:
         return {str(x) for x in raw}
     except Exception:
         return set()
+
+
+def _reload_from_supabase() -> tuple:
+    """Force hydrate from Supabase. Returns (count, error_message)."""
+    try:
+        from app.user_store import hydrate_auth_users, load_users_supabase
+        sb = load_users_supabase()
+        n = hydrate_auth_users()
+        return n, "", len(sb or [])
+    except Exception as e:
+        print("reload_from_supabase:", e)
+        return 0, str(e), 0
 
 
 def register_users_routes(app, templates):
@@ -98,7 +110,11 @@ def register_users_routes(app, templates):
         return None
 
     def _ctx(user, message="", error=""):
-        """Build template context. Do NOT include request here."""
+        # ALWAYS refresh from Supabase so all workers / restarts see the same users
+        n_mem, err, n_sb = _reload_from_supabase()
+        if err:
+            error = (error or "") + (" Reload error: " + err)
+
         users = []
         try:
             users = list(list_users() or [])
@@ -120,9 +136,9 @@ def register_users_routes(app, templates):
             from app.db import status as db_status
             st = db_status()
             if not st.get("using_database"):
-                db_msg = (
-                    " Warning: Supabase not connected — users may be lost on restart."
-                )
+                db_msg = " Warning: Supabase not connected — users may be lost on restart."
+            else:
+                db_msg = " Supabase users: %d · Loaded in app: %d" % (n_sb, n_mem)
         except Exception:
             pass
 
@@ -139,32 +155,16 @@ def register_users_routes(app, templates):
         }
 
     def _tpl(request: Request, ctx: dict):
-        """Render users template. request only once."""
         context = dict(ctx)
         context.pop("request", None)
         try:
-            return templates.TemplateResponse(
-                request=request, name=TEMPLATE, context=context,
-            )
+            return templates.TemplateResponse(request=request, name=TEMPLATE, context=context)
         except TypeError:
             context["request"] = request
             try:
                 return templates.TemplateResponse(TEMPLATE, context)
             except TypeError:
-                try:
-                    return templates.TemplateResponse(TEMPLATE, context=context)
-                except Exception as e:
-                    print("users template error:", e)
-                    return HTMLResponse(
-                        "<h1>Users</h1><p>Template error: %s</p><p><a href='/'>Home</a></p>" % e,
-                        status_code=500,
-                    )
-        except Exception as e:
-            print("users template error:", e)
-            return HTMLResponse(
-                "<h1>Users</h1><p>Template error: %s</p><p><a href='/'>Home</a></p>" % e,
-                status_code=500,
-            )
+                return templates.TemplateResponse(TEMPLATE, context=context)
 
     @app.get("/users", response_class=HTMLResponse)
     async def users_page(request: Request):
@@ -175,13 +175,23 @@ def register_users_routes(app, templates):
         try:
             return _tpl(request, _ctx(user, message=msg))
         except Exception as e:
-            print("users_page error:", e)
             import traceback
             traceback.print_exc()
-            return HTMLResponse(
-                "<h1>Users error</h1><pre>%s</pre><a href='/'>Home</a>" % e,
-                status_code=500,
-            )
+            return HTMLResponse("<h1>Users error</h1><pre>%s</pre><a href='/'>Home</a>" % e, status_code=500)
+
+    @app.post("/users/reload-from-supabase")
+    @app.get("/users/reload-from-supabase")
+    async def users_reload(request: Request):
+        user = _require_admin(request)
+        if not user:
+            return RedirectResponse("/login", 303)
+        n, err, n_sb = _reload_from_supabase()
+        if err:
+            return RedirectResponse("/users?msg=Reload+error", 303)
+        return RedirectResponse(
+            "/users?msg=Reloaded+%d+users+from+Supabase+(%d+rows)" % (n, n_sb),
+            303,
+        )
 
     @app.post("/users/add")
     async def users_add(
@@ -195,6 +205,8 @@ def register_users_routes(app, templates):
         if not user:
             return RedirectResponse("/login", 303)
         try:
+            # Refresh first so username uniqueness matches Supabase
+            _reload_from_supabase()
             new_u = auth_mod.create_user(
                 str(username).strip(),
                 str(password),
@@ -203,11 +215,11 @@ def register_users_routes(app, templates):
                 created_by=getattr(user, "username", "") or "",
             )
             status = _persist(new_u)
+            # Force reload so list includes Tester even on another code path
+            _reload_from_supabase()
             msg = "User+created"
             if status == "saved_to_supabase":
                 msg = "User+created+and+saved+to+Supabase"
-            elif "json_only" in status:
-                msg = "User+created+but+Supabase+not+configured"
             return RedirectResponse("/users?msg=" + msg, 303)
         except Exception as e:
             return _tpl(request, _ctx(user, error=str(e)))
@@ -239,9 +251,9 @@ def register_users_routes(app, templates):
             updated = auth_mod.update_user(uid, **kwargs)
             if updated:
                 _persist(updated)
+            _reload_from_supabase()
             return RedirectResponse("/users?msg=User+updated", 303)
         except Exception as e:
-            print("users_edit error:", e)
             import traceback
             traceback.print_exc()
             return _tpl(request, _ctx(user, error=str(e)))
@@ -258,9 +270,10 @@ def register_users_routes(app, templates):
                 remove_user(uid)
             except Exception as e:
                 print("delete persist:", e)
+            _reload_from_supabase()
             return RedirectResponse("/users?msg=User+deleted", 303)
         except Exception as e:
             return _tpl(request, _ctx(user, error=str(e)))
 
-    print("users_routes: safe users page registered")
+    print("users_routes: /users with Supabase reload on every list")
     return True
