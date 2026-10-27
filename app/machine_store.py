@@ -1,9 +1,21 @@
-"""Machines + beams: Supabase is the only source of truth."""
+"""Machines + beams: Supabase is the only source of truth (REST)."""
 from __future__ import annotations
 
 import json
 import os
 from typing import List, Optional, Tuple
+
+_LAST_ERROR = ""
+
+
+def last_error() -> str:
+    return _LAST_ERROR or ""
+
+
+def _set_err(msg: str) -> None:
+    global _LAST_ERROR
+    _LAST_ERROR = str(msg or "")
+    print("machine_store:", _LAST_ERROR)
 
 
 def _creds() -> Tuple[str, str]:
@@ -27,7 +39,7 @@ def supabase_configured() -> bool:
     return bool(url and key)
 
 
-def _rest_headers(key: str, prefer: str = "return=minimal") -> dict:
+def _headers(key: str, prefer: str = "") -> dict:
     h = {
         "apikey": key,
         "Authorization": "Bearer " + key,
@@ -38,79 +50,124 @@ def _rest_headers(key: str, prefer: str = "return=minimal") -> dict:
     return h
 
 
+def _http_json(method: str, endpoint: str, key: str, body=None, prefer: str = ""):
+    import urllib.request
+    data = None if body is None else json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(
+        endpoint,
+        data=data,
+        headers=_headers(key, prefer),
+        method=method,
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            return resp.status, raw
+    except Exception as e:
+        # HTTPError has code + body
+        code = getattr(e, "code", None)
+        body_txt = ""
+        try:
+            body_txt = e.read().decode("utf-8", errors="replace")  # type: ignore
+        except Exception:
+            body_txt = str(e)
+        return code or 0, body_txt
+
+
 def _rest_get(path: str) -> List[dict]:
     url, key = _creds()
     if not url or not key:
-        print("machine_store REST GET: no credentials")
+        _set_err("missing SUPABASE_URL or SUPABASE_KEY")
         return []
-    endpoint = url + "/rest/v1/" + path
-    try:
-        import httpx
-        r = httpx.get(endpoint, headers=_rest_headers(key, ""), timeout=25.0)
-        if r.status_code == 200:
-            data = r.json()
+    status, raw = _http_json("GET", url + "/rest/v1/" + path, key)
+    if status == 200:
+        try:
+            data = json.loads(raw or "[]")
             return data if isinstance(data, list) else []
-        print("machine_store REST GET", path, r.status_code, r.text[:300])
-    except Exception as e:
-        print("machine_store REST GET:", e)
-    try:
-        from app.db import use_db, sb_select
-        if use_db():
-            table = path.split("?")[0]
-            return sb_select(table) or []
-    except Exception as e:
-        print("machine_store sb_select:", e)
+        except Exception as e:
+            _set_err("GET parse: " + str(e))
+            return []
+    _set_err("GET %s → %s %s" % (path, status, (raw or "")[:300]))
     return []
 
 
 def _rest_upsert(table: str, row: dict) -> bool:
+    """Upsert by id. Retries without category if column missing."""
     url, key = _creds()
     if not url or not key:
-        print("machine_store REST upsert: no credentials")
+        _set_err("missing SUPABASE_URL or SUPABASE_KEY")
         return False
-    endpoint = url + "/rest/v1/" + table + "?on_conflict=id"
-    headers = _rest_headers(key, "resolution=merge-duplicates,return=minimal")
-    try:
-        import httpx
-        r = httpx.post(endpoint, headers=headers, json=row, timeout=25.0)
-        if r.status_code in (200, 201, 204):
-            print("machine_store REST upsert OK:", table, row.get("id") or row.get("name"))
-            return True
-        # retry without on_conflict
-        r2 = httpx.post(
-            url + "/rest/v1/" + table,
-            headers=_rest_headers(key, "resolution=merge-duplicates,return=minimal"),
-            json=row,
-            timeout=25.0,
+
+    attempts = [row]
+    if "category" in row:
+        slim = dict(row)
+        slim.pop("category", None)
+        attempts.append(slim)
+
+    for attempt in attempts:
+        # 1) POST with on_conflict=id
+        status, raw = _http_json(
+            "POST",
+            url + "/rest/v1/" + table + "?on_conflict=id",
+            key,
+            body=attempt,
+            prefer="resolution=merge-duplicates,return=representation",
         )
-        if r2.status_code in (200, 201, 204):
-            print("machine_store REST upsert2 OK:", table)
+        if status in (200, 201):
+            _set_err("")
+            print("machine_store upsert OK", table, attempt.get("id"), status)
             return True
-        # PATCH by id
-        rid = row.get("id")
+        if status == 204:
+            _set_err("")
+            return True
+
+        # 2) PATCH by id
+        rid = attempt.get("id")
         if rid:
-            r3 = httpx.patch(
+            status2, raw2 = _http_json(
+                "PATCH",
                 url + "/rest/v1/" + table + "?id=eq." + str(rid),
-                headers=_rest_headers(key, "return=minimal"),
-                json=row,
-                timeout=25.0,
+                key,
+                body=attempt,
+                prefer="return=representation",
             )
-            if r3.status_code in (200, 204):
-                print("machine_store REST PATCH OK:", table, rid)
+            if status2 in (200, 204):
+                # 0 rows updated is still 200 with [] — treat as need insert
+                if status2 == 200 and (raw2 or "").strip() in ("", "[]"):
+                    status3, raw3 = _http_json(
+                        "POST",
+                        url + "/rest/v1/" + table,
+                        key,
+                        body=attempt,
+                        prefer="return=representation",
+                    )
+                    if status3 in (200, 201):
+                        _set_err("")
+                        return True
+                    _set_err("POST insert %s → %s %s" % (table, status3, (raw3 or "")[:250]))
+                    continue
+                _set_err("")
                 return True
-            print("machine_store REST fail", table, r.status_code, r.text[:200], r2.status_code, r3.status_code)
+            _set_err(
+                "upsert %s failed POST %s %s | PATCH %s %s"
+                % (table, status, (raw or "")[:150], status2, (raw2 or "")[:150])
+            )
         else:
-            print("machine_store REST fail", table, r.status_code, r.text[:300])
-    except Exception as e:
-        print("machine_store REST upsert:", e)
+            _set_err("upsert %s failed %s %s" % (table, status, (raw or "")[:250]))
+
+        # If error is unknown column category, next attempt drops it
+        if "category" in (raw or "").lower() or "category" in (raw2 if rid else "" or "").lower():
+            continue
+
+    # last resort supabase-py
     try:
         from app.db import use_db, sb_upsert
         if use_db():
             sb_upsert(table, row)
-            print("machine_store sb_upsert OK:", table)
+            _set_err("")
             return True
     except Exception as e:
-        print("machine_store sb_upsert:", e)
+        _set_err("sb_upsert: " + str(e))
     return False
 
 
@@ -118,23 +175,15 @@ def _rest_delete(table: str, row_id: str) -> bool:
     url, key = _creds()
     if not url or not key:
         return False
-    try:
-        import httpx
-        r = httpx.delete(
-            url + "/rest/v1/" + table + "?id=eq." + str(row_id),
-            headers=_rest_headers(key, ""),
-            timeout=20.0,
-        )
-        return r.status_code in (200, 204)
-    except Exception as e:
-        print("machine_store REST delete:", e)
-    try:
-        from app.db import use_db, sb_delete
-        if use_db():
-            return bool(sb_delete(table, row_id))
-    except Exception as e:
-        print("machine_store sb_delete:", e)
-    return False
+    status, raw = _http_json(
+        "DELETE",
+        url + "/rest/v1/" + table + "?id=eq." + str(row_id),
+        key,
+    )
+    ok = status in (200, 204)
+    if not ok:
+        _set_err("delete %s %s → %s %s" % (table, row_id, status, (raw or "")[:200]))
+    return ok
 
 
 def machine_to_row(m) -> dict:
@@ -215,19 +264,16 @@ def fetch_beams_from_supabase() -> List[dict]:
 
 
 def hydrate_machines() -> int:
-    """Replace in-memory machines/beams entirely from Supabase."""
     from app.models import add_linac, add_beam, _LINACS, _BEAMS
 
     if not supabase_configured():
-        print("hydrate_machines: Supabase not configured")
+        _set_err("Supabase not configured")
         return 0
 
     mrows = fetch_machines_from_supabase()
     brows = fetch_beams_from_supabase()
-
     _LINACS.clear()
     _BEAMS.clear()
-
     n = 0
     for r in mrows:
         try:
@@ -240,26 +286,21 @@ def hydrate_machines() -> int:
             add_beam(_row_to_beam(r))
         except Exception as e:
             print("hydrate beam skip:", e)
-
-    print("hydrate_machines: %d machines, %d beams from Supabase" % (n, len(brows)))
+    print("hydrate_machines: %d machines, %d beams" % (n, len(brows)))
     return n
 
 
 def save_machine_db(m) -> bool:
-    """Upsert machine to Supabase then refresh memory from DB."""
     if not supabase_configured():
-        print("save_machine_db: Supabase not configured")
+        _set_err("Supabase not configured")
         return False
-    row = machine_to_row(m)
-    ok = _rest_upsert("machines", row)
+    ok = _rest_upsert("machines", machine_to_row(m))
     if ok:
-        # Keep memory in sync for current request
         try:
             from app.models import add_linac
             add_linac(m)
         except Exception:
             pass
-        # Prefer full reload so all workers converge on next page load
         try:
             hydrate_machines()
         except Exception:
@@ -270,14 +311,12 @@ def save_machine_db(m) -> bool:
 def delete_machine_db(mid: str) -> bool:
     if not supabase_configured():
         return False
-    # delete beams first if no cascade
     try:
-        brows = fetch_beams_from_supabase()
-        for r in brows:
+        for r in fetch_beams_from_supabase():
             if str(r.get("machine_id")) == str(mid):
                 _rest_delete("beams", str(r["id"]))
     except Exception as e:
-        print("delete beams for machine:", e)
+        print("delete beams:", e)
     ok = _rest_delete("machines", str(mid))
     try:
         hydrate_machines()
@@ -288,9 +327,9 @@ def delete_machine_db(mid: str) -> bool:
 
 def save_beam_db(b) -> bool:
     if not supabase_configured():
+        _set_err("Supabase not configured")
         return False
-    row = beam_to_row(b)
-    ok = _rest_upsert("beams", row)
+    ok = _rest_upsert("beams", beam_to_row(b))
     if ok:
         try:
             from app.models import add_beam
@@ -316,7 +355,6 @@ def delete_beam_db(bid: str) -> bool:
 
 
 def list_machines_supabase_only():
-    """Return Linac objects loaded only from Supabase (no stale memory)."""
     hydrate_machines()
     from app.models import list_linacs
     return list_linacs()
@@ -326,3 +364,19 @@ def list_beams_supabase_only(linac_id: Optional[str] = None):
     hydrate_machines()
     from app.models import list_beams
     return list_beams(linac_id=linac_id)
+
+
+def status_dict() -> dict:
+    url, key = _creds()
+    rows = []
+    err = ""
+    if url and key:
+        rows = fetch_machines_from_supabase()
+        err = last_error()
+    return {
+        "supabase_url_set": bool(url),
+        "supabase_key_set": bool(key),
+        "machines_count": len(rows or []),
+        "machine_names": [r.get("name") for r in (rows or [])][:30],
+        "last_error": err,
+    }
