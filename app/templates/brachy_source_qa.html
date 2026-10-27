@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block title %}Brachy Source QA — DOSE pro{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Brachytherapy source QA</h1>
+  <p class="muted">HDR source commissioning / periodic tests (transit time, timer, decay, TG-43 vs TPS, survey).</p>
+</div>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="card" style="padding:0.75rem;margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.4rem">
+  {% set tabs = [
+    ('ton_toff','2.5/2.6 Transit'),
+    ('timer_error','4.3.1 Timer error'),
+    ('linearity','4.3.2 Linearity'),
+    ('decay','Decay factor'),
+    ('single','5.2.5 Single source'),
+    ('multi','5.2.6 Multi source'),
+    ('contamination','4.1 Contamination'),
+    ('position','4.2 Position'),
+    ('leakage','6.3 Unit leakage'),
+    ('survey','6.4 Survey')
+  ] %}
+  {% for id, label in tabs %}
+  <a class="btn btn-sm {% if section==id %}btn-primary{% else %}btn-secondary{% endif %}"
+     href="/brachy-source-qa?section={{ id }}">{{ label }}</a>
+  {% endfor %}
+  <a class="btn btn-sm btn-secondary" href="/brachy">Well chamber SK</a>
+</div>
+
+{% if result %}
+<div class="card result-card" style="margin-bottom:1rem">
+  <h2 style="margin-top:0">{{ result.title }}</h2>
+  {% if result.formula %}<p class="muted small">{{ result.formula }}</p>{% endif %}
+  <table class="data-table" style="width:100%;border-collapse:collapse">
+    {% for k,v in result.rows %}
+    <tr>
+      <td style="padding:0.35rem 0.5rem;border-bottom:1px solid var(--border)">{{ k }}</td>
+      <td style="padding:0.35rem 0.5rem;border-bottom:1px solid var(--border);font-weight:600
+        {% if k=='Status' and v=='PASS' %};color:var(--success){% endif %}
+        {% if k=='Status' and v=='FAIL' %};color:var(--danger){% endif %}">{{ v }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{# ===================== 2.5 / 2.6 ===================== #}
+{% if section == 'ton_toff' %}
+<div class="card form-card">
+  <h2 style="margin-top:0">2.5 &amp; 2.6 — Time to drive source ON / OFF</h2>
+  <p class="muted small">TON/TOFF (s) = (Secondary time − Dwell time) / 2. Programmed length typically 1500 mm.</p>
+  <form method="post" action="/brachy-source-qa/ton-toff">
+    <div class="grid-2">
+      <label>Secondary time from TCS (s)<input type="number" step="any" name="secondary_time" value="20.4" required></label>
+      <label>Programmed dwell time (s)<input type="number" step="any" name="dwell_time" value="10" required></label>
+    </div>
+    <div class="form-actions"><button type="submit" class="btn btn-primary">Calculate TON/TOFF</button></div>
+  </form>
+</div>
+{% endif %}
+
+{# ===================== 4.3.1 ===================== #}
+{% if section == 'timer_error' %}
+<div class="card form-card">
+  <h2 style="margin-top:0">4.3.1 — Timer error</h2>
+  <p class="muted small">R1 = charge without interruption; R2 = charge with interruption(s). Tolerance typically ±1%.</p>
+  <form method="post" action="/brachy-source-qa/timer-error">
+    <h3 class="muted" style="font-size:0.95rem">R1 — without interruption (µC)</h3>
+    <div class="grid-3">
+      <label>Trial 1<input type="number" step="any" name="r1_t1" value="2.511" required></label>
+      <label>Trial 2<input type="number" step="any" name="r1_t2" value="2.512" required></label>
+      <label>Trial 3<input type="number" step="any" name="r1_t3" value="2.512" required></label>
+    </div>
+    <h3 class="muted" style="font-size:0.95rem">R2 — with interruption (µC)</h3>
+    <div class="grid-3">
+      <label>Trial 1<input type="number" step="any" name="r2_t1" value="2.529" required></label>
+      <label>Trial 2<input type="number" step="any" name="r2_t2" value="2.529" required></label>
+      <label>Trial 3<input type="number" step="any" name="r2_t3" value="2.529" required></label>
+    </div>
+    <div class="grid-3">
+      <label>Dwell time t (s)<input type="number" step="any" name="dwell_time" value="60" required></label>
+      <label>Interruptions n<input type="number" name="n_interruptions" value="1" required></label>
+      <label>Tolerance (%)<input type="number" step="any" name="tolerance_pct" value="1" required></label>
+    </div>
+    <div class="form-actions"><button type="submit" class="btn btn-primary">Calculate timer error</button></div>
+  </form>
+</div>
+{% endif %}
+
+{# ===================== 4.3.2 ===================== #}
+{% if section == 'linearity' %}
+<div class="card form-card">
+  <h2 style="margin-top:0">4.3.2 — Timer linearity &amp; end error</h2>
+  <p class="muted small">Enter at least 3 time/charge pairs. Optional 4th pair.</p>
+  <form method="post" action="/brachy-source-qa/timer-linearity">
+    <div class="grid-2">
+      <label>Time 1 (s)<input type="number" step="any" name="t1" value="30" required></label>
+      <label>Charge 1<input type="number" step="any" name="c1" required></label>
+      <label>Time 2 (s)<input type="number" step="any" name="t2" value="60" required></label>
+      <label>Charge 2<input type="number" step="any" name="c2" required></label>
+      <label>Time 3 (s)<input type="number" step="any" name="t3" value="90" required></label>
+      <label>Charge 3<input type="number" step="any" name="c3" required></label>
+      <label>Time 4 (s, optional)<input type="number" step="any" name="t4" value="0"></label>
+      <label>Charge 4 (optional)<input type="number" step="any" name="c4" value="0"></label>
+    </div>
+    <label>Tolerance (%)<input type="number" step="any" name="tolerance_pct" value="1"></label>
+    <div class="form-actions"><button type="submit" class="btn btn-primary">Fit linearity</button></div>
+  </form>
+</div>
+{% endif %}
+
+{# ===================== Decay ===================== #}
+{% if section == 'decay' %}
+<div class="card form-card">
+  <h2 style="margin-top:0">Decay factor — manual vs TPS</h2>
+  <form method="post" action="/brachy-source-qa/decay">
+    <div class="grid-2">
+      <label>Calibration date-time<input name="calib_dt" placeholder="YYYY-MM-DD HH:MM:SS" required></label>
+      <label>QA date-time<input name="qa_dt" placeholder="YYYY-MM-DD HH:MM:SS" required></label>
+      <label>TPS decay factor<input type="number" step="any" name="tps_decay" required></label>
+      <label>Half-life (days)<input type="number" step="any" name="half_life_days" value="73.83"></label>
+      <label>Tolerance (%)<input type="number" step="any" name="tolerance_pct" value="1"></label>
+    </div>
+    <div class="form-actions"><button type="submit" class="btn btn-primary">Compare decay factors</button></div>
+  </form>
+</div>
+{% endif %}
+
+{# ===================== 5.2.5 ===================== #}
+{% if section == 'single' %}
+<div class="card form-card">
+  <h2 style="margin-top:0">5.2.5 — Single source TG-43 vs TPS</h2>
+  <p class="muted small">Prescription point at 1 cm on transverse axis. Default constants for Nucletron mHDR-type source.</p>
+  <form method="post" action="/brachy-source-qa/single-source">
+    <div class="grid-2">
+      <label>Apparent activity at calibration (mCi)<input type="number" step="any" name="activity_mci_calib" value="12180" required></label>
+      <label>Calibration date-time<input name="calib_dt" placeholder="YYYY-MM-DD HH:MM:SS" required></label>
+      <label>QA date-time<input name="qa_dt" placeholder="YYYY-MM-DD HH:MM:SS" required></label>
+      <label>Prescription dose (cGy)<input type="number" step="any" name="prescription_cgy" value="1000"></label>
+      <label>Air-kerma rate const (cGy·cm²/h/mCi)<input type="number" step="any" name="air_kerma_rate_const" value="4.082"></label>
+      <label>Dose-rate constant Λ<input type="number" step="any" name="dose_rate_constant" value="1.1121"></label>
+      <label>g(r)<input type="number" step="any" name="g_r" value="1"></label>
+      <label>G ratio<input type="number" step="any" name="G_ratio" value="1"></label>
+      <label>F(r,θ)<input type="number" step="any" name="F" value="1"></label>
+      <label>TPS treatment time (s)<input type="number" step="any" name="tps_time_s" value="79.7" required></label>
+      <label>Half-life (days)<input type="number" step="any" name="half_life_days" value="73.83"></label>
+      <label>Tolerance (%)<input type="number" step="any" name="tolerance_pct" value="3"></label>
+    </div>
+    <div class="form-actions"><button type="submit" class="btn btn-primary">Calculate vs TPS</button></div>
+  </form>
+</div>
+{% endif %}
+
+{# ===================== 5.2.6 ===================== #}
+{% if section == 'multi' %}
+<div class="card form-card">
+  <h2 style="margin-top:0">5.2.6 — Multi-source TG-43 vs TPS</h2>
+  <p class="muted small">Default geometry: 3 dwells, 1 cm spacing; Rx point 1 cm from central source (sheet defaults for g, G, F).</p>
+  <form method="post" action="/brachy-source-qa/multi-source">
+    <div class="grid-2">
+      <label>Apparent activity at calibration (mCi)<input type="number" step="any" name="activity_mci_calib" value="12180" required></label>
+      <label>Calibration date-time<input name="calib_dt" placeholder="YYYY-MM-DD HH:MM:SS" required></label>
+      <label>QA date-time<input name="qa_dt" placeholder="YYYY-MM-DD HH:MM:SS" required></label>
+      <label>Prescription dose (cGy)<input type="number" step="any" name="prescription_cgy" value="1000"></label>
+      <label>Air-kerma rate const<input type="number" step="any" name="air_kerma_rate_const" value="4.082"></label>
+      <label>Dose-rate constant Λ<input type="number" step="any" name="dose_rate_constant" value="1.1121"></label>
+      <label>TPS treatment time (s)<input type="number" step="any" name="tps_time_s" value="40.3" required></label>
+      <label>Half-life (days)<input type="number" step="any" name="half_life_days" value="73.83"></label>
+      <label>Tolerance (%)<input type="number" step="any" name="tolerance_pct" value="3"></label>
+    </div>
+    <div class="form-actions"><button type="submit" class="btn btn-primary">Calculate vs TPS</button></div>
+  </form>
+</div>
+{% endif %}
+
+{# ===================== Record-only sections ===================== #}
+{% if section in ['contamination','position','leakage','survey'] %}
+<div class="card form-card">
+  {% if section == 'contamination' %}
+  <h2 style="margin-top:0">4.1 — Leakage &amp; contamination</h2>
+  <p class="muted small">Tolerance typically 200 Bq. Wipe test of implant tube after 5× 5 s exposures.</p>
+  {% elif section == 'position' %}
+  <h2 style="margin-top:0">4.2 — Positioning accuracy &amp; uniformity</h2>
+  <p class="muted small">Tolerance ±1 mm. Record film / ruler deviations (dummy vs active, inter-dwell spacing).</p>
+  {% elif section == 'leakage' %}
+  <h2 style="margin-top:0">6.3 — Unit leakage (source OFF)</h2>
+  <p class="muted small">Record µGy/h at 5 cm and 1 m around source storage.</p>
+  {% else %}
+  <h2 style="margin-top:0">6.4 — Installation survey (source ON)</h2>
+  <p class="muted small">Record µSv/h at room survey points.</p>
+  {% endif %}
+  <form method="post" action="/brachy-source-qa/record">
+    <input type="hidden" name="section" value="{{ section }}">
+    <div class="grid-2">
+      <label>Measured value<input name="measured"></label>
+      <label>Background<input name="background"></label>
+      <label>Tolerance<input name="tolerance" placeholder="e.g. 200 Bq or ±1 mm"></label>
+      <label>Result / pass-fail note<input name="result_text"></label>
+    </div>
+    <label>Notes<textarea name="notes" rows="3" style="width:100%"></textarea></label>
+    <div class="form-actions"><button type="submit" class="btn btn-primary">Save record</button></div>
+  </form>
+</div>
+{% endif %}
+
+<style>
+.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.75rem}
+</style>
+{% endblock %}
