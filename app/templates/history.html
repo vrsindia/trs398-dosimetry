@@ -3,148 +3,97 @@
 {% block content %}
 <div class="page-header">
   <h1>History</h1>
-  <p class="muted">LINAC output measurement, brachytherapy, Daily QA and Mechanical QA records.</p>
+  <p class="muted">LINAC output, brachytherapy (including source QA), Daily QA and Mechanical QA.</p>
 </div>
-
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 
-<div class="card" style="padding:0.75rem 1rem;margin-bottom:1.25rem">
-  <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
-    <a class="btn btn-sm {% if section == 'linac' %}btn-primary{% else %}btn-secondary{% endif %}"
-       href="/history?section=linac">LINAC Output Measurement</a>
-    <a class="btn btn-sm {% if section == 'brachy' %}btn-primary{% else %}btn-secondary{% endif %}"
-       href="/history?section=brachy">Brachytherapy</a>
-    <a class="btn btn-sm {% if section == 'daily_qa' %}btn-primary{% else %}btn-secondary{% endif %}"
-       href="/history?section=daily_qa">Daily QA checklist</a>
-    <a class="btn btn-sm {% if section == 'mechanical_qa' %}btn-primary{% else %}btn-secondary{% endif %}"
-       href="/history?section=mechanical_qa">Mechanical QA</a>
-  </div>
+<div class="card" style="padding:0.75rem;margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.4rem">
+  <a class="btn btn-sm {% if section == 'linac' %}btn-primary{% else %}btn-secondary{% endif %}" href="/history?section=linac">LINAC Output Measurement</a>
+  <a class="btn btn-sm {% if section == 'brachy' %}btn-primary{% else %}btn-secondary{% endif %}" href="/history?section=brachy">Brachytherapy</a>
+  <a class="btn btn-sm {% if section == 'daily_qa' %}btn-primary{% else %}btn-secondary{% endif %}" href="/history?section=daily_qa">Daily QA checklist</a>
+  <a class="btn btn-sm {% if section == 'mechanical_qa' %}btn-primary{% else %}btn-secondary{% endif %}" href="/history?section=mechanical_qa">Mechanical QA</a>
 </div>
 
 {% if section in ['linac', 'brachy'] %}
 <div class="card result-card">
-  <h2 style="margin-top:0">
-    {% if section == 'linac' %}LINAC Output Measurement{% else %}Brachytherapy{% endif %}
-  </h2>
-  <p class="muted small">
-    {% if section == 'linac' %}
-    Saved TRS-398 photon / electron output measurements.
-    {% else %}
-    Saved well-chamber / source-strength related measurements.
-    {% endif %}
-  </p>
+  <h2 style="margin-top:0">{% if section == 'linac' %}LINAC Output Measurement{% else %}Brachytherapy output{% endif %}</h2>
   {% if records %}
   <div style="overflow-x:auto">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>Date / time</th>
-        <th>Machine</th>
-        <th>Energy</th>
-        <th>Modality</th>
-        <th>Measured</th>
-        <th>Tuned</th>
-        <th>Nominal</th>
-        <th>Status</th>
-        <th>Physicist</th>
-        {% if current_user and current_user.role in ['developer', 'admin'] %}
-        <th></th>
-        {% endif %}
-      </tr>
-    </thead>
-    <tbody>
+    <table class="data-table" style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th>Date</th><th>Machine</th><th>Energy</th><th>Result</th><th></th>
+      </tr></thead>
+      <tbody>
       {% for r in records %}
-      <tr>
-        <td class="small">{{ r.date_time[:16] if r.date_time else '—' }}</td>
-        <td><strong>{{ r.machine_name or r.linac_name or '—' }}</strong></td>
-        <td>{{ r.energy }}</td>
-        <td>{{ r.modality }}</td>
-        <td>{{ "%.3f"|format(r.measured_output_cGy_MU) if r.measured_output_cGy_MU is not none else '—' }}</td>
-        <td>{{ "%.3f"|format(r.tuned_output_cGy_MU) if r.tuned_output_cGy_MU else "—" }}</td>
-        <td>{{ "%.3f"|format(r.nominal_output_cGy_MU) if r.nominal_output_cGy_MU is not none else '—' }}</td>
-        <td>
-          {% if r.status == 'pass' or r.status == 'ok' %}<span style="color:var(--success);font-weight:600">PASS</span>
-          {% elif r.status == 'fail' %}<span style="color:var(--danger);font-weight:600">FAIL</span>
-          {% else %}{{ r.status or '—' }}{% endif %}
-        </td>
-        <td>{{ r.physicist or '—' }}</td>
-        {% if current_user and current_user.role in ['developer', 'admin'] %}
-        <td>
-          <form method="post" action="/output-history/{{ r.id }}/delete"
-                onsubmit="return confirm('Delete this record?');">
-            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-          </form>
-        </td>
-        {% endif %}
-      </tr>
+        <tr>
+          <td>{{ r.date or r.created_at or '—' }}</td>
+          <td>{{ r.linac_name or r.machine or r.linac_id or '—' }}</td>
+          <td>{{ r.energy or '—' }}</td>
+          <td>{{ r.output or r.result or r.sk or '—' }}</td>
+          <td></td>
+        </tr>
       {% endfor %}
-    </tbody>
-  </table>
+      </tbody>
+    </table>
   </div>
   {% else %}
-  <p class="muted">No records in this section yet.</p>
+  <p class="muted">No output records yet.</p>
   {% endif %}
 </div>
 
-{% else %}
-<div class="card form-card">
-  <form method="get" action="/history" class="grid-2">
-    <input type="hidden" name="section" value="{{ section }}">
-    <label>Machine
-      <select name="linac_id">
-        <option value="">All machines</option>
-        {% for m in machines %}
-        <option value="{{ m.id }}" {% if linac_id == m.id %}selected{% endif %}>{{ m.name }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <div class="form-actions" style="align-self:end">
-      <button type="submit" class="btn btn-secondary">Filter</button>
-      <a class="btn btn-primary" href="/reports?section={{ section }}">Open reports</a>
-    </div>
-  </form>
-</div>
-
-<div class="card result-card">
-  <h2 style="margin-top:0">
-    {% if section == 'daily_qa' %}Daily QA checklist{% else %}Mechanical QA{% endif %}
-  </h2>
+{% if section == 'brachy' %}
+<div class="card result-card" style="margin-top:1rem">
+  <h2 style="margin-top:0">Brachy source QA sessions</h2>
+  <p class="muted small">Transit, timer, decay, TG-43 vs TPS, contamination, survey — saved when you calculate.</p>
   {% if qa_rows %}
   <div style="overflow-x:auto">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>Date</th><th>Machine</th><th>By</th><th>Overall</th><th></th>
-      </tr>
-    </thead>
-    <tbody>
+    <table class="data-table" style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th>When</th><th>By</th><th>Overall</th><th>Notes</th><th>PDF</th>
+      </tr></thead>
+      <tbody>
       {% for r in qa_rows %}
-      <tr>
-        <td class="small">{{ (r.performed_at or '')[:16].replace('T',' ') }}</td>
-        <td>{{ r.linac_name or r.linac_id }}</td>
-        <td>{{ r.performed_by or '—' }}</td>
-        <td>
-          {% if r.overall == 'green' %}<span style="color:var(--success);font-weight:700">PASS</span>
-          {% elif r.overall == 'yellow' %}<span style="color:#fbbf24;font-weight:700">BORDERLINE</span>
-          {% elif r.overall == 'red' %}<span style="color:var(--danger);font-weight:700">FAIL</span>
-          {% else %}{{ r.overall or '—' }}{% endif %}
-        </td>
-        <td style="white-space:nowrap">
-          <a class="btn btn-primary btn-sm" href="/qa-history/{{ r.id }}/pdf">PDF</a>
-          {% if current_user.role in ['developer','admin'] %}
-          <form method="post" action="/qa-history/{{ r.id }}/delete" style="display:inline"
-                onsubmit="return confirm('Delete this QA session?');">
-            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-          </form>
-          {% endif %}
-        </td>
-      </tr>
+        <tr>
+          <td>{{ r.performed_at or '—' }}</td>
+          <td>{{ r.performed_by or '—' }}</td>
+          <td>{{ r.overall or '—' }}</td>
+          <td class="muted small">{{ (r.notes or '')[:80] }}</td>
+          <td><a class="btn btn-sm btn-primary" href="/brachy-source-qa/pdf/{{ r.id }}">PDF</a></td>
+        </tr>
       {% endfor %}
-    </tbody>
-  </table>
+      </tbody>
+    </table>
   </div>
   {% else %}
-  <p class="muted">No sessions in this section yet.</p>
+  <p class="muted">No brachy source QA sessions yet. Run a test under <a href="/brachy-source-qa">Brachy source QA</a>.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% elif section in ['daily_qa', 'mechanical_qa'] %}
+<div class="card result-card">
+  <h2 style="margin-top:0">{% if section == 'daily_qa' %}Daily QA checklist{% else %}Mechanical QA{% endif %}</h2>
+  {% if qa_rows %}
+  <div style="overflow-x:auto">
+    <table class="data-table" style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th>When</th><th>Machine</th><th>By</th><th>Overall</th><th></th>
+      </tr></thead>
+      <tbody>
+      {% for r in qa_rows %}
+        <tr>
+          <td>{{ r.performed_at or '—' }}</td>
+          <td>{{ r.linac_name or r.linac_id or '—' }}</td>
+          <td>{{ r.performed_by or '—' }}</td>
+          <td>{{ r.overall or '—' }}</td>
+          <td><a class="btn btn-sm btn-secondary" href="/qa-reports/session/{{ r.id }}.pdf">PDF</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No sessions yet.</p>
   {% endif %}
 </div>
 {% endif %}
