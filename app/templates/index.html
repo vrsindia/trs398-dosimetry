@@ -23,6 +23,10 @@
       <h2>Brachytherapy</h2>
       <p>Well-chamber air-kerma strength measurement.</p>
     </a>
+    <a class="home-card card-cyan" href="/brachy-source-qa">
+      <h2>Brachy source QA</h2>
+      <p>Transit time, timer error, decay, TG-43 vs TPS, leakage and survey.</p>
+    </a>
     {% endif %}
     {% if u %}
     <a class="home-card card-sky" href="/daily-qa">
@@ -67,13 +71,13 @@
     {% if u and (u.has('sec_fractionation') or u.has('calculate') or u.role in ['developer','admin']) %}
     <a class="home-card card-rose" href="/fractionation">
       <h2>Fractionation pattern</h2>
-      <p>Alternative schedules for the same BED.</p>
+      <p>Alternate schedules for the same BED.</p>
     </a>
     {% endif %}
     {% if u and (u.has('sec_eqsquare') or u.has('calculate') or u.role in ['developer','admin']) %}
     <a class="home-card card-lime" href="/eqsquare">
       <h2>Equivalent square</h2>
-      <p>Sterling formula field equivalence.</p>
+      <p>Rectangular field to equivalent square.</p>
     </a>
     {% endif %}
     {% if u and (u.has('sec_mu') or u.has('calculate') or u.role in ['developer','admin']) %}
@@ -83,7 +87,7 @@
     </a>
     {% endif %}
     {% if u and (u.has('sec_units') or u.has('calculate') or u.role in ['developer','admin']) %}
-    <a class="home-card card-green" href="/units">
+    <a class="home-card card-emerald" href="/units">
       <h2>Units converter</h2>
       <p>Gy ↔ cGy, Ci ↔ Bq and related units.</p>
     </a>
