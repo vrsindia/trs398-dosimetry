@@ -59,6 +59,14 @@ def _install_extras(app, templates=None):
         install_brachy_qa(app, templates)
     except Exception as e:
         print("force_utils: brachy_qa:", e)
+    try:
+        from app.main import templates as tpl
+        templates = templates or tpl
+        from app.tolerances_routes import register_tolerances_routes
+        register_tolerances_routes(app, templates)
+        print("force_utils: tolerances_routes OK")
+    except Exception as e:
+        print("force_utils: tolerances_routes:", e)
 
 
 register_force_utils = _load()

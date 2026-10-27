@@ -2,11 +2,18 @@
 {% block title %}Tolerances — DOSE pro{% endblock %}
 {% block content %}
 <div class="page-header">
-  <h1>Linac tolerances</h1>
-  <p class="muted">Output and TPR<sub>20,10</sub> limits for CT and MR Linac machines.</p>
+  <h1>Tolerances library</h1>
+  <p class="muted">Output / TPR limits for linacs and <strong>Brachy source QA</strong> limits. Brachy Source QA uses these values (read-only there).</p>
 </div>
 
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+{% set linac_tols = tolerances | selectattr('modality', 'ne', 'brachy') | list %}
+{% set brachy_tols = tolerances | selectattr('modality', 'equalto', 'brachy') | list %}
+
 <div class="card result-card">
+  <h2 style="margin-top:0">Linac / output tolerances</h2>
   <div style="overflow-x:auto">
   <table class="data-table">
     <thead>
@@ -17,7 +24,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for t in tolerances %}
+      {% for t in linac_tols %}
       <tr>
         <td><strong>{{ t.name }}</strong></td>
         <td>{{ t.modality }}</td>
@@ -29,14 +36,116 @@
         <td>{{ t.linac_id or 'All' }}</td>
         {% if current_user.has('library_edit') %}
         <td>
-          <form method="post" action="/tolerances/{{ t.id }}/delete" onsubmit="return confirm('Delete?');">
+          <form method="post" action="/tolerances/{{ t.id }}/delete" onsubmit="return confirm('Delete?');" style="display:inline">
             <button type="submit" class="btn btn-danger btn-sm">Delete</button>
           </form>
         </td>
         {% endif %}
       </tr>
+      {% if current_user.has('library_edit') %}
+      <tr>
+        <td colspan="9" style="background:var(--surface-2);padding:0.5rem 0.75rem">
+          <details>
+            <summary style="cursor:pointer;color:var(--accent);font-weight:600">Edit</summary>
+            <form method="post" action="/tolerances/{{ t.id }}/edit" style="margin-top:0.5rem">
+              <div class="grid-2">
+                <label>Name <input name="name" value="{{ t.name }}" required></label>
+                <label>Parameter
+                  <select name="parameter">
+                    <option value="output" {% if t.parameter=='output' %}selected{% endif %}>Output</option>
+                    <option value="tpr20_10" {% if t.parameter=='tpr20_10' %}selected{% endif %}>TPR20,10</option>
+                  </select>
+                </label>
+              </div>
+              <div class="grid-3">
+                <label>Modality
+                  <select name="modality">
+                    <option value="photon" {% if t.modality=='photon' %}selected{% endif %}>Photon</option>
+                    <option value="electron" {% if t.modality=='electron' %}selected{% endif %}>Electron</option>
+                  </select>
+                </label>
+                <label>Energy <input name="energy" value="{{ t.energy or '' }}"></label>
+                <label>Tolerance ±% <input type="number" step="any" name="tolerance_percent" value="{{ t.tolerance_percent }}"></label>
+              </div>
+              <div class="grid-2">
+                <label>Action level % <input type="number" step="any" name="action_level_percent" value="{{ t.action_level_percent if t.action_level_percent is not none else '' }}"></label>
+                <label>Baseline <input type="number" step="any" name="baseline_value" value="{{ t.baseline_value if t.baseline_value is not none else '' }}"></label>
+              </div>
+              <label>Machine ID <input name="linac_id" value="{{ t.linac_id or '' }}"></label>
+              <label>Notes <input name="notes" value="{{ t.notes or '' }}"></label>
+              <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">Save</button></div>
+            </form>
+          </details>
+        </td>
+      </tr>
+      {% endif %}
       {% else %}
-      <tr><td colspan="9" class="muted">No tolerances defined.</td></tr>
+      <tr><td colspan="9" class="muted">No linac tolerances defined.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card result-card" style="margin-top:1.25rem">
+  <h2 style="margin-top:0">Brachy source QA tolerances</h2>
+  <p class="muted small">Used by Brachy Source QA (not editable on the QA screens). Edit limits here only.</p>
+  <div style="overflow-x:auto">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Name</th><th>Parameter</th><th>Limit</th><th>Notes</th>
+        {% if current_user.has('library_edit') %}<th></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in brachy_tols %}
+      <tr>
+        <td><strong>{{ t.name }}</strong></td>
+        <td><code>{{ t.parameter }}</code></td>
+        <td><strong>{{ t.tolerance_percent }}</strong></td>
+        <td class="muted small">{{ t.notes or '—' }}</td>
+        {% if current_user.has('library_edit') %}
+        <td>
+          <form method="post" action="/tolerances/{{ t.id }}/delete" onsubmit="return confirm('Delete?');" style="display:inline">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% if current_user.has('library_edit') %}
+      <tr>
+        <td colspan="5" style="background:var(--surface-2);padding:0.5rem 0.75rem">
+          <details>
+            <summary style="cursor:pointer;color:var(--accent);font-weight:600">Edit brachy QA limit</summary>
+            <form method="post" action="/tolerances/{{ t.id }}/edit" style="margin-top:0.5rem">
+              <input type="hidden" name="modality" value="brachy">
+              <div class="grid-2">
+                <label>Name <input name="name" value="{{ t.name }}" required></label>
+                <label>Parameter
+                  <select name="parameter">
+                    {% for p in brachy_params %}
+                    <option value="{{ p }}" {% if t.parameter==p %}selected{% endif %}>{{ brachy_param_labels.get(p, p) }} ({{ p }})</option>
+                    {% endfor %}
+                  </select>
+                </label>
+              </div>
+              <div class="grid-2">
+                <label>Limit value <input type="number" step="any" name="tolerance_percent" value="{{ t.tolerance_percent }}" required></label>
+                <label>Action level <input type="number" step="any" name="action_level_percent" value="{{ t.action_level_percent if t.action_level_percent is not none else '' }}"></label>
+              </div>
+              <label>Notes <input name="notes" value="{{ t.notes or '' }}"></label>
+              <input type="hidden" name="energy" value="">
+              <input type="hidden" name="linac_id" value="">
+              <input type="hidden" name="baseline_value" value="">
+              <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">Save</button></div>
+            </form>
+          </details>
+        </td>
+      </tr>
+      {% endif %}
+      {% else %}
+      <tr><td colspan="5" class="muted">No brachy source QA tolerances yet — they will be created when you open this page or Brachy Source QA.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -44,30 +153,38 @@
 </div>
 
 {% if current_user.has('library_edit') %}
-<div class="card form-card">
+<div class="card form-card" style="margin-top:1.25rem">
   <h2 style="margin-top:0">Add tolerance</h2>
   <form method="post" action="/tolerances/add">
     <div class="grid-2">
-      <label>Name * <input name="name" required></label>
+      <label>Name * <input name="name" required placeholder="e.g. Brachy timer error"></label>
       <label>Parameter
-        <select name="parameter">
-          <option value="output">Output</option>
-          <option value="tpr20_10">TPR20,10</option>
+        <select name="parameter" id="tol-param">
+          <optgroup label="Linac">
+            <option value="output">Output</option>
+            <option value="tpr20_10">TPR20,10</option>
+          </optgroup>
+          <optgroup label="Brachy source QA">
+            {% for p in brachy_params %}
+            <option value="{{ p }}">{{ brachy_param_labels.get(p, p) }}</option>
+            {% endfor %}
+          </optgroup>
         </select>
       </label>
     </div>
     <div class="grid-3">
       <label>Modality
-        <select name="modality">
+        <select name="modality" id="tol-mod">
           <option value="photon">Photon</option>
           <option value="electron">Electron</option>
+          <option value="brachy">Brachy</option>
         </select>
       </label>
-      <label>Energy <input name="energy" placeholder="6 MV"></label>
-      <label>Tolerance ±% <input type="number" step="any" name="tolerance_percent" value="2"></label>
+      <label>Energy <input name="energy" placeholder="6 MV (linac only)"></label>
+      <label>Limit / ±% <input type="number" step="any" name="tolerance_percent" value="2" required></label>
     </div>
     <div class="grid-2">
-      <label>Action level % <input type="number" step="any" name="action_level_percent" value="3"></label>
+      <label>Action level <input type="number" step="any" name="action_level_percent" value="3"></label>
       <label>Baseline value <input type="number" step="any" name="baseline_value"></label>
     </div>
     <label>Machine ID (optional) <input name="linac_id" placeholder="Leave blank for all"></label>
@@ -76,6 +193,17 @@
       <button type="submit" class="btn btn-primary">Add tolerance</button>
     </div>
   </form>
+  <p class="muted small" style="margin-top:0.75rem">Tip: for brachy QA parameters, set modality to <strong>Brachy</strong>. Limit is % or Bq/mm as noted for each parameter.</p>
 </div>
+<script>
+(function(){
+  var p = document.getElementById('tol-param');
+  var m = document.getElementById('tol-mod');
+  if (!p || !m) return;
+  p.addEventListener('change', function(){
+    if ((p.value || '').indexOf('brachy_') === 0) m.value = 'brachy';
+  });
+})();
+</script>
 {% endif %}
 {% endblock %}
