@@ -3,12 +3,10 @@
 {% block content %}
 <div class="page-header">
   <h1>Reports</h1>
-  <p class="muted">PDFs are generated on demand and are <strong>not stored</strong>.</p>
+  <p class="muted">PDFs are generated on demand and are <strong>not stored</strong> as files in Supabase.</p>
 </div>
 
-{% if message %}
-<div class="alert alert-error">{{ message }}</div>
-{% endif %}
+{% if message %}<div class="alert alert-error">{{ message }}</div>{% endif %}
 
 <div class="card" style="padding:0.75rem 1rem;margin-bottom:1.25rem">
   <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
@@ -21,8 +19,8 @@
 
 {% if section in ['linac', 'brachy'] %}
 <div class="card form-card">
-  <h2 style="margin-top:0">Generate {% if section == 'linac' %}LINAC output{% else %}brachytherapy{% endif %} PDF</h2>
-  <p class="muted small">Choose machine and date. PDF downloads immediately — nothing is saved on the server.</p>
+  <h2 style="margin-top:0">Generate {% if section == 'linac' %}LINAC output{% else %}brachytherapy output{% endif %} PDF</h2>
+  <p class="muted small">Choose machine and date. PDF downloads immediately.</p>
   <form method="post" action="/api/generate-pdf" id="pdf-form">
     <input type="hidden" name="report_section" value="{{ section }}">
     <div class="grid-2">
@@ -43,10 +41,32 @@
       <button type="submit" class="btn btn-primary">Generate PDF report</button>
     </div>
   </form>
-  {% if not linacs %}
-  <p class="muted small" style="margin-top:0.75rem">No machines listed. Add under <a href="/linacs">Libraries → Machines</a>.</p>
+</div>
+
+{% if section == 'brachy' %}
+<div class="card result-card" style="margin-top:1rem">
+  <h2 style="margin-top:0">Brachy source QA PDFs (by annexure)</h2>
+  <p class="muted small">Each saved calculation from <a href="/brachy-source-qa">Brachy source QA</a> can be downloaded as PDF.</p>
+  {% if qa_rows %}
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Overall</th><th>By</th><th>Notes</th><th></th></tr></thead>
+    <tbody>
+      {% for r in qa_rows %}
+      <tr>
+        <td class="small">{{ (r.performed_at or '')[:16].replace('T',' ') }}</td>
+        <td>{{ r.overall or '—' }}</td>
+        <td>{{ r.performed_by or '—' }}</td>
+        <td class="muted small">{{ (r.notes or '')[:60] }}</td>
+        <td><a class="btn btn-primary btn-sm" href="/brachy-source-qa/pdf/{{ r.id }}">PDF</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No brachy source QA sessions yet.</p>
   {% endif %}
 </div>
+{% endif %}
 
 {% elif section == 'daily_qa' %}
 <div class="card form-card">

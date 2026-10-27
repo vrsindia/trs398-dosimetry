@@ -1,8 +1,7 @@
-"""Unified History and Reports hubs — 4 subsections each. Always last."""
+"""Unified History and Reports hubs — 4 subsections; brachy includes source QA."""
 from __future__ import annotations
 
 from datetime import datetime
-
 from fastapi import Request
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
@@ -15,10 +14,15 @@ HUB_PATHS = ("/history", "/output-history", "/qa-history", "/reports", "/qa-repo
 
 
 def register_unified_hubs(app, templates):
-    from app.auth import get_user_by_token
+    for path in HUB_PATHS:
+        app.router.routes[:] = [
+            r for r in list(app.router.routes)
+            if getattr(r, "path", None) != path
+        ]
 
     def _user(request: Request):
         try:
+            from app.auth import get_user_by_token
             return get_user_by_token(request.cookies.get(COOKIE))
         except Exception:
             return None
@@ -27,10 +31,11 @@ def register_unified_hubs(app, templates):
         return RedirectResponse("/login", status_code=303)
 
     def _tpl(request, name, **ctx):
-        ctx["request"] = request
+        ctx.setdefault("current_user", _user(request))
         try:
             return templates.TemplateResponse(request=request, name=name, context=ctx)
         except TypeError:
+            ctx["request"] = request
             try:
                 return templates.TemplateResponse(name, ctx)
             except TypeError:
@@ -51,90 +56,45 @@ def register_unified_hubs(app, templates):
             print("hub machine meta:", e)
         return meta
 
-    def _machines_list(brachy_only=None):
-        out = []
-        for mid, info in _machine_meta().items():
-            if brachy_only is True and not info["is_brachy"]:
-                continue
-            if brachy_only is False and info["is_brachy"]:
-                continue
-            out.append({"id": mid, "name": info["name"], "category": info["category"]})
-        return out
-
     def _linac_objects(brachy_only=None):
+        out = []
         try:
             from app.models import list_linacs
-            rows = list_linacs() or []
-        except Exception:
-            return []
-        out = []
-        for m in rows:
-            cat = (getattr(m, "category", "") or "ct_linac").lower()
-            is_b = cat == "brachy" or "brachy" in cat
-            if brachy_only is True and not is_b:
-                continue
-            if brachy_only is False and is_b:
-                continue
-            out.append(m)
+            for m in list_linacs() or []:
+                cat = (getattr(m, "category", "") or "ct_linac").lower()
+                is_b = cat == "brachy" or "brachy" in cat
+                if brachy_only is True and not is_b:
+                    continue
+                if brachy_only is False and is_b:
+                    continue
+                out.append(m)
+        except Exception as e:
+            print("hub linacs:", e)
         return out
 
     def _is_brachy_record(r, meta):
-        lid = str(getattr(r, "linac_id", "") or "")
+        lid = str(getattr(r, "linac_id", None) or (r.get("linac_id") if isinstance(r, dict) else "") or "")
         if lid in meta:
             return meta[lid]["is_brachy"]
-        mod = (getattr(r, "modality", "") or "").lower()
+        mod = str(getattr(r, "modality", None) or (r.get("modality") if isinstance(r, dict) else "") or "").lower()
         return "brachy" in mod or mod in ("hdr", "ldr", "pdr", "source")
 
     def _output_records(section):
+        meta = _machine_meta()
+        rows = []
         try:
             from app import repo
-            records = repo.list_outputs()
+            rows = list(repo.list_outputs() or [])
         except Exception:
             try:
                 from app.models import list_output_records
-                records = list_output_records()
-            except Exception:
-                records = []
-        meta = _machine_meta()
-        want_brachy = section == "brachy"
-        enriched = []
-        for r in records or []:
-            is_b = _is_brachy_record(r, meta)
-            if want_brachy and not is_b:
-                continue
-            if not want_brachy and is_b:
-                continue
-            lid = str(getattr(r, "linac_id", "") or "")
-            name = meta.get(lid, {}).get("name") or lid or "—"
-            try:
-                setattr(r, "machine_name", name)
-            except Exception:
-                pass
-            enriched.append(r)
-        return enriched
-
-    def _reports(section):
-        try:
-            from app.models import list_reports
-            rows = list_reports() or []
-        except Exception:
-            try:
-                from app.models import _REPORTS
-                rows = list(_REPORTS.values()) if isinstance(_REPORTS, dict) else list(_REPORTS)
-            except Exception:
-                rows = []
-        meta = _machine_meta()
+                rows = list(list_output_records() or [])
+            except Exception as e:
+                print("hub outputs:", e)
         want_brachy = section == "brachy"
         out = []
-        for r in rows or []:
-            lid = str(getattr(r, "linac_id", "") or "")
-            is_b = False
-            if lid in meta:
-                is_b = meta[lid]["is_brachy"]
-            else:
-                mod = (getattr(r, "modality", "") or "").lower()
-                title = (getattr(r, "title", "") or "").lower()
-                is_b = "brachy" in mod or "brachy" in title
+        for r in rows:
+            is_b = _is_brachy_record(r, meta)
             if want_brachy and not is_b:
                 continue
             if not want_brachy and is_b:
@@ -142,18 +102,17 @@ def register_unified_hubs(app, templates):
             out.append(r)
         return out
 
+    def _reports(section):
+        # placeholder list from memory if available
+        return []
+
     def _qa_rows(kind, linac_id=None):
         try:
             from app.qa_results_store import list_qa_results
-            return list_qa_results(kind=kind, linac_id=linac_id)
+            return list_qa_results(kind=kind, linac_id=linac_id) or []
         except Exception as e:
-            print("hub qa list:", e)
+            print("hub qa_rows:", e)
             return []
-
-    app.router.routes[:] = [
-        r for r in list(app.router.routes)
-        if getattr(r, "path", None) not in HUB_PATHS
-    ]
 
     @app.get("/hub-ping")
     async def hub_ping():
@@ -161,6 +120,7 @@ def register_unified_hubs(app, templates):
             "ok": True,
             "history_sections": list(HISTORY_SECTIONS),
             "report_sections": list(REPORT_SECTIONS),
+            "brachy_includes_source_qa": True,
         })
 
     @app.get("/history", response_class=HTMLResponse)
@@ -180,6 +140,8 @@ def register_unified_hubs(app, templates):
         records, qa_rows = [], []
         if section in ("linac", "brachy"):
             records = _output_records(section)
+            if section == "brachy":
+                qa_rows = _qa_rows("brachy_source", linac_id)
         elif section == "daily_qa":
             qa_rows = _qa_rows("daily", linac_id)
         else:
@@ -187,29 +149,21 @@ def register_unified_hubs(app, templates):
         msg = (request.query_params.get("msg") or "").replace("+", " ")
         return _tpl(
             request, "history.html",
-            current_user=user,
             section=section,
             records=records,
             qa_rows=qa_rows,
-            linac_id=linac_id or "",
-            machines=_machines_list(),
             message=msg,
         )
 
-    @app.get("/output-history", response_class=HTMLResponse)
-    async def output_history_redir(request: Request):
+    @app.get("/output-history")
+    async def out_hist_redir():
         return RedirectResponse("/history?section=linac", status_code=303)
 
-    @app.get("/qa-history", response_class=HTMLResponse)
-    async def qa_history_redir(request: Request):
-        kind = (request.query_params.get("kind") or "daily").strip()
+    @app.get("/qa-history")
+    async def qa_hist_redir(request: Request):
+        kind = (request.query_params.get("kind") or "daily").lower()
         section = "mechanical_qa" if kind == "mechanical" else "daily_qa"
-        parts = ["section=" + section]
-        if request.query_params.get("linac_id"):
-            parts.append("linac_id=" + request.query_params.get("linac_id"))
-        if request.query_params.get("msg"):
-            parts.append("msg=" + request.query_params.get("msg"))
-        return RedirectResponse("/history?" + "&".join(parts), status_code=303)
+        return RedirectResponse("/history?section=" + section, status_code=303)
 
     @app.get("/reports", response_class=HTMLResponse)
     async def reports_hub(request: Request):
@@ -233,34 +187,35 @@ def register_unified_hubs(app, templates):
             linacs = _linac_objects(brachy_only=(section == "brachy"))
             if not linacs:
                 linacs = _linac_objects(brachy_only=None)
+            if section == "brachy":
+                qa_rows = _qa_rows("brachy_source")[:80]
         elif section == "daily_qa":
             qa_rows = _qa_rows("daily")[:80]
-            machines = _machines_list()
+            machines = _linac_objects(brachy_only=False) or _linac_objects(None)
             try:
                 from app.qa_results_store import week_bounds
-                week_start, _ = week_bounds(week_start)
+                week_start = week_bounds(week_start)[0]
             except Exception:
                 pass
         else:
             qa_rows = _qa_rows("mechanical")[:80]
-            machines = _machines_list()
+            machines = _linac_objects(brachy_only=False) or _linac_objects(None)
 
         msg = (request.query_params.get("msg") or "").replace("+", " ")
         return _tpl(
             request, "reports_hub.html",
-            current_user=user,
             section=section,
             reports=reports,
             linacs=linacs,
-            qa_rows=qa_rows,
             machines=machines,
+            qa_rows=qa_rows,
             week_start=week_start,
             message=msg,
         )
 
-    @app.get("/qa-reports", response_class=HTMLResponse)
-    async def qa_reports_redir(request: Request):
+    @app.get("/qa-reports")
+    async def qa_rep_redir():
         return RedirectResponse("/reports?section=daily_qa", status_code=303)
 
-    print("unified_hub_routes: /history + /reports (4 sections) registered")
+    print("unified_hub_routes: /history + /reports (brachy source QA included)")
     return True
