@@ -1,14 +1,14 @@
 """Linac + beam CRUD — Supabase only."""
 
 from fastapi import Request, Form
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from app.models import Linac, Beam, get_linac, get_beam, _new_id, update_beam
 from app.auth import get_user_by_token, PERM_LIBRARY_EDIT
 from app.machine_category import normalize_category
 from app.machine_store import (
     save_machine_db, delete_machine_db, save_beam_db, delete_beam_db,
     hydrate_machines, supabase_configured,
-    list_machines_supabase_only, list_beams_supabase_only,
+    list_machines_supabase_only, list_beams_supabase_only, last_error, status_dict,
 )
 
 COOKIE = "dosepro_session"
@@ -28,10 +28,16 @@ def _user(request: Request):
         return None
 
 
+def _fail_msg(prefix: str) -> str:
+    err = (last_error() or "unknown").replace(" ", "+")[:140]
+    return prefix + "+" + err
+
+
 def register_linac_category_routes(app, templates):
     kill = {
         "/linacs", "/linacs/add", "/linacs/{linac_id}/edit", "/linacs/{linac_id}/delete",
         "/beams/add", "/beams/{beam_id}/edit", "/beams/{beam_id}/delete",
+        "/machines-db-status",
     }
     to_remove = []
     for r in list(app.router.routes):
@@ -49,6 +55,10 @@ def register_linac_category_routes(app, templates):
     except Exception as e:
         print("hydrate_machines on register:", e)
 
+    @app.get("/machines-db-status")
+    async def machines_db_status():
+        return JSONResponse(status_dict())
+
     @app.get("/linacs", response_class=HTMLResponse)
     async def linacs_page(request: Request):
         user = _user(request)
@@ -56,24 +66,19 @@ def register_linac_category_routes(app, templates):
             return RedirectResponse("/login", 303)
         msg = (request.query_params.get("msg") or "").replace("+", " ")
         db_ok = supabase_configured()
-        linacs = []
-        beams = []
+        linacs, beams = [], []
         try:
             linacs = list_machines_supabase_only()
             beams = list_beams_supabase_only()
         except Exception as e:
-            print("linacs page load:", e)
             msg = (msg + " Load error: " + str(e)).strip()
         if not db_ok:
-            msg = (msg + " Supabase not configured — machines will not persist.").strip()
+            msg = (msg + " Supabase not configured.").strip()
         else:
             msg = (msg + (" Loaded %d machine(s) from Supabase." % len(linacs))).strip()
-        ctx = {
-            "current_user": user,
-            "linacs": linacs,
-            "beams": beams,
-            "message": msg,
-        }
+            if last_error():
+                msg = (msg + " DB note: " + last_error()).strip()
+        ctx = {"current_user": user, "linacs": linacs, "beams": beams, "message": msg}
         try:
             return templates.TemplateResponse(request=request, name="linacs.html", context=ctx)
         except TypeError:
@@ -108,7 +113,7 @@ def register_linac_category_routes(app, templates):
             if hasattr(linac, "category"):
                 linac.category = cat
         ok = save_machine_db(linac)
-        msg = "Machine+saved+to+Supabase" if ok else "FAILED+to+save+machine+to+Supabase"
+        msg = "Machine+saved+to+Supabase" if ok else _fail_msg("FAILED+save")
         return RedirectResponse("/linacs?msg=" + msg, 303)
 
     @app.post("/linacs/{linac_id}/edit")
@@ -140,7 +145,7 @@ def register_linac_category_routes(app, templates):
             if hasattr(linac, "category"):
                 linac.category = cat
         ok = save_machine_db(linac)
-        msg = "Machine+updated+in+Supabase" if ok else "FAILED+to+update+machine+in+Supabase"
+        msg = "Machine+updated+in+Supabase" if ok else _fail_msg("FAILED+update")
         return RedirectResponse("/linacs?msg=" + msg, 303)
 
     @app.post("/linacs/{linac_id}/delete")
@@ -148,7 +153,7 @@ def register_linac_category_routes(app, templates):
         if not _user_can_edit(request):
             return RedirectResponse("/login", 303)
         ok = delete_machine_db(linac_id)
-        msg = "Machine+deleted+from+Supabase" if ok else "FAILED+to+delete+machine"
+        msg = "Machine+deleted+from+Supabase" if ok else _fail_msg("FAILED+delete")
         return RedirectResponse("/linacs?msg=" + msg, 303)
 
     @app.post("/beams/add")
@@ -178,27 +183,21 @@ def register_linac_category_routes(app, templates):
             except Exception:
                 qi = None
         mod = (modality or "photon").lower()
-        # reload first so get_linac works after hydrate
         hydrate_machines()
         linac = get_linac(linac_id)
         if linac and getattr(linac, "category", "") == "mr_linac" and mod == "electron":
             return RedirectResponse("/linacs?msg=MR+Linac+has+no+electrons", 303)
         beam = Beam(
-            id=_new_id(),
-            linac_id=linac_id,
-            modality=mod,
+            id=_new_id(), linac_id=linac_id, modality=mod,
             nominal_energy=str(nominal_energy).strip(),
             measurement_depth_cm=float(measurement_depth_cm),
-            pdd=float(pdd),
-            k_Q=float(k_Q),
+            pdd=float(pdd), k_Q=float(k_Q),
             nominal_output_cGy_MU=float(nominal_output_cGy_MU),
-            ssd_cm=float(ssd_cm),
-            field_size=str(field_size).strip() or "10x10",
-            quality_index=qi,
-            notes=str(notes).strip(),
+            ssd_cm=float(ssd_cm), field_size=str(field_size).strip() or "10x10",
+            quality_index=qi, notes=str(notes).strip(),
         )
         ok = save_beam_db(beam)
-        msg = "Beam+saved+to+Supabase" if ok else "FAILED+to+save+beam+to+Supabase"
+        msg = "Beam+saved+to+Supabase" if ok else _fail_msg("FAILED+beam")
         return RedirectResponse("/linacs?msg=" + msg, 303)
 
     @app.post("/beams/{beam_id}/edit")
@@ -233,35 +232,21 @@ def register_linac_category_routes(app, templates):
                 qi = None
         mod = (modality or "photon").lower()
         updated = update_beam(
-            beam_id,
-            modality=mod,
-            nominal_energy=str(nominal_energy).strip(),
-            measurement_depth_cm=float(measurement_depth_cm),
-            pdd=float(pdd),
-            k_Q=float(k_Q),
-            nominal_output_cGy_MU=float(nominal_output_cGy_MU),
-            ssd_cm=float(ssd_cm),
-            field_size=str(field_size).strip() or "10x10",
-            quality_index=qi,
-            notes=str(notes).strip(),
+            beam_id, modality=mod, nominal_energy=str(nominal_energy).strip(),
+            measurement_depth_cm=float(measurement_depth_cm), pdd=float(pdd), k_Q=float(k_Q),
+            nominal_output_cGy_MU=float(nominal_output_cGy_MU), ssd_cm=float(ssd_cm),
+            field_size=str(field_size).strip() or "10x10", quality_index=qi, notes=str(notes).strip(),
         )
         if updated is None:
             updated = Beam(
-                id=beam_id,
-                linac_id=getattr(existing, "linac_id", ""),
-                modality=mod,
+                id=beam_id, linac_id=getattr(existing, "linac_id", ""), modality=mod,
                 nominal_energy=str(nominal_energy).strip(),
-                measurement_depth_cm=float(measurement_depth_cm),
-                pdd=float(pdd),
-                k_Q=float(k_Q),
-                nominal_output_cGy_MU=float(nominal_output_cGy_MU),
-                ssd_cm=float(ssd_cm),
-                field_size=str(field_size).strip() or "10x10",
-                quality_index=qi,
-                notes=str(notes).strip(),
+                measurement_depth_cm=float(measurement_depth_cm), pdd=float(pdd), k_Q=float(k_Q),
+                nominal_output_cGy_MU=float(nominal_output_cGy_MU), ssd_cm=float(ssd_cm),
+                field_size=str(field_size).strip() or "10x10", quality_index=qi, notes=str(notes).strip(),
             )
         ok = save_beam_db(updated)
-        msg = "Beam+updated+in+Supabase" if ok else "FAILED+to+update+beam+in+Supabase"
+        msg = "Beam+updated+in+Supabase" if ok else _fail_msg("FAILED+beam+update")
         return RedirectResponse("/linacs?msg=" + msg, 303)
 
     @app.post("/beams/{beam_id}/delete")
@@ -269,7 +254,7 @@ def register_linac_category_routes(app, templates):
         if not _user_can_edit(request):
             return RedirectResponse("/login", 303)
         ok = delete_beam_db(beam_id)
-        msg = "Beam+deleted+from+Supabase" if ok else "FAILED+to+delete+beam"
+        msg = "Beam+deleted+from+Supabase" if ok else _fail_msg("FAILED+beam+delete")
         return RedirectResponse("/linacs?msg=" + msg, 303)
 
     print("linac_add_patch: Supabase-only machines library")
