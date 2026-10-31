@@ -6,6 +6,7 @@ import os
 from typing import List, Optional, Tuple
 
 _LAST_ERROR = ""
+_LAST_FETCH_OK = False
 
 
 def last_error() -> str:
@@ -15,7 +16,8 @@ def last_error() -> str:
 def _set_err(msg: str) -> None:
     global _LAST_ERROR
     _LAST_ERROR = str(msg or "")
-    print("machine_store:", _LAST_ERROR)
+    if _LAST_ERROR:
+        print("machine_store:", _LAST_ERROR)
 
 
 def _creds() -> Tuple[str, str]:
@@ -44,6 +46,7 @@ def _headers(key: str, prefer: str = "") -> dict:
         "apikey": key,
         "Authorization": "Bearer " + key,
         "Content-Type": "application/json",
+        "Accept": "application/json",
     }
     if prefer:
         h["Prefer"] = prefer
@@ -52,6 +55,8 @@ def _headers(key: str, prefer: str = "") -> dict:
 
 def _http_json(method: str, endpoint: str, key: str, body=None, prefer: str = ""):
     import urllib.request
+    import urllib.error
+
     data = None if body is None else json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
         endpoint,
@@ -63,49 +68,55 @@ def _http_json(method: str, endpoint: str, key: str, body=None, prefer: str = ""
         with urllib.request.urlopen(req, timeout=30) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
             return resp.status, raw
-    except Exception as e:
-        # HTTPError has code + body
-        code = getattr(e, "code", None)
+    except urllib.error.HTTPError as e:
         body_txt = ""
         try:
-            body_txt = e.read().decode("utf-8", errors="replace")  # type: ignore
+            body_txt = e.read().decode("utf-8", errors="replace")
         except Exception:
             body_txt = str(e)
-        return code or 0, body_txt
+        return int(e.code or 0), body_txt
+    except Exception as e:
+        return 0, str(e)
 
 
-def _rest_get(path: str) -> List[dict]:
+def _rest_get(path: str) -> Tuple[bool, List[dict]]:
+    """Return (ok, rows). ok=False means request failed — do not treat as empty table."""
+    global _LAST_FETCH_OK
     url, key = _creds()
     if not url or not key:
         _set_err("missing SUPABASE_URL or SUPABASE_KEY")
-        return []
+        _LAST_FETCH_OK = False
+        return False, []
     status, raw = _http_json("GET", url + "/rest/v1/" + path, key)
     if status == 200:
         try:
             data = json.loads(raw or "[]")
-            return data if isinstance(data, list) else []
+            rows = data if isinstance(data, list) else []
+            _set_err("")
+            _LAST_FETCH_OK = True
+            return True, rows
         except Exception as e:
             _set_err("GET parse: " + str(e))
-            return []
+            _LAST_FETCH_OK = False
+            return False, []
     _set_err("GET %s → %s %s" % (path, status, (raw or "")[:300]))
-    return []
+    _LAST_FETCH_OK = False
+    return False, []
 
 
 def _rest_upsert(table: str, row: dict) -> bool:
-    """Upsert by id. Retries without category if column missing."""
     url, key = _creds()
     if not url or not key:
         _set_err("missing SUPABASE_URL or SUPABASE_KEY")
         return False
 
-    attempts = [row]
+    attempts = [dict(row)]
     if "category" in row:
         slim = dict(row)
         slim.pop("category", None)
         attempts.append(slim)
 
     for attempt in attempts:
-        # 1) POST with on_conflict=id
         status, raw = _http_json(
             "POST",
             url + "/rest/v1/" + table + "?on_conflict=id",
@@ -113,15 +124,11 @@ def _rest_upsert(table: str, row: dict) -> bool:
             body=attempt,
             prefer="resolution=merge-duplicates,return=representation",
         )
-        if status in (200, 201):
+        if status in (200, 201, 204):
             _set_err("")
             print("machine_store upsert OK", table, attempt.get("id"), status)
             return True
-        if status == 204:
-            _set_err("")
-            return True
 
-        # 2) PATCH by id
         rid = attempt.get("id")
         if rid:
             status2, raw2 = _http_json(
@@ -132,7 +139,6 @@ def _rest_upsert(table: str, row: dict) -> bool:
                 prefer="return=representation",
             )
             if status2 in (200, 204):
-                # 0 rows updated is still 200 with [] — treat as need insert
                 if status2 == 200 and (raw2 or "").strip() in ("", "[]"):
                     status3, raw3 = _http_json(
                         "POST",
@@ -141,25 +147,27 @@ def _rest_upsert(table: str, row: dict) -> bool:
                         body=attempt,
                         prefer="return=representation",
                     )
-                    if status3 in (200, 201):
+                    if status3 in (200, 201, 204):
                         _set_err("")
                         return True
+                    # column error → try next attempt
+                    blob = (raw3 or "") + (raw2 or "") + (raw or "")
+                    if "category" in blob.lower() and "category" in attempt:
+                        continue
                     _set_err("POST insert %s → %s %s" % (table, status3, (raw3 or "")[:250]))
                     continue
                 _set_err("")
                 return True
+            blob = (raw or "") + (raw2 or "")
+            if "category" in blob.lower() and "category" in attempt:
+                continue
             _set_err(
                 "upsert %s failed POST %s %s | PATCH %s %s"
-                % (table, status, (raw or "")[:150], status2, (raw2 or "")[:150])
+                % (table, status, (raw or "")[:120], status2, (raw2 or "")[:120])
             )
         else:
             _set_err("upsert %s failed %s %s" % (table, status, (raw or "")[:250]))
 
-        # If error is unknown column category, next attempt drops it
-        if "category" in (raw or "").lower() or "category" in (raw2 if rid else "" or "").lower():
-            continue
-
-    # last resort supabase-py
     try:
         from app.db import use_db, sb_upsert
         if use_db():
@@ -256,24 +264,39 @@ def _row_to_beam(r: dict):
 
 
 def fetch_machines_from_supabase() -> List[dict]:
-    return _rest_get("machines?select=*&order=name")
+    ok, rows = _rest_get("machines?select=*&order=name")
+    return rows if ok else []
 
 
 def fetch_beams_from_supabase() -> List[dict]:
-    return _rest_get("beams?select=*&order=nominal_energy")
+    ok, rows = _rest_get("beams?select=*&order=nominal_energy")
+    return rows if ok else []
 
 
 def hydrate_machines() -> int:
+    """Replace memory from Supabase only when fetch succeeds."""
     from app.models import add_linac, add_beam, _LINACS, _BEAMS
 
     if not supabase_configured():
         _set_err("Supabase not configured")
-        return 0
+        return len(_LINACS)
 
-    mrows = fetch_machines_from_supabase()
-    brows = fetch_beams_from_supabase()
+    ok_m, mrows = _rest_get("machines?select=*&order=name")
+    ok_b, brows = _rest_get("beams?select=*&order=nominal_energy")
+
+    if not ok_m:
+        # Do NOT clear memory on failed read — prevents wiping good data
+        print("hydrate_machines: fetch failed, keeping memory:", last_error())
+        return len(_LINACS)
+
     _LINACS.clear()
-    _BEAMS.clear()
+    # Only clear beams if beam fetch ok; otherwise clear beams for machines we reload
+    if ok_b:
+        _BEAMS.clear()
+    else:
+        # remove beams whose machines no longer exist after machine reload
+        pass
+
     n = 0
     for r in mrows:
         try:
@@ -281,12 +304,21 @@ def hydrate_machines() -> int:
             n += 1
         except Exception as e:
             print("hydrate machine skip:", e)
-    for r in brows:
-        try:
-            add_beam(_row_to_beam(r))
-        except Exception as e:
-            print("hydrate beam skip:", e)
-    print("hydrate_machines: %d machines, %d beams" % (n, len(brows)))
+
+    if ok_b:
+        for r in brows:
+            try:
+                add_beam(_row_to_beam(r))
+            except Exception as e:
+                print("hydrate beam skip:", e)
+    else:
+        # drop orphan beams for machines not in DB
+        keep = set(_LINACS.keys())
+        for bid, b in list(_BEAMS.items()):
+            if getattr(b, "linac_id", "") not in keep:
+                _BEAMS.pop(bid, None)
+
+    print("hydrate_machines: %d machines, %d beams" % (n, len(_BEAMS)))
     return n
 
 
@@ -301,6 +333,7 @@ def save_machine_db(m) -> bool:
             add_linac(m)
         except Exception:
             pass
+        # Reload only if fetch works; otherwise keep the just-saved memory object
         try:
             hydrate_machines()
         except Exception:
@@ -312,9 +345,11 @@ def delete_machine_db(mid: str) -> bool:
     if not supabase_configured():
         return False
     try:
-        for r in fetch_beams_from_supabase():
-            if str(r.get("machine_id")) == str(mid):
-                _rest_delete("beams", str(r["id"]))
+        ok_b, brows = _rest_get("beams?select=id,machine_id")
+        if ok_b:
+            for r in brows:
+                if str(r.get("machine_id")) == str(mid):
+                    _rest_delete("beams", str(r["id"]))
     except Exception as e:
         print("delete beams:", e)
     ok = _rest_delete("machines", str(mid))
@@ -368,15 +403,14 @@ def list_beams_supabase_only(linac_id: Optional[str] = None):
 
 def status_dict() -> dict:
     url, key = _creds()
-    rows = []
-    err = ""
+    ok, rows = (False, [])
     if url and key:
-        rows = fetch_machines_from_supabase()
-        err = last_error()
+        ok, rows = _rest_get("machines?select=*&order=name")
     return {
         "supabase_url_set": bool(url),
         "supabase_key_set": bool(key),
+        "fetch_ok": ok,
         "machines_count": len(rows or []),
         "machine_names": [r.get("name") for r in (rows or [])][:30],
-        "last_error": err,
+        "last_error": last_error(),
     }

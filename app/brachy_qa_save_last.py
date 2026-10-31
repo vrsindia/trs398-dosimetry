@@ -1,6 +1,6 @@
 """Register POST /brachy-source-qa/save-last using cached calculation."""
 from fastapi import Request
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse
 
 from app.auth import get_user_by_token
 from app import brachy_qa_cache as cache
@@ -20,12 +20,12 @@ def register_brachy_save_last(app, templates):
         payload = cache.get(uname, section)
         if not payload:
             return RedirectResponse(
-                "/brachy-source-qa?section=%s&msg=Nothing+to+save+—+Calculate+first" % section,
+                "/brachy-source-qa?section=%s&msg=Nothing+to+save+-+Calculate+first" % section,
                 303,
             )
         if not payload.get("pass"):
             return RedirectResponse(
-                "/brachy-source-qa?section=%s&msg=Cannot+save+—+not+satisfactory" % section,
+                "/brachy-source-qa?section=%s&msg=Cannot+save+-+outside+tolerance" % section,
                 303,
             )
         try:
@@ -35,6 +35,8 @@ def register_brachy_save_last(app, templates):
             for item in rows:
                 if isinstance(item, (list, tuple)) and len(item) >= 2:
                     results.append({"parameter": str(item[0]), "value": str(item[1])})
+                elif isinstance(item, dict):
+                    results.append(item)
             row = save_qa_result(
                 kind="brachy_source",
                 linac_id="brachy",
@@ -54,6 +56,7 @@ def register_brachy_save_last(app, templates):
                 303,
             )
         except Exception as e:
+            print("save_last:", e)
             return RedirectResponse(
                 "/brachy-source-qa?section=%s&msg=Save+error" % section,
                 303,

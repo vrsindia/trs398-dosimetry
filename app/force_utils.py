@@ -41,6 +41,11 @@ def _load():
 
 def _install_extras(app, templates=None):
     try:
+        from app.boot_static import install as install_static
+        install_static(app)
+    except Exception as e:
+        print("force_utils: boot_static:", e)
+    try:
         from app.user_sync_routes import register_user_sync_routes
         register_user_sync_routes(app)
         print("force_utils: user_sync_routes OK")
@@ -67,7 +72,6 @@ def _install_extras(app, templates=None):
         print("force_utils: tolerances_routes OK")
     except Exception as e:
         print("force_utils: tolerances_routes:", e)
-    # Machines last so they override core main memory-only routes
     try:
         from app.boot_machines import install as install_machines
         install_machines(app, templates)
