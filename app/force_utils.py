@@ -46,6 +46,11 @@ def _install_extras(app, templates=None):
     except Exception as e:
         print("force_utils: boot_static:", e)
     try:
+        from app.repo_machine_patch import install as install_repo_m
+        install_repo_m()
+    except Exception as e:
+        print("force_utils: repo_machine_patch:", e)
+    try:
         from app.user_sync_routes import register_user_sync_routes
         register_user_sync_routes(app)
         print("force_utils: user_sync_routes OK")
